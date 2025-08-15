@@ -9,7 +9,7 @@ else
   RUN =
 endif
 
-.PHONY: install-dev lint format test ci clean
+.PHONY: lint test dev
 
 # Szybka instalacja narzędzi developerskich do bieżącego env (ruff, pytest)
 install-dev:
@@ -17,7 +17,7 @@ install-dev:
 
 # Lint (Ruff)
 lint:
-	$(RUN) ruff check .
+	python -m ruff check .
 
 # Autoformat (Ruff formatter)
 format:
@@ -25,7 +25,7 @@ format:
 
 # Testy (pytest)
 test:
-	$(RUN) pytest -q
+	python -m pytest -q
 
 # „CI” lokalnie (lint + test)
 ci: lint test
@@ -35,3 +35,5 @@ clean:
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +; \
 	rm -rf .pytest_cache .ruff_cache .mypy_cache dist build
 
+dev:
+	python -m pip install -e . && python -m pip install -U ruff pytest

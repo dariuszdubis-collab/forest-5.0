@@ -3,16 +3,16 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - numpy=1.26
-  - pandas=2.2
-  - pydantic=2.7
-  - structlog
-  - joblib
-  - pyyaml
   - pip
+  - pandas
+  - numpy
+  - scipy
+  - plotly
+  - joblib
+  - tzdata
   - pip:
-      # Opcjonalne – użyj jeśli chcesz mieć UI i/lub AI:
-      - streamlit
-      - plotly
-      - openai
+      - openai>=1
+      - python-dotenv
+      # - ruff
+      # - pytest
 
