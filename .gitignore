@@ -1,0 +1,22 @@
+
+# Python / build
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test / narzędzia
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+
+# Edytory / system
+.DS_Store
+.idea/
+.vscode/
+
+# Conda / środowiska lokalne
+.env
+.venv/

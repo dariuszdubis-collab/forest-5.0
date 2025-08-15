@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "forest5"
+version = "5.0.0"
+description = "Forest 5.0 – modularny framework tradingowy (AT + AI + MT5)"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "forest5", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.26"
+pandas = "^2.2"
+pydantic = "^2.7"
+structlog = "^24.1"
+joblib = "^1.4"
+pyyaml = "^6.0"
+typing-extensions = "^4.12"
+# opcjonalne:
+plotly = { version = "^5.22", optional = true }
+streamlit = { version = "^1.36", optional = true }
+openai = { version = "^1.35", optional = true }
+
+[tool.poetry.extras]
+ui = ["plotly", "streamlit"]
+ai = ["openai"]
+
+[tool.poetry.scripts]
+forest5 = "forest5.cli:main"
+forest5-demo = "forest5.examples.synthetic:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.black]
+line-length = 100
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
