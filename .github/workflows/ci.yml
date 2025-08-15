@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
+    branches: [ "main", "feat/**", "fix/**", "ci/**" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -17,7 +19,6 @@ jobs:
         with:
           environment-file: environment.yml
           environment-name: forest5
-          init-shell: bash
           cache-environment: true
           cache-downloads: true
 
@@ -25,18 +26,22 @@ jobs:
         shell: bash -l {0}
         run: |
           micromamba run -n forest5 python -V
-          micromamba run -n forest5 pip -V
+          micromamba run -n forest5 python -m pip --version
 
-      # >>> KLUCZOWY KROK <<<
       - name: Install forest5 (editable)
         shell: bash -l {0}
         run: micromamba run -n forest5 python -m pip install -e .
 
+      # <<< KLUCZOWY KROK >>> instalujemy dev-narzędzia jawnie
+      - name: Install dev tools (ruff, pytest)
+        shell: bash -l {0}
+        run: micromamba run -n forest5 python -m pip install -U ruff pytest
+
       - name: Lint
         shell: bash -l {0}
-        run: micromamba run -n forest5 ruff check .
+        run: micromamba run -n forest5 python -m ruff check .
 
       - name: Test
         shell: bash -l {0}
-        run: micromamba run -n forest5 pytest -q
+        run: micromamba run -n forest5 python -m pytest -q
 
