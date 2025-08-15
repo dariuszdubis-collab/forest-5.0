@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+          create-args: >-
+            python=3.11
+
+      - name: Show versions
+        shell: bash -l {0}
+        run: |
+          python -V
+          pip -V
+          ruff --version
+          pytest --version
+
+      - name: Lint
+        shell: bash -l {0}
+        run: |
+          make lint
+
+      - name: Test
+        shell: bash -l {0}
+        run: |
+          make test
+
