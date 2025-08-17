@@ -22,3 +22,8 @@ poetry run forest5 backtest --data demo.csv --fast 12 --slow 26
 
 # 5) Grid-search
 poetry run forest5 grid --data demo.csv --fast 6 12 6 --slow 20 40 10
+```
+
+CLI automatycznie wykrywa separator CSV przy użyciu `csv.Sniffer` i szybkiego
+parsera C. W razie potrzeby separator można podać ręcznie opcją `--sep`,
+np. `--sep ';'`.
