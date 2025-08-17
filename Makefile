@@ -41,7 +41,7 @@ GRID_OUT ?= $(OUTDIR)/grid_ema_rsi.csv
 SMALL_OUT?= $(OUTDIR)/grid_small.csv
 WF_OUT   ?= $(OUTDIR)/walkforward.csv
 
-.PHONY: all lint test grid grid-small walkforward diag clean
+.PHONY: all lint test audit grid grid-small walkforward diag clean
 
 all: lint test
 
@@ -50,6 +50,11 @@ lint:
 
 test:
 	$(PY) -m pytest -q
+
+audit:
+	$(PY) -m flake8 --max-line-length=100 --extend-ignore=E203,E501
+	$(PY) -m bandit -r src
+	$(PY) -m pip_audit --progress-spinner=off
 
 # Mały grid – szybka walidacja
 grid-small:
