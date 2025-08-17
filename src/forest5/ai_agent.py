@@ -3,11 +3,18 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from pydantic import BaseModel, ValidationError
+
 
 @dataclass
 class Sentiment:
     score: int  # -1 / 0 / +1
     reason: str
+
+
+class SentimentResponse(BaseModel):
+    score: int = 0
+    reason: str = ""
 
 
 class SentimentAgent:
@@ -85,9 +92,12 @@ class SentimentAgent:
             import json
 
             data = json.loads(txt)
-            score = int(data.get("score", 0))
-            reason = str(data.get("reason", ""))
-            score = -1 if score < 0 else (1 if score > 0 else 0)
-            return Sentiment(score, reason[:200])
+            try:
+                parsed = SentimentResponse.model_validate(data)
+            except ValidationError:
+                parsed = SentimentResponse()
+
+            score = -1 if parsed.score < 0 else (1 if parsed.score > 0 else 0)
+            return Sentiment(score, parsed.reason[:200])
         except Exception as e:
             return Sentiment(0, f"AI error -> neutral: {e}")

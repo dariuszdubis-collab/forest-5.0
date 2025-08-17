@@ -46,3 +46,45 @@ def test_decision_agent_passes_symbol(monkeypatch) -> None:
 
     agent.decide(0, 1, symbol="EURUSD", context_text="ctx")
     assert dummy.args == ("ctx", "EURUSD")
+
+
+class DummyBadDataClient:
+    def __init__(self) -> None:
+        self.ChatCompletion = self
+
+    def create(self, model: str, messages: list[dict], max_tokens: int):
+        return {"choices": [{"message": {"content": '{"score": "bad", "reason": 123}'}}]}
+
+
+def test_analyse_handles_invalid_payload() -> None:
+    client = DummyBadDataClient()
+    agent = SentimentAgent()
+    agent.enabled = True
+    agent._client = client
+    agent._mode = "legacy"
+
+    result = agent.analyse("ctx", "EURUSD")
+
+    assert result.score == 0
+    assert result.reason == ""
+
+
+class DummyBadJSONClient:
+    def __init__(self) -> None:
+        self.ChatCompletion = self
+
+    def create(self, model: str, messages: list[dict], max_tokens: int):
+        return {"choices": [{"message": {"content": "not json"}}]}
+
+
+def test_analyse_handles_malformed_json() -> None:
+    client = DummyBadJSONClient()
+    agent = SentimentAgent()
+    agent.enabled = True
+    agent._client = client
+    agent._mode = "legacy"
+
+    result = agent.analyse("ctx", "EURUSD")
+
+    assert result.score == 0
+    assert "AI error" in result.reason
