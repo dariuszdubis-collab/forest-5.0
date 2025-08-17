@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 
 from ..config import BacktestSettings
-from ..core.indicators import ema, atr, rsi
+from ..core.indicators import atr, ema, rsi
+from ..utils.log import log
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
-from ..utils.log import log
 from .risk import RiskManager
 from .tradebook import TradeBook
 
@@ -22,6 +22,91 @@ class BacktestResult:
     trades: TradeBook
 
 
+def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
+    """Zapewnia poprawność danych wejściowych do backtestu."""
+    return ensure_backtest_ready(df, price_col=price_col).copy()
+
+
+def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: str) -> pd.Series:
+    """Generuje serię sygnałów tradingowych."""
+    sig = compute_signal(df, settings, price_col=price_col).astype(int)
+    if settings.strategy.use_rsi:
+        rr = rsi(df[price_col], settings.strategy.rsi_period)
+        sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
+        sig = sig.where(~rr.le(settings.strategy.rsi_oversold), other=1)
+    return sig
+
+
+def bootstrap_position(
+    df: pd.DataFrame,
+    sig: pd.Series,
+    rm: RiskManager,
+    tb: TradeBook,
+    settings: BacktestSettings,
+    price_col: str,
+    atr_multiple: float,
+) -> float:
+    """Próba otwarcia pozycji na pierwszym barze dla skrajnych parametrów EMA."""
+    position = 0.0
+    if len(df) > 0 and settings.strategy.fast <= 2 and settings.strategy.slow >= 50:
+        f0 = ema(df[price_col], settings.strategy.fast)
+        s0 = ema(df[price_col], settings.strategy.slow)
+        first_sig = int(sig.iloc[0]) if len(sig) else 0
+        if first_sig == 0 and float(f0.iloc[0]) >= float(s0.iloc[0]):
+            p0 = float(df[price_col].iloc[0])
+            a0 = float(df["atr"].iloc[0]) if pd.notna(df["atr"].iloc[0]) else 0.0
+            qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=atr_multiple)
+            if qty0 > 0.0:
+                rm.buy(p0, qty0)
+                tb.add(df.index[0], p0, qty0, "BUY")
+                position += qty0
+    return position
+
+
+def _trading_loop(
+    df: pd.DataFrame,
+    sig: pd.Series,
+    rm: RiskManager,
+    tb: TradeBook,
+    position: float,
+    price_col: str,
+    atr_multiple: float,
+) -> float:
+    """Główna pętla tradingowa z mark-to-market."""
+    for t, row in df.iterrows():
+        price = float(row[price_col])
+        this_sig = int(sig.loc[t]) if t in sig.index else 0
+
+        if this_sig < 0 and position > 0.0:
+            rm.sell(price, position)
+            tb.add(t, price, position, "SELL")
+            position = 0.0
+
+        if this_sig > 0 and position <= 0.0:
+            qty = rm.position_size(price=price, atr=float(row["atr"]), atr_multiple=atr_multiple)
+            if qty > 0.0:
+                rm.buy(price, qty)
+                tb.add(t, price, qty, "BUY")
+                position = qty
+
+        equity_mtm = rm.equity + position * price
+        rm.record_mark_to_market(equity_mtm)
+
+        if rm.exceeded_max_dd():
+            log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
+            break
+    return position
+
+
+def _compute_metrics(equity_curve: list[float]) -> tuple[pd.Series, float]:
+    """Wylicza końcową krzywą equity i maksymalny drawdown."""
+    eq = pd.Series(equity_curve, dtype=float)
+    peak = eq.cummax()
+    dd = (peak - eq) / peak.replace(0, np.nan)
+    max_dd = float(dd.max(skipna=True)) if len(dd) else 0.0
+    return eq, max_dd
+
+
 def run_backtest(
     df: pd.DataFrame,
     settings: BacktestSettings,
@@ -31,74 +116,27 @@ def run_backtest(
     atr_period: int | None = None,
     atr_multiple: float | None = None,
 ) -> BacktestResult:
-    # 1) sanity danych, indeks czasu, kolumny OHLC
-    df = ensure_backtest_ready(df, price_col=price_col).copy()
+    # 1) walidacja danych
+    df = _validate_data(df, price_col=price_col)
 
-    # 2) sygnał z fabryki (impulsowy: +/-1 tylko przy crossie)
-    sig = compute_signal(df, settings, price_col=price_col).astype(int)
-    if settings.strategy.use_rsi:
-        rr = rsi(df[price_col], settings.strategy.rsi_period)
-        sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
-        sig = sig.where(~rr.le(settings.strategy.rsi_oversold), other=1)
+    # 2) generowanie sygnału
+    sig = _generate_signal(df, settings, price_col=price_col)
 
-    # 3) ATR do sizingu (okno z ustawień lub override)
+    # 3) przygotowanie ATR do sizingu
     ap = int(atr_period or settings.atr_period)
     am = float(atr_multiple or settings.atr_multiple)
     df["atr"] = atr(df["high"], df["low"], df["close"], ap)
 
-    # 4) stan: księga, ryzyko, pozycja (lokalnie trzymamy ilość do M2M)
+    # 4) stan początkowy
     tb = TradeBook()
     rm = risk or RiskManager(**settings.risk.model_dump())
-    position: float = 0.0
 
-    # --- BOOTSTRAP (dla testu downtrend) ----------------------------------
-    # Jeżeli brak impulsu na barze 0, a mamy skrajne fast/slow (np. 1/100),
-    # to pozwalamy na wejście LONG na starcie bez generowania dodatkowych marków.
-    if len(df) > 0 and settings.strategy.fast <= 2 and settings.strategy.slow >= 50:
-        f0 = ema(df[price_col], settings.strategy.fast)
-        s0 = ema(df[price_col], settings.strategy.slow)
-        first_sig = int(sig.iloc[0]) if len(sig) else 0
-        if first_sig == 0 and float(f0.iloc[0]) >= float(s0.iloc[0]):
-            p0 = float(df[price_col].iloc[0])
-            a0 = float(df["atr"].iloc[0]) if pd.notna(df["atr"].iloc[0]) else 0.0
-            qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=am)
-            if qty0 > 0.0:
-                rm.buy(p0, qty0)
-                tb.add(df.index[0], p0, qty0, "BUY")
-                position += qty0
+    # 5) bootstrap potencjalnej pozycji
+    position = bootstrap_position(df, sig, rm, tb, settings, price_col, am)
 
-    # 5) główna pętla – **jedno** mark-to-market na bar, **po** akcji
-    for t, row in df.iterrows():
-        price = float(row[price_col])
-        this_sig = int(sig.loc[t]) if t in sig.index else 0
+    # 6) główna pętla handlowa
+    position = _trading_loop(df, sig, rm, tb, position, price_col, am)
 
-        # odwrócenie -> najpierw domknij longa
-        if this_sig < 0 and position > 0.0:
-            rm.sell(price, position)
-            tb.add(t, price, position, "SELL")
-            position = 0.0
-
-        # wejście long tylko gdy flat
-        if this_sig > 0 and position <= 0.0:
-            qty = rm.position_size(price=price, atr=float(row["atr"]), atr_multiple=am)
-            if qty > 0.0:
-                rm.buy(price, qty)
-                tb.add(t, price, qty, "BUY")
-                position = qty
-
-        # --- JEDYNE markowanie na bar -------------------------------------
-        equity_mtm = rm.equity + position * price
-        rm.record_mark_to_market(equity_mtm)
-
-        # MaxDD liczony na realnym equity (po markowaniu)
-        if rm.exceeded_max_dd():
-            log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
-            break
-
-    # 6) metryki końcowe
-    eq = pd.Series(rm.equity_curve, dtype=float)
-    peak = eq.cummax()
-    dd = (peak - eq) / peak.replace(0, np.nan)
-    max_dd = float(dd.max(skipna=True)) if len(dd) else 0.0
-
+    # 7) metryki
+    eq, max_dd = _compute_metrics(rm.equity_curve)
     return BacktestResult(equity_curve=eq, max_dd=max_dd, trades=tb)
