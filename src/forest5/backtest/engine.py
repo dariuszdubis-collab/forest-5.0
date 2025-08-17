@@ -73,9 +73,14 @@ def _trading_loop(
     atr_multiple: float,
 ) -> float:
     """Główna pętla tradingowa z mark-to-market."""
-    for t, row in df.iterrows():
-        price = float(row[price_col])
-        this_sig = int(sig.loc[t]) if t in sig.index else 0
+    prices = df[price_col].to_numpy(dtype=float)
+    atr_values = df["atr"].to_numpy(dtype=float)
+    idx = df.index
+    sig_array = sig.reindex(idx).fillna(0).to_numpy(dtype=int)
+
+    for i, t in enumerate(idx):
+        price = prices[i]
+        this_sig = sig_array[i]
 
         if this_sig < 0 and position > 0.0:
             rm.sell(price, position)
@@ -83,7 +88,7 @@ def _trading_loop(
             position = 0.0
 
         if this_sig > 0 and position <= 0.0:
-            qty = rm.position_size(price=price, atr=float(row["atr"]), atr_multiple=atr_multiple)
+            qty = rm.position_size(price=price, atr=atr_values[i], atr_multiple=atr_multiple)
             if qty > 0.0:
                 rm.buy(price, qty)
                 tb.add(t, price, qty, "BUY")
