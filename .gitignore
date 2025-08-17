@@ -20,3 +20,12 @@ dist/
 # Conda / środowiska lokalne
 .env
 .venv/
+
+# outputs
+out/
+*.csv
+
+# caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
