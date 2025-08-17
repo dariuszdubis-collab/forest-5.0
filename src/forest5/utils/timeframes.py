@@ -47,22 +47,38 @@ _TF_MINUTES = {
 }
 
 
-def normalize_timeframe(tf: str) -> str:
-    """Znormalizuj zapis TF do postaci 'Xm'/'Xh'/'Xd' (np. 'H' -> '1h', '60min' -> '1h')."""
-    raw = tf.strip()
-    if raw in _ALIASES:
-        return _ALIASES[raw]
+def _alias_to_tf(raw: str) -> str | None:
+    """Zwróć znormalizowane TF dla prostych aliasów, gdy występują."""
 
-    s = raw.lower().replace(" ", "")
-    if s in _VALID:
-        return s
+    return _ALIASES.get(raw.strip())
 
-    # "60", "240" (minuty)
+
+def _minutes_to_tf(s: str) -> str | None:
+    """Zwróć TF na podstawie liczby minut zapisanej jako string."""
+
     if s.isdigit():
         minutes = int(s)
         for k, v in _TF_MINUTES.items():
             if v == minutes:
                 return k
+    return None
+
+
+def normalize_timeframe(tf: str) -> str:
+    """Znormalizuj zapis TF do postaci 'Xm'/'Xh'/'Xd' (np. 'H' -> '1h', '60min' -> '1h')."""
+
+    raw = tf.strip()
+    alias = _alias_to_tf(raw)
+    if alias:
+        return alias
+
+    s = raw.lower().replace(" ", "")
+    if s in _VALID:
+        return s
+
+    numeric = _minutes_to_tf(s)
+    if numeric:
+        return numeric
 
     # "1H", "15M" itp.
     m = re.fullmatch(r"(\d+)([mhdwMHDW])", s)
