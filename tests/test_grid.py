@@ -1,5 +1,6 @@
 from forest5.backtest.grid import run_grid
 from forest5.examples.synthetic import generate_ohlc
+import pandas as pd
 
 
 def test_grid_small():
@@ -16,3 +17,20 @@ def test_grid_small():
     assert {"fast", "slow", "equity_end", "max_dd", "cagr", "rar"}.issubset(res.columns)
     assert len(res) == 1
     assert res["equity_end"].iloc[0] > 0
+
+
+def test_grid_parallel_same_result():
+    df = generate_ohlc(periods=40, start_price=100.0, freq="D")
+    kwargs = dict(
+        symbol="SYMB",
+        fast_values=[6, 8],
+        slow_values=[12, 20],
+        capital=10_000.0,
+        risk=0.01,
+    )
+    res1 = run_grid(df, n_jobs=1, **kwargs)
+    res2 = run_grid(df, n_jobs=2, **kwargs)
+    pd.testing.assert_frame_equal(
+        res1.sort_values(["fast", "slow"]).reset_index(drop=True),
+        res2.sort_values(["fast", "slow"]).reset_index(drop=True),
+    )
