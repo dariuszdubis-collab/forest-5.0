@@ -3,5 +3,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
+
 __all__ = ["__version__"]
-__version__ = "5.0.0a1"
+__version__ = version("forest5")
