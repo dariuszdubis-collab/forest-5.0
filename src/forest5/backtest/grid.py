@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from joblib import Memory, Parallel, delayed
 
-from ..config import BacktestSettings
+from ..config import BacktestSettings, RiskSettings, StrategySettings
 from .engine import run_backtest
 
 
@@ -68,8 +68,8 @@ def run_grid(
         settings = BacktestSettings(
             symbol=symbol,
             timeframe="1h",
-            strategy=dict(name="ema_cross", fast=fast, slow=slow),
-            risk=dict(initial_capital=capital, risk_per_trade=risk, max_drawdown=max_dd),
+            strategy=StrategySettings(name="ema_cross", fast=fast, slow=slow),
+            risk=RiskSettings(initial_capital=capital, risk_per_trade=risk, max_drawdown=max_dd),
             atr_period=atr_period,
             atr_multiple=atr_multiple,
         )

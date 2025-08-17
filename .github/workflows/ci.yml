@@ -33,13 +33,19 @@ jobs:
         run: micromamba run -n forest5 python -m pip install -e .
 
       # <<< KLUCZOWY KROK >>> instalujemy dev-narzędzia jawnie
-      - name: Install dev tools (ruff, pytest)
+      - name: Install dev tools (ruff, pytest, mypy, poetry)
         shell: bash -l {0}
-        run: micromamba run -n forest5 python -m pip install -U ruff pytest
+        run: micromamba run -n forest5 python -m pip install -U ruff pytest mypy poetry
 
       - name: Lint
         shell: bash -l {0}
         run: micromamba run -n forest5 python -m ruff check .
+
+      - name: Type check
+        shell: bash -l {0}
+        env:
+          POETRY_VIRTUALENVS_CREATE: "false"
+        run: micromamba run -n forest5 poetry run mypy src/forest5
 
       - name: Test
         shell: bash -l {0}

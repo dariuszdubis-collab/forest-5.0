@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
 @dataclass
 class NumerologyRules:
     enabled: bool = False
-    blocked_weekdays: list[int] = None  # 0..6
-    blocked_hours: list[int] = None  # 0..23
-
-    def __post_init__(self) -> None:
-        self.blocked_weekdays = self.blocked_weekdays or []
-        self.blocked_hours = self.blocked_hours or []
+    blocked_weekdays: list[int] = field(default_factory=list)  # 0..6
+    blocked_hours: list[int] = field(default_factory=list)  # 0..23
 
 
 def is_trade_allowed(ts: datetime, rules: NumerologyRules) -> bool:
