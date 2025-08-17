@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -14,12 +15,18 @@ from forest5.backtest.grid import run_grid
 # ---------------------------- CSV loading helpers ----------------------------
 
 
-def _auto_read_csv(path: str | Path) -> pd.DataFrame:
+def _auto_read_csv(path: str | Path, sep: Optional[str] = None) -> pd.DataFrame:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"CSV not found: {p}")
-    # sep=None + engine='python' -> autodetekcja separatora
-    df = pd.read_csv(p, sep=None, engine="python")
+    if sep is None:
+        try:
+            with open(p, "r", newline="") as f:
+                sample = f.read(4096)
+                sep = csv.Sniffer().sniff(sample).delimiter
+        except csv.Error:
+            sep = ","
+    df = pd.read_csv(p, sep=sep, engine=None)
     # ujednolicenie nagłówków (bez spacji, bez wielkości liter)
     df.columns = [c.strip() for c in df.columns]
     return df
@@ -110,8 +117,10 @@ def _coerce_ohlc(df: pd.DataFrame) -> pd.DataFrame:
     return out[keep]
 
 
-def load_ohlc_csv(path: str | Path, time_col: Optional[str] = None) -> pd.DataFrame:
-    df = _auto_read_csv(path)
+def load_ohlc_csv(
+    path: str | Path, time_col: Optional[str] = None, sep: Optional[str] = None
+) -> pd.DataFrame:
+    df = _auto_read_csv(path, sep=sep)
     df = _coerce_time_index(df, time_col=time_col)
     df = _coerce_ohlc(df)
     return df
@@ -138,7 +147,7 @@ def _parse_range(spec: str) -> Iterable[int]:
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
-    df = load_ohlc_csv(args.csv, time_col=args.time_col)
+    df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
     settings = BacktestSettings(
         symbol=args.symbol or "SYMBOL",
@@ -186,7 +195,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
-    df = load_ohlc_csv(args.csv, time_col=args.time_col)
+    df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
     fast_vals = list(_parse_range(args.fast_values))
     slow_vals = list(_parse_range(args.slow_values))
@@ -231,6 +240,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt = sub.add_parser("backtest", help="Uruchom pojedynczy backtest")
     p_bt.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
     p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
+    p_bt.add_argument(
+        "--sep",
+        default=None,
+        help="Separator CSV (np. ';'). Brak = autodetekcja",
+    )
     p_bt.add_argument("--symbol", default="SYMBOL", help="Symbol (np. EURUSD)")
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
     p_bt.add_argument("--slow", type=int, default=26, help="Wolna EMA")
@@ -256,6 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr = sub.add_parser("grid", help="Przeszukiwanie parametrów")
     p_gr.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
     p_gr.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
+    p_gr.add_argument(
+        "--sep",
+        default=None,
+        help="Separator CSV (np. ';'). Brak = autodetekcja",
+    )
     p_gr.add_argument("--symbol", default="SYMB", help="Symbol (np. EURUSD)")
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
