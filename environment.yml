@@ -10,6 +10,7 @@ dependencies:
   - plotly
   - joblib
   - tzdata
+  - setuptools>=78.1.1
   - pip:
       - openai>=1
       - python-dotenv
