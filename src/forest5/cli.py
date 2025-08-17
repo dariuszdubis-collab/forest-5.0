@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -10,120 +9,16 @@ import pandas as pd
 from forest5.config import BacktestSettings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
+from forest5.utils.io import read_ohlc_csv
 
 
 # ---------------------------- CSV loading helpers ----------------------------
 
 
-def _auto_read_csv(path: str | Path, sep: Optional[str] = None) -> pd.DataFrame:
-    p = Path(path)
-    if not p.exists():
-        raise FileNotFoundError(f"CSV not found: {p}")
-    if sep is None:
-        try:
-            with open(p, "r", newline="") as f:
-                sample = f.read(4096)
-                sep = csv.Sniffer().sniff(sample).delimiter
-        except csv.Error:
-            sep = ","
-    df = pd.read_csv(p, sep=sep, engine=None)
-    # ujednolicenie nagłówków (bez spacji, bez wielkości liter)
-    df.columns = [c.strip() for c in df.columns]
-    return df
-
-
-def _coerce_time_index(df: pd.DataFrame, time_col: Optional[str] = None) -> pd.DataFrame:
-    """
-    Ustaw DatetimeIndex z kolumny czasu. Wspieramy: time/timestamp/date/datetime/dt
-    + opcjonalnie explicite podaną --time-col.
-    Zdejmiemy strefę (UTC -> tz-naive), bo silnik zakłada tz-naive index.
-    """
-    # jeśli już jest DatetimeIndex, tylko porządkujemy
-    if isinstance(df.index, pd.DatetimeIndex):
-        out = df.copy()
-        out = out[~out.index.isna()]
-        out = out[~out.index.duplicated(keep="last")].sort_index()
-        out.index.name = "time"
-        return out
-
-    # mapowanie nazw kolumn bez względu na wielkość liter
-    colmap = {c.lower(): c for c in df.columns}
-    candidates = []
-    if time_col:
-        candidates.append(time_col)
-    candidates += ["time", "timestamp", "date", "datetime", "dt"]
-
-    found_col = None
-    for name in candidates:
-        if name and name.lower() in colmap:
-            found_col = colmap[name.lower()]
-            break
-
-    if not found_col:
-        raise ValueError(
-            "Nie znalazłem kolumny czasu. "
-            "Użyj --time-col lub nazwij ją: time / timestamp / date / datetime / dt. "
-            f"Dostępne kolumny: {list(df.columns)}"
-        )
-
-    ts = pd.to_datetime(df[found_col], utc=True, errors="coerce")
-    # zdejmujemy strefę (UTC->naive), żeby uniknąć porównań tz-aware vs tz-naive
-    ts = ts.dt.tz_localize(None)
-
-    out = df.drop(columns=[found_col]).copy()
-    out.index = ts
-    out = out[~out.index.isna()]
-    out = out[~out.index.duplicated(keep="last")].sort_index()
-    out.index.name = "time"
-    return out
-
-
-def _coerce_ohlc(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Znormalizuj nazwy OHLC do: open/high/low/close.
-    Obsługujemy aliasy i wielkość liter.
-    """
-    synonyms: dict[str, list[str]] = {
-        "open": ["open", "o", "op", "open_price"],
-        "high": ["high", "h", "hi"],
-        "low": ["low", "l", "lo"],
-        "close": ["close", "c", "cl", "close_price"],
-    }
-    colmap = {c.lower(): c for c in df.columns}
-
-    rename: dict[str, str] = {}
-    for target, keys in synonyms.items():
-        # 1) jeśli mamy już docelową nazwę (w innej wielkości liter)
-        if target in colmap:
-            rename[colmap[target]] = target
-            continue
-        # 2) szukaj aliasów
-        for k in keys:
-            if k in colmap:
-                rename[colmap[k]] = target
-                break
-
-    out = df.rename(columns=rename)
-
-    missing = [c for c in ["open", "high", "low", "close"] if c not in out.columns]
-    if missing:
-        raise ValueError(
-            f"Brakuje kolumn OHLC: {missing}. Znalazłem: {list(df.columns)} "
-            "(zaakceptowane aliasy: open/o/op/open_price, high/h/hi, low/l/lo, close/c/cl/close_price)"
-        )
-
-    # zachowaj ewentualny 'volume' jeśli jest
-    keep = ["open", "high", "low", "close"] + ([c for c in ("volume",) if c in out.columns])
-    return out[keep]
-
-
 def load_ohlc_csv(
     path: str | Path, time_col: Optional[str] = None, sep: Optional[str] = None
 ) -> pd.DataFrame:
-    df = _auto_read_csv(path, sep=sep)
-    df = _coerce_time_index(df, time_col=time_col)
-    df = _coerce_ohlc(df)
-    return df
+    return read_ohlc_csv(path, time_col=time_col, sep=sep)
 
 
 # ------------------------------- CLI commands --------------------------------
