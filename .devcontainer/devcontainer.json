@@ -1,0 +1,5 @@
+{
+  "name": "Forest 5.0",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "poetry install && pip install pre-commit && pre-commit install"
+}
