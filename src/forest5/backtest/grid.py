@@ -70,12 +70,13 @@ def run_grid(
         end, mdd, cagr = _compute_metrics(res.equity_curve)
         return GridResult(fast=fast, slow=slow, equity_end=end, max_dd=mdd, cagr=cagr)
 
-    results = [_single_run(f, s) for (f, s) in combos] if n_jobs == 1 else mem.cache(
-        lambda c: [_single_run(f, s) for (f, s) in c]
-    )(combos)
+    results = (
+        [_single_run(f, s) for (f, s) in combos]
+        if n_jobs == 1
+        else mem.cache(lambda c: [_single_run(f, s) for (f, s) in c])(combos)
+    )
 
     out = pd.DataFrame([r.__dict__ for r in results])
     out["rar"] = out["cagr"] / out["max_dd"].replace(0, np.nan)
     out["rar"] = out["rar"].fillna(0.0)
     return out
-

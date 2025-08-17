@@ -28,4 +28,3 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
     if name == "ema_cross":
         return _ema_cross_signal(df[price_col], settings.strategy.fast, settings.strategy.slow)
     raise ValueError(f"Unknown strategy: {name}")
-

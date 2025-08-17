@@ -16,4 +16,3 @@ def test_grid_small():
     assert {"fast", "slow", "equity_end", "max_dd", "cagr", "rar"}.issubset(res.columns)
     assert len(res) == 1
     assert res["equity_end"].iloc[0] > 0
-

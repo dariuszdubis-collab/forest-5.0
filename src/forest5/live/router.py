@@ -79,7 +79,7 @@ class PaperBroker:
 
         if side_u == "BUY":
             # kupno: zmniejsza cash o koszt i fee, zwiększa pozycję
-            self._cash -= (notional + fee)
+            self._cash -= notional + fee
             new_qty = self._pos + qty
             if new_qty > 0:
                 self._avg = (self._avg * self._pos + notional) / new_qty
@@ -91,11 +91,10 @@ class PaperBroker:
             sell_qty = min(qty, self._pos)
             if sell_qty <= 0:
                 return OrderResult(self._id, "rejected", 0.0, 0.0, "no position to sell")
-            self._cash += (px * sell_qty - fee)
+            self._cash += px * sell_qty - fee
             self._pos -= sell_qty
             if self._pos == 0.0:
                 self._avg = 0.0
             return OrderResult(self._id, "filled", sell_qty, px)
 
         return OrderResult(self._id, "rejected", 0.0, 0.0, f"unknown side: {side}")
-

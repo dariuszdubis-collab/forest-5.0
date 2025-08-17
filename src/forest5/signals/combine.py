@@ -30,4 +30,3 @@ def confirm_with_candles(base_signal: pd.Series, candles: pd.Series) -> pd.Serie
     conflict = (candles * base_signal) < 0
     out[conflict] = 0
     return out.astype("int8")
-

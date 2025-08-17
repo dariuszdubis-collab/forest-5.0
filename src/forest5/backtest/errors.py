@@ -11,4 +11,3 @@ class DataValidationError(ForestError):
 
 class BacktestConfigError(ForestError):
     pass
-

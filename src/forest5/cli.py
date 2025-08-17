@@ -13,6 +13,7 @@ from forest5.backtest.grid import run_grid
 
 # ---------------------------- CSV loading helpers ----------------------------
 
+
 def _auto_read_csv(path: str | Path) -> pd.DataFrame:
     p = Path(path)
     if not p.exists():
@@ -118,6 +119,7 @@ def load_ohlc_csv(path: str | Path, time_col: Optional[str] = None) -> pd.DataFr
 
 # ------------------------------- CLI commands --------------------------------
 
+
 def _parse_range(spec: str) -> Iterable[int]:
     """
     Formaty:
@@ -220,6 +222,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
 # --------------------------------- Parser ------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="forest5", description="FOREST 5.0 CLI")
     sub = p.add_subparsers(dest="command")
@@ -277,4 +280,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -38,7 +38,9 @@ def read_ohlc_csv(path: str, time_col: str = "time", tz: str | None = None) -> p
 
     if idx.isna().any():
         bad = int(idx.isna().sum())
-        raise ValueError(f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format.")
+        raise ValueError(
+            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
+        )
 
     # If tz is provided and the index is tz-naive, localize and then drop tz (Forest5 uses tz-naive internally)
     if tz is not None and getattr(idx, "tz", None) is None:

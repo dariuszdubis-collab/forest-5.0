@@ -8,7 +8,7 @@ from datetime import datetime
 class NumerologyRules:
     enabled: bool = False
     blocked_weekdays: list[int] = None  # 0..6
-    blocked_hours: list[int] = None     # 0..23
+    blocked_hours: list[int] = None  # 0..23
 
     def __post_init__(self) -> None:
         self.blocked_weekdays = self.blocked_weekdays or []
@@ -23,4 +23,3 @@ def is_trade_allowed(ts: datetime, rules: NumerologyRules) -> bool:
     if ts.hour in rules.blocked_hours:
         return False
     return True
-

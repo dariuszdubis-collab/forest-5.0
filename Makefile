@@ -92,4 +92,3 @@ diag:
 
 clean:
 	rm -f $(OUTDIR)/*.csv
-

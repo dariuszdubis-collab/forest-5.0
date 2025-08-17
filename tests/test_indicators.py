@@ -15,4 +15,3 @@ def test_atr_positive():
     close = pd.Series([9.5, 10.5, 11, 12])
     a = atr(high, low, close, 3)
     assert (a >= 0).all()
-

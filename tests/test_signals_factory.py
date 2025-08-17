@@ -14,4 +14,3 @@ def test_compute_signal_ema_cross_basic():
     assert set(sig.unique()).issubset({-1, 0, 1})
     # nie wszystkie zera (powinny zdarzyć się przecięcia)
     assert (sig != 0).any()
-

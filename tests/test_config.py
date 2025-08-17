@@ -21,4 +21,3 @@ def test_config_from_yaml(tmp_path: Path):
     assert s.timeframe == "1h"
     assert s.strategy.fast == 10
     assert s.risk.initial_capital == 50_000.0
-
