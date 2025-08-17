@@ -13,30 +13,30 @@ class DummyOpenAIClient:
         return {"choices": [{"message": {"content": '{"score": 1, "reason": "ok"}'}}]}
 
 
-def test_analyse_injects_instrument() -> None:
+def test_analyse_injects_symbol() -> None:
     client = DummyOpenAIClient()
     agent = SentimentAgent()
     agent.enabled = True
     agent._client = client
     agent._mode = "legacy"
 
-    instrument = "EURUSD"
+    symbol = "EURUSD"
     ctx = "some context"
-    result = agent.analyse(ctx, instrument)
+    result = agent.analyse(ctx, symbol)
 
-    assert instrument in client.captured
+    assert symbol in client.captured
     assert isinstance(result, Sentiment)
 
 
-def test_decision_agent_passes_instrument(monkeypatch) -> None:
+def test_decision_agent_passes_symbol(monkeypatch) -> None:
     from forest5.decision import DecisionAgent, DecisionConfig
 
     class DummyAI:
         def __init__(self) -> None:
             self.args: tuple[str, str] | None = None
 
-        def analyse(self, context: str, instrument: str) -> Sentiment:
-            self.args = (context, instrument)
+        def analyse(self, context: str, symbol: str) -> Sentiment:
+            self.args = (context, symbol)
             return Sentiment(0, "")
 
     config = DecisionConfig(use_ai=True)
@@ -44,5 +44,5 @@ def test_decision_agent_passes_instrument(monkeypatch) -> None:
     dummy = DummyAI()
     agent.ai = dummy
 
-    agent.decide(0, 1, "EURUSD", "ctx")
+    agent.decide(0, 1, symbol="EURUSD", context_text="ctx")
     assert dummy.args == ("ctx", "EURUSD")

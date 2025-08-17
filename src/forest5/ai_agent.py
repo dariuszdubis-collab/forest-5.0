@@ -39,14 +39,14 @@ class SentimentAgent:
                 self._client = None
                 self._mode = "none"
 
-    def analyse(self, context: str, instrument: str) -> Sentiment:
+    def analyse(self, context: str, symbol: str) -> Sentiment:
         if not self.enabled or self._client is None:
             return Sentiment(0, "AI disabled or no key; neutral filter.")
 
         prompt = (
             "Determine market sentiment "
             "(-1 bearish / 0 neutral / +1 bullish). "
-            "Instrument: {instrument}. Context:\n{ctx}\n"
+            "Symbol: {symbol}. Context:\n{ctx}\n"
             "Answer as JSON with keys: score, reason."
         )
 
@@ -58,7 +58,7 @@ class SentimentAgent:
                         {
                             "role": "user",
                             "content": prompt.format(
-                                instrument=instrument,
+                                symbol=symbol,
                                 ctx=context,
                             ),
                         }
@@ -73,7 +73,7 @@ class SentimentAgent:
                         {
                             "role": "user",
                             "content": prompt.format(
-                                instrument=instrument,
+                                symbol=symbol,
                                 ctx=context,
                             ),
                         }
