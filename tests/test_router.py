@@ -18,6 +18,8 @@ def test_paper_broker_basic_flow():
 
 def test_rejects_without_price_or_connection():
     b = PaperBroker()
-    assert b.market_order("BUY", 1).status == "rejected"  # not connected
+    r = b.market_order("BUY", 1, 1.2)
+    assert r.status == "rejected"
+    assert r.error is not None
     b.connect()
     assert b.market_order("BUY", 1).status == "rejected"  # no price
