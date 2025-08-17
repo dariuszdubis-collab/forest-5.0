@@ -6,7 +6,7 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
-from joblib import Memory
+from joblib import Memory, Parallel, delayed
 
 from ..config import BacktestSettings
 from .engine import run_backtest
@@ -56,6 +56,13 @@ def run_grid(
     mem = Memory(cache_dir, verbose=0)
     combos = param_grid(fast_values, slow_values)
 
+    # Cache indicator computations to avoid recomputation for repeated parameters
+    from ..core import indicators
+
+    atr_orig, ema_orig = indicators.atr, indicators.ema
+    indicators.atr = mem.cache(indicators.atr)
+    indicators.ema = mem.cache(indicators.ema)
+
     @mem.cache
     def _single_run(fast: int, slow: int) -> GridResult:
         settings = BacktestSettings(
@@ -70,11 +77,14 @@ def run_grid(
         end, mdd, cagr = _compute_metrics(res.equity_curve)
         return GridResult(fast=fast, slow=slow, equity_end=end, max_dd=mdd, cagr=cagr)
 
-    results = (
-        [_single_run(f, s) for (f, s) in combos]
-        if n_jobs == 1
-        else mem.cache(lambda c: [_single_run(f, s) for (f, s) in c])(combos)
-    )
+    try:
+        if n_jobs == 1:
+            results = [_single_run(f, s) for (f, s) in combos]
+        else:
+            results = Parallel(n_jobs=n_jobs)(delayed(_single_run)(f, s) for (f, s) in combos)
+    finally:
+        indicators.atr = atr_orig
+        indicators.ema = ema_orig
 
     out = pd.DataFrame([r.__dict__ for r in results])
     out["rar"] = out["cagr"] / out["max_dd"].replace(0, np.nan)
