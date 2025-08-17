@@ -10,6 +10,6 @@ def test_decision_agent_wait_on_blocked_weekday() -> None:
     agent = DecisionAgent(config=config)
 
     ts = datetime(2024, 1, 1)  # Monday
-    decision = agent.decide(ts, tech_signal=1, instrument="EURUSD")
+    decision = agent.decide(ts, tech_signal=1, symbol="EURUSD")
 
     assert decision == "WAIT"
