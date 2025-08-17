@@ -39,6 +39,7 @@ pytest-cov = "^6.2.1"
 [tool.poetry.scripts]
 forest5 = "forest5.cli:main"
 forest5-demo = "forest5.examples.synthetic:main"
+time-only = "forest5.time_only:_run_cli"
 
 [tool.ruff]
 line-length = 100
