@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "forest5"
-version = "5.0.0"
+version = "5.0.0a1"
 description = "Forest 5.0 – modularny framework tradingowy (AT + AI + MT5)"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
