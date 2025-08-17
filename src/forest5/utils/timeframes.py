@@ -94,7 +94,9 @@ def normalize_timeframe(tf: str) -> str:
             cand = f"{num}w"
         else:
             raise ValueError(f"Unsupported unit: {tf}")
-        if cand in _VALID or cand in _TF_MINUTES:
-            return cand if cand in _VALID else next(k for k, v in _TF_MINUTES.items() if k == cand)
+        if cand in _VALID:
+            return cand
+        if cand in _TF_MINUTES:
+            return cand
 
     raise ValueError(f"Nieobsługiwany timeframe: {tf!r}")
