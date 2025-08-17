@@ -44,7 +44,7 @@ def test_decision_agent_passes_symbol(monkeypatch) -> None:
     dummy = DummyAI()
     agent.ai = dummy
 
-    agent.decide(0, 1, symbol="EURUSD", context_text="ctx")
+    agent.decide(0, 1, 0.0, symbol="EURUSD", context_text="ctx")
     assert dummy.args == ("ctx", "EURUSD")
 
 
