@@ -11,6 +11,7 @@ from pandas.tseries.offsets import DateOffset
 # forest5
 from forest5.config import BacktestSettings, StrategySettings, RiskSettings
 from forest5.backtest.engine import run_backtest
+from forest5.utils.argparse_ext import PercentAction
 
 
 # ----------------------------- CSV LOADING ---------------------------------
@@ -297,13 +298,13 @@ def main() -> None:
 
     ap.add_argument("--use-rsi", action="store_true")
     ap.add_argument("--rsi-period", type=int, default=14)
-    ap.add_argument("--rsi-oversold", type=int, default=30)
-    ap.add_argument("--rsi-overbought", type=int, default=70)
+    ap.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
+    ap.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
     ap.add_argument("--capital", type=float, default=100_000.0)
-    ap.add_argument("--risk", type=float, default=0.01)
-    ap.add_argument("--fee-perc", type=float, default=0.0005)
-    ap.add_argument("--slippage-perc", type=float, default=0.0)
+    ap.add_argument("--risk", action=PercentAction, default=0.01)
+    ap.add_argument("--fee-perc", action=PercentAction, default=0.0005)
+    ap.add_argument("--slippage-perc", action=PercentAction, default=0.0)
 
     ap.add_argument("--atr-period", type=int, default=14)
     ap.add_argument("--atr-multiple", type=float, default=2.0)

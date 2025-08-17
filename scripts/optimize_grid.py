@@ -15,6 +15,7 @@ import pandas as pd
 from forest5.config import BacktestSettings, RiskSettings, StrategySettings
 from forest5.backtest.engine import run_backtest
 from forest5.utils.validate import ensure_backtest_ready
+from forest5.utils.argparse_ext import PercentAction
 
 
 # --------------------------------------------------------------------------------------
@@ -196,15 +197,15 @@ def main() -> None:
     )
     parser.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI.")
     parser.add_argument("--rsi-period", type=int, default=14)
-    parser.add_argument("--rsi-oversold", type=int, default=30)
-    parser.add_argument("--rsi-overbought", type=int, default=70)
+    parser.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
+    parser.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
     parser.add_argument("--capital", type=float, default=100_000.0)
     parser.add_argument(
-        "--risk", type=float, default=0.01, help="Udział kapitału ryzykowany na trade."
+        "--risk", action=PercentAction, default=0.01, help="Udział kapitału ryzykowany na trade."
     )
-    parser.add_argument("--fee-perc", type=float, default=0.0005)
-    parser.add_argument("--slippage-perc", type=float, default=0.0)
+    parser.add_argument("--fee-perc", action=PercentAction, default=0.0005)
+    parser.add_argument("--slippage-perc", action=PercentAction, default=0.0)
 
     parser.add_argument("--atr-period", type=int, default=14)
     parser.add_argument("--atr-multiple", type=float, default=2.0)
