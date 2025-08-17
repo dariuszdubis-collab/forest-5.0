@@ -33,7 +33,7 @@ class AISettings(BaseModel):
     max_tokens: int = 256
 
 
-class NumerologySettings(BaseModel):
+class TimeOnlySettings(BaseModel):
     enabled: bool = False
     blocked_weekdays: list[int] = Field(default_factory=list)  # 0=Mon..6=Sun
     blocked_hours: list[int] = Field(default_factory=list)  # 0..23
