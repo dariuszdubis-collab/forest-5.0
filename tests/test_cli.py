@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from forest5.cli import main
+from forest5.cli import build_parser, main
 
 
 def _write_csv(path):
@@ -74,3 +74,11 @@ def test_cli_missing_ohlc_columns(tmp_path):
     bad_csv.write_text("time,open,high,low\n2020-01-01,1,1,1\n")
     with pytest.raises(ValueError, match="CSV missing required columns"):
         main(["backtest", "--csv", str(bad_csv)])
+
+
+def test_percentage_out_of_range_error(capfd):
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "2"])
+    err = capfd.readouterr().err
+    assert "between 0.0 and 1.0" in err

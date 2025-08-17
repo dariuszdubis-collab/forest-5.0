@@ -10,6 +10,7 @@ import pandas as pd
 from forest5.config import BacktestSettings, StrategySettings, RiskSettings
 from forest5.backtest.engine import run_backtest
 from forest5.utils.validate import ensure_backtest_ready
+from forest5.utils.argparse_ext import PercentAction
 
 
 def parse_args():
@@ -19,7 +20,7 @@ def parse_args():
     p.add_argument("--fast", type=int, default=12)
     p.add_argument("--slow", type=int, default=26)
     p.add_argument("--capital", type=float, default=100_000.0)
-    p.add_argument("--risk", type=float, default=0.01)
+    p.add_argument("--risk", action=PercentAction, default=0.01)
     p.add_argument("--atr-period", type=int, default=14)
     p.add_argument("--atr-multiple", type=float, default=2.0)
     p.add_argument("--start")

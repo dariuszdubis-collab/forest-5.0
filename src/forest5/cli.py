@@ -10,6 +10,7 @@ from forest5.config import BacktestSettings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.utils.io import read_ohlc_csv
+from forest5.utils.argparse_ext import PercentAction
 
 
 # ---------------------------- CSV loading helpers ----------------------------
@@ -146,14 +147,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bt.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
     p_bt.add_argument("--rsi-period", type=int, default=14)
-    p_bt.add_argument("--rsi-oversold", type=float, default=30.0)
-    p_bt.add_argument("--rsi-overbought", type=float, default=70.0)
+    p_bt.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
+    p_bt.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
     p_bt.add_argument("--capital", type=float, default=100_000.0)
-    p_bt.add_argument("--risk", type=float, default=0.01, help="Ryzyko na trade (0-1)")
-    p_bt.add_argument("--max-dd", type=float, default=0.30, help="Dozwolone obsunięcie")
-    p_bt.add_argument("--fee", type=float, default=0.0005, help="Prowizja %")
-    p_bt.add_argument("--slippage", type=float, default=0.0, help="Poślizg %")
+    p_bt.add_argument("--risk", action=PercentAction, default=0.01, help="Ryzyko na trade (0-1)")
+    p_bt.add_argument("--max-dd", action=PercentAction, default=0.30, help="Dozwolone obsunięcie")
+    p_bt.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
+    p_bt.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
 
     p_bt.add_argument("--atr-period", type=int, default=14)
     p_bt.add_argument("--atr-multiple", type=float, default=2.0)
@@ -174,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
     p_gr.add_argument("--capital", type=float, default=100_000.0)
-    p_gr.add_argument("--risk", type=float, default=0.01)
+    p_gr.add_argument("--risk", action=PercentAction, default=0.01)
     p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
