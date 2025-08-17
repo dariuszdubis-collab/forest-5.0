@@ -21,6 +21,7 @@ from forest5.utils.validate import ensure_backtest_ready
 # Utils
 # --------------------------------------------------------------------------------------
 
+
 def log_json(**payload: object) -> None:
     """Emit one JSON line (UTF-8, no ASCII escaping)."""
     print(json.dumps(payload, ensure_ascii=False))
@@ -83,7 +84,9 @@ class GridResult:
     score: float
 
 
-def _run_one(df: pd.DataFrame, gp: GridPoint, base: BacktestSettings, dd_penalty: float) -> GridResult:
+def _run_one(
+    df: pd.DataFrame, gp: GridPoint, base: BacktestSettings, dd_penalty: float
+) -> GridResult:
     """Run backtest for a single grid point."""
     # Build settings with chosen strategy parameters
     stg = StrategySettings(
@@ -181,19 +184,25 @@ def _print_top(rows: list[GridResult], n: int = 10) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Forest 5.0 – optymalizacja parametrów (grid search).")
+    parser = argparse.ArgumentParser(
+        description="Forest 5.0 – optymalizacja parametrów (grid search)."
+    )
     parser.add_argument("--csv", required=True, help="Ścieżka do CSV z danymi OHLC.")
     parser.add_argument("--symbol", default="SYMBOL", help="Symbol (opisowy).")
     parser.add_argument("--fast", required=True, help='Zakres np. "5-20" albo "5-20:5".')
     parser.add_argument("--slow", required=True, help='Zakres np. "20-60" albo "20-60:5".')
-    parser.add_argument("--skip-fast-ge-slow", action="store_true", help="Pomiń pary gdzie fast >= slow.")
+    parser.add_argument(
+        "--skip-fast-ge-slow", action="store_true", help="Pomiń pary gdzie fast >= slow."
+    )
     parser.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI.")
     parser.add_argument("--rsi-period", type=int, default=14)
     parser.add_argument("--rsi-oversold", type=int, default=30)
     parser.add_argument("--rsi-overbought", type=int, default=70)
 
     parser.add_argument("--capital", type=float, default=100_000.0)
-    parser.add_argument("--risk", type=float, default=0.01, help="Udział kapitału ryzykowany na trade.")
+    parser.add_argument(
+        "--risk", type=float, default=0.01, help="Udział kapitału ryzykowany na trade."
+    )
     parser.add_argument("--fee-perc", type=float, default=0.0005)
     parser.add_argument("--slippage-perc", type=float, default=0.0)
 
@@ -261,7 +270,9 @@ def main() -> None:
     if args.jobs and args.jobs > 1:
         # Multiprocessing – slice df once for child processes via closure pickling
         with ProcessPoolExecutor(max_workers=int(args.jobs)) as ex:
-            futures = {ex.submit(_run_one, df, gp, base, float(args.dd_penalty)): gp for gp in points}
+            futures = {
+                ex.submit(_run_one, df, gp, base, float(args.dd_penalty)): gp for gp in points
+            }
             for fut in as_completed(futures):
                 results.append(fut.result())
     else:
@@ -281,4 +292,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

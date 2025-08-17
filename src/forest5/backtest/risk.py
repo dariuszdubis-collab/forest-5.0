@@ -77,14 +77,14 @@ class RiskManager:
         fee = self.position_cost(price, qty)
 
         if side.upper() == "BUY":
-            self._cash -= (cost + fee)
+            self._cash -= cost + fee
             new_qty = self._position + qty
             if new_qty > 0:
                 self._avg_price = (self._avg_price * self._position + cost) / new_qty
             self._position = new_qty
 
         elif side.upper() == "SELL":
-            self._cash += (cost - fee)
+            self._cash += cost - fee
             self._position = max(0.0, self._position - qty)
             if self._position == 0.0:
                 self._avg_price = 0.0
@@ -114,4 +114,3 @@ class RiskManager:
             return False
         dd = (self._peak - last) / self._peak
         return dd >= self.max_drawdown
-

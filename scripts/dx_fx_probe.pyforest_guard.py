@@ -35,9 +35,9 @@ def main() -> None:
     df = ensure_backtest_ready(df)
 
     if args.start:
-        df = df.loc[args.start:]
+        df = df.loc[args.start :]
     if args.end:
-        df = df.loc[:args.end]
+        df = df.loc[: args.end]
 
     if args.inspect_n:
         head = df.head(args.inspect_n).copy()
@@ -70,4 +70,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

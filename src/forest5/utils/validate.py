@@ -21,7 +21,9 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
                 time_col = alias
                 break
         if time_col is None:
-            raise ValueError("DataFrame must have DatetimeIndex or one of: 'time', 'date', 'datetime', 'timestamp'.")
+            raise ValueError(
+                "DataFrame must have DatetimeIndex or one of: 'time', 'date', 'datetime', 'timestamp'."
+            )
         df = df.copy()
         df[time_col] = pd.to_datetime(df[time_col], utc=False, errors="coerce")
         df = df.set_index(time_col)
@@ -39,4 +41,3 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
     df = df.dropna(subset=["open", "high", "low", "close"])
 
     return df
-

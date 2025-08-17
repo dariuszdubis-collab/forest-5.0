@@ -63,14 +63,17 @@ def main() -> None:
         out_df.to_csv(args.out, index=False)
         print(json.dumps({"rows": len(out_df), "out": args.out, "event": "dx_export_done"}))
 
-    print(json.dumps({
-        "equity_end": float(res.equity_curve.iloc[-1]),
-        "max_dd": float(res.max_dd),
-        "trades": len(res.trades.trades),
-        "event": "backtest_done"
-    }))
+    print(
+        json.dumps(
+            {
+                "equity_end": float(res.equity_curve.iloc[-1]),
+                "max_dd": float(res.max_dd),
+                "trades": len(res.trades.trades),
+                "event": "backtest_done",
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
     main()
-

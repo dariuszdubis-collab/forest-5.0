@@ -10,4 +10,3 @@ class DecisionTrace:
     symbol: str
     filters: Dict[str, Any]
     final: str  # "BUY" | "SELL" | "WAIT"
-

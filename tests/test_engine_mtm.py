@@ -55,4 +55,3 @@ def test_mtm_drawdown_triggers_on_real_equity(monkeypatch):
 
     res = run_backtest(df, BacktestSettings())
     assert res.max_dd >= 0.20
-

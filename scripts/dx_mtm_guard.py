@@ -11,6 +11,7 @@ from forest5.config import BacktestSettings, StrategySettings, RiskSettings
 from forest5.backtest.engine import run_backtest
 from forest5.utils.validate import ensure_backtest_ready
 
+
 def parse_args():
     p = argparse.ArgumentParser(description="MTM guard / sanity tracer")
     p.add_argument("--csv", required=True)
@@ -26,6 +27,7 @@ def parse_args():
     p.add_argument("--out", default="mtm_guard.csv")
     return p.parse_args()
 
+
 def main():
     args = parse_args()
     df = pd.read_csv(args.csv)
@@ -39,8 +41,11 @@ def main():
     s = BacktestSettings(
         symbol=args.symbol,
         strategy=StrategySettings(name="ema_cross", fast=args.fast, slow=args.slow, use_rsi=False),
-        risk=RiskSettings(initial_capital=args.capital, risk_per_trade=args.risk, fee_perc=0.0, slippage_perc=0.0),
-        atr_period=args.atr_period, atr_multiple=args.atr_multiple
+        risk=RiskSettings(
+            initial_capital=args.capital, risk_per_trade=args.risk, fee_perc=0.0, slippage_perc=0.0
+        ),
+        atr_period=args.atr_period,
+        atr_multiple=args.atr_multiple,
     )
     res = run_backtest(df, s)
 
@@ -80,6 +85,6 @@ def main():
     if not (ok_len and ok_scale):
         sys.exit(1)
 
+
 if __name__ == "__main__":
     main()
-

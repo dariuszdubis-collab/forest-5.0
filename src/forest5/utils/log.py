@@ -17,4 +17,3 @@ def setup_logger(level: str = "INFO"):
 
 
 log = setup_logger()
-

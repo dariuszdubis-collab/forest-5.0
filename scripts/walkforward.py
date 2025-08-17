@@ -31,9 +31,7 @@ def _detect_time_col(path: str | Path) -> str:
     for i, c in enumerate(lower):
         if "time" in c or "date" in c:
             return cols[i]
-    raise ValueError(
-        f"Nie znaleziono kolumny czasu w {path}. Kolumny: {list(hdr.columns)}"
-    )
+    raise ValueError(f"Nie znaleziono kolumny czasu w {path}. Kolumny: {list(hdr.columns)}")
 
 
 def _normalize_ohlc_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -170,9 +168,7 @@ def iter_walkforward_windows(
     """
     cur_train_start = start
     while True:
-        train_end = cur_train_start + DateOffset(months=train_months) - pd.Timedelta(
-            seconds=1
-        )
+        train_end = cur_train_start + DateOffset(months=train_months) - pd.Timedelta(seconds=1)
         test_start = train_end + pd.Timedelta(seconds=1)
         test_end = test_start + DateOffset(months=test_months) - pd.Timedelta(seconds=1)
 
@@ -278,9 +274,7 @@ def pick_best_on_train(
         )
         tr_ret, tr_dd, _, _ = evaluate_df(train_df, st)
         score = tr_ret - dd_penalty * tr_dd
-        if (score > best_score) or (
-            score == best_score and (tr_ret > best_ret or tr_dd < best_dd)
-        ):
+        if (score > best_score) or (score == best_score and (tr_ret > best_ret or tr_dd < best_dd)):
             best = p
             best_score = score
             best_ret = tr_ret
@@ -439,4 +433,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

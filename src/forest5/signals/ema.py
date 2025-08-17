@@ -21,11 +21,10 @@ def ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
     sign = np.sign(spread)
     cross = sign.diff().fillna(0)
 
-    long_sig = (cross > 0) & (sign > 0)     # przejście na dodatnie
-    short_sig = (cross < 0) & (sign < 0)    # przejście na ujemne
+    long_sig = (cross > 0) & (sign > 0)  # przejście na dodatnie
+    short_sig = (cross < 0) & (sign < 0)  # przejście na ujemne
 
     sig = pd.Series(0, index=close.index, dtype="int8")
     sig[long_sig] = 1
     sig[short_sig] = -1
     return sig
-

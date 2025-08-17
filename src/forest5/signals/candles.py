@@ -57,4 +57,3 @@ def doji(df: pd.DataFrame, threshold: float = 0.1) -> pd.Series:
     body = _body(o, c)
     res = ((body / rng) <= threshold).astype(int).fillna(0)
     return res
-

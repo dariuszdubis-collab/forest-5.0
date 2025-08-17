@@ -36,7 +36,7 @@ class AISettings(BaseModel):
 class NumerologySettings(BaseModel):
     enabled: bool = False
     blocked_weekdays: list[int] = Field(default_factory=list)  # 0=Mon..6=Sun
-    blocked_hours: list[int] = Field(default_factory=list)     # 0..23
+    blocked_hours: list[int] = Field(default_factory=list)  # 0..23
 
 
 class BacktestSettings(BaseModel):
@@ -61,8 +61,8 @@ class BacktestSettings(BaseModel):
             data = yaml.safe_load(p.read_text(encoding="utf-8"))
         elif p.suffix.lower() == ".json":
             import json
+
             data = json.loads(p.read_text(encoding="utf-8"))
         else:
             raise ValueError("Supported: .yaml/.yml/.json")
         return cls(**data)
-

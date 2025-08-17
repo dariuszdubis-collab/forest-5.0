@@ -22,4 +22,3 @@ def macd_cross_signal(
     out[(cross > 0) & (sgn > 0)] = 1
     out[(cross < 0) & (sgn < 0)] = -1
     return out
-

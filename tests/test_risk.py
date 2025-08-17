@@ -13,4 +13,3 @@ def test_max_dd_guard():
     for p in [1000, 800, 700, 600]:
         rm.record_mark_to_market(p)
     assert rm.exceeded_max_dd()
-

@@ -12,4 +12,3 @@ def test_normalize_timeframe_variants():
 def test_invalid_timeframe():
     with pytest.raises(ValueError):
         normalize_timeframe("weird")
-

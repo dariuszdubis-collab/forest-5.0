@@ -21,5 +21,3 @@ def test_rejects_without_price_or_connection():
     assert b.market_order("BUY", 1).status == "rejected"  # not connected
     b.connect()
     assert b.market_order("BUY", 1).status == "rejected"  # no price
-
-

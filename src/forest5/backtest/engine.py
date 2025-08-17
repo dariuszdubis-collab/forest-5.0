@@ -102,4 +102,3 @@ def run_backtest(
     max_dd = float(dd.max(skipna=True)) if len(dd) else 0.0
 
     return BacktestResult(equity_curve=eq, max_dd=max_dd, trades=tb)
-
