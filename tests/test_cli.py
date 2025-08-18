@@ -64,7 +64,8 @@ def test_cli_missing_file():
 def test_cli_missing_time_column(tmp_path):
     bad_csv = tmp_path / "bad_time.csv"
     bad_csv.write_text(
-        "time,open,high,low,close\n" "bad,1,1,1,1\n" "also_bad,1,1,1,1\n"
+        "time,open,high,low,close\n" "bad,1,1,1,1\n" "also_bad,1,1,1,1\n",
+        encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Failed to parse"):
         main(["backtest", "--csv", str(bad_csv), "--time-col", "time"])
@@ -72,7 +73,7 @@ def test_cli_missing_time_column(tmp_path):
 
 def test_cli_missing_ohlc_columns(tmp_path):
     bad_csv = tmp_path / "bad_ohlc.csv"
-    bad_csv.write_text("time,open,high,low\n2020-01-01,1,1,1\n")
+    bad_csv.write_text("time,open,high,low\n2020-01-01,1,1,1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="CSV missing required columns"):
         main(["backtest", "--csv", str(bad_csv)])
 
@@ -87,7 +88,7 @@ def test_percentage_out_of_range_error(capfd):
 
 def test_cli_live(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
-    cfg.write_text("broker:\n  type: mt4\n  symbol: EURUSD\n")
+    cfg.write_text("broker:\n  type: mt4\n  symbol: EURUSD\n", encoding="utf-8")
 
     captured = {}
 

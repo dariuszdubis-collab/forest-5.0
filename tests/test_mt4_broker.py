@@ -17,15 +17,26 @@ def fake_ea_loop(bridge: Path, stop):
     cmd = bridge/"commands"; res = bridge/"results"
     (bridge/"ticks").mkdir(parents=True, exist_ok=True)
     (bridge/"state").mkdir(parents=True, exist_ok=True)
-    (bridge/"ticks"/"tick.json").write_text('{"symbol":"EURUSD","bid":1.0,"ask":1.0,"time":0}')
-    (bridge/"state"/"account.json").write_text('{"equity":10000}')
-    (bridge/"state"/"position_EURUSD.json").write_text('{"qty":0}')
+    (bridge/"ticks"/"tick.json").write_text('{"symbol":"EURUSD","bid":1.0,"ask":1.0,"time":0}', encoding="utf-8")
+    (bridge/"state"/"account.json").write_text('{"equity":10000}', encoding="utf-8")
+    (bridge/"state"/"position_EURUSD.json").write_text('{"qty":0}', encoding="utf-8")
     cmd.mkdir(parents=True, exist_ok=True); res.mkdir(parents=True, exist_ok=True)
     while not stop.is_set():
         for p in cmd.glob("cmd_*.json"):
-            s = json.loads(p.read_text())
+            s = json.loads(p.read_text(encoding="utf-8"))
             rid = p.stem[4:]
-            (res/f"res_{rid}.json").write_text(json.dumps({"id":rid,"status":"filled","ticket":1,"price":1.2345,"error":None}))
+            (res / f"res_{rid}.json").write_text(
+                json.dumps(
+                    {
+                        "id": rid,
+                        "status": "filled",
+                        "ticket": 1,
+                        "price": 1.2345,
+                        "error": None,
+                    }
+                ),
+                encoding="utf-8",
+            )
             p.unlink(missing_ok=True)
         time.sleep(0.05)
 
