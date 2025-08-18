@@ -40,10 +40,10 @@ def _respond_once(bridge: Path):
         cmds = list(cmd_dir.glob("cmd_*.json"))
         if cmds:
             p = cmds[0]
-            data = json.loads(p.read_text())
+            data = json.loads(p.read_text(encoding="utf-8"))
             rid = data["id"]
             result = {"id": rid, "status": "filled", "ticket": 1, "price": 1.2345}
-            (res_dir / f"res_{rid}.json").write_text(json.dumps(result))
+            (res_dir / f"res_{rid}.json").write_text(json.dumps(result), encoding="utf-8")
             break
         time.sleep(0.05)
 
@@ -53,8 +53,8 @@ def test_market_order_success(tmp_path: Path):
     br = MT4Broker(bridge_dir=bridge, symbol="EURUSD", timeout_sec=1.0)
     br.connect()
     # prepare state files for equity and position
-    (bridge / "state" / "account.json").write_text("{\"equity\":1234}")
-    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":1.5}")
+    (bridge / "state" / "account.json").write_text("{\"equity\":1234}", encoding="utf-8")
+    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":1.5}", encoding="utf-8")
     # start helper thread to respond to command
     t = Thread(target=_respond_once, args=(bridge,), daemon=True)
     t.start()
@@ -78,7 +78,7 @@ def test_position_and_equity(tmp_path: Path):
     bridge = tmp_path / "bridge"
     br = MT4Broker(bridge_dir=bridge, symbol="EURUSD")
     br.connect()
-    (bridge / "state" / "account.json").write_text("{\"equity\":999}")
-    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":2.0}")
+    (bridge / "state" / "account.json").write_text("{\"equity\":999}", encoding="utf-8")
+    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":2.0}", encoding="utf-8")
     assert br.equity() == 999
     assert br.position_qty() == 2.0
