@@ -85,7 +85,7 @@ def self_test() -> bool:
         model.save(path)
         loaded = TimeOnlyModel.load(path)
     if model.quantile_gates != loaded.quantile_gates:
-        raise RuntimeError("Quantile gates mismatch after serialization")
+        raise ValueError("Quantile gates mismatch after serialization")
     # exercise decision logic on a single sample
     loaded.decide(idx[0], df["y"].iloc[0])
     return True
