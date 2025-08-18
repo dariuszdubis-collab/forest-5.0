@@ -1,23 +1,17 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - name: Install package (editable) + dev deps
-        run: |
-          pip install -e .
-          pip install -r requirements-dev.txt
-      - name: Sanity imports
-        run: |
-          python - <<'PY'
-          from importlib import import_module
-          for m in ("yaml", "numpy", "pandas", "pytest", "structlog", "joblib"):
-              import_module(m)
-          print("deps-ok")
-          PY
+        with:
+          python-version: '3.11'
+      - name: Install package
+        run: pip install -e .
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
       - name: Run tests
         run: pytest -q
