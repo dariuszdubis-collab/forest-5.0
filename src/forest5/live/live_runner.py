@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 def run_live(settings: LiveSettings) -> None:
     if settings.broker.type.lower() != "mt4":
         raise ValueError(f"unsupported broker type: {settings.broker.type}")
-    broker = MT4Broker(settings.broker.bridge_dir)
+    broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
     broker.connect()
 
     agent = DecisionAgent(

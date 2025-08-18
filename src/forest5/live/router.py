@@ -21,6 +21,9 @@ class OrderResult:
     avg_price: float
     error: Optional[str] = None
 
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
 
 class PaperBroker:
     """
