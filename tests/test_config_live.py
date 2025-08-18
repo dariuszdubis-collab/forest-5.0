@@ -32,6 +32,22 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.time.blocked_weekdays == [5, 6]  # nosec B101
 
 
+def test_live_settings_ai_context_file_resolved(tmp_path: Path):
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+    ctx = cfg_dir / "ctx.txt"
+    ctx.write_text("hi", encoding="utf-8")
+    cfg = cfg_dir / "cfg_live.yaml"
+    cfg.write_text(
+        "broker:\n  type: mt4\n" "ai:\n  context_file: ctx.txt\n",
+        encoding="utf-8",
+    )
+
+    settings = LiveSettings.from_file(cfg)
+
+    assert settings.ai.context_file == str(ctx)  # nosec B101
+
+
 def test_live_time_model_quantile_valid():
     m = LiveTimeModelSettings(q_low=0.0, q_high=1.0)
     assert m.q_low == 0.0 and m.q_high == 1.0  # nosec B101
