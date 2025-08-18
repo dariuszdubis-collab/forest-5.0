@@ -5,37 +5,25 @@ import logging
 import time
 
 import pandas as pd
-from pydantic import BaseModel, Field, field_validator
 
-from ..config import RiskSettings, StrategySettings
-from ..decision import DecisionAgent
+from ..config_live import LiveSettings
+from ..decision import DecisionAgent, DecisionConfig
 from ..signals.factory import compute_signal
-from ..utils.timeframes import _TF_MINUTES, normalize_timeframe
+from ..utils.timeframes import _TF_MINUTES
 from .mt4_broker import MT4Broker
 
 log = logging.getLogger(__name__)
 
 
-class LiveStrategySettings(StrategySettings):
-    timeframe: str = "1m"
-
-    @field_validator("timeframe")
-    @classmethod
-    def _norm_tf(cls, v: str) -> str:
-        return normalize_timeframe(v)
-
-
-class LiveSettings(BaseModel):
-    symbol: str = "SYMBOL"
-    strategy: LiveStrategySettings = Field(default_factory=LiveStrategySettings)
-    risk: RiskSettings = Field(default_factory=RiskSettings)
-
-
 def run_live(settings: LiveSettings) -> None:
-    broker = MT4Broker()
+    if settings.broker.type.lower() != "mt4":
+        raise ValueError(f"unsupported broker type: {settings.broker.type}")
+    broker = MT4Broker(settings.broker.bridge_dir)
     broker.connect()
 
-    agent = DecisionAgent(router=broker)
+    agent = DecisionAgent(
+        router=broker, config=DecisionConfig(use_ai=settings.ai.enabled)
+    )
 
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
@@ -62,9 +50,7 @@ def run_live(settings: LiveSettings) -> None:
 
                     ts = float(tick.get("time", time.time()))
                     price = float(
-                        tick.get("bid")
-                        or tick.get("price")
-                        or tick.get("ask")
+                        tick.get("bid") or tick.get("price") or tick.get("ask")
                     )
                     last_price = price
                     log.info("tick: %s", tick)
@@ -93,12 +79,27 @@ def run_live(settings: LiveSettings) -> None:
                             current_bar["close"],
                         ]
                         log.info("candle closed: %s", current_bar)
-                        sig = int(compute_signal(df, settings, "close").iloc[-1])
-                        decision = agent.decide(idx, sig, current_bar["close"], settings.symbol)
-                        log.info("decision: %s", decision)
-                        if decision in ("BUY", "SELL"):
-                            res = broker.market_order(decision, 1.0, price)
-                            log.info("order result: %s", res)
+
+                        if (
+                            idx.weekday() in settings.time.blocked_weekdays
+                            or idx.hour in settings.time.blocked_hours
+                        ):
+                            log.info("time blocked: %s", idx)
+                        else:
+                            sig = int(compute_signal(df, settings, "close").iloc[-1])
+                            decision = agent.decide(
+                                idx,
+                                sig,
+                                current_bar["close"],
+                                settings.broker.symbol,
+                            )
+                            log.info("decision: %s", decision)
+                            if decision in ("BUY", "SELL"):
+                                res = broker.market_order(
+                                    decision, settings.broker.volume, price
+                                )
+                                log.info("order result: %s", res)
+
                         current_bar = {
                             "start": bar_start,
                             "open": price,
