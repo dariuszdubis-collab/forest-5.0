@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from forest5.cli import build_parser, main
+from forest5.config_live import LiveSettings
 
 
 def _write_csv(path):
@@ -82,3 +83,21 @@ def test_percentage_out_of_range_error(capfd):
         parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "2"])
     err = capfd.readouterr().err
     assert "between 0.0 and 1.0" in err
+
+
+def test_cli_live(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("broker:\n  type: mt4\n  symbol: EURUSD\n")
+
+    captured = {}
+
+    def fake_run_live(settings):
+        captured["settings"] = settings
+
+    monkeypatch.setattr("forest5.cli.run_live", fake_run_live)
+
+    rc = main(["live", "--config", str(cfg), "--paper"])
+    assert rc == 0
+    assert isinstance(captured["settings"], LiveSettings)
+    assert captured["settings"].broker.type == "paper"
+    assert captured["settings"].broker.symbol == "EURUSD"
