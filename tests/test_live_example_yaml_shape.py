@@ -12,4 +12,5 @@ def test_live_example_yaml_structure():
     if cfg["broker"]["type"] == "MT4":
         assert "bridge_dir" in cfg["broker"], "MT4 broker requires 'bridge_dir'"
     assert "symbol" in cfg["broker"]
-    assert isinstance(cfg["ai"].get("enabled", False), bool)
+    assert "enabled" in cfg["ai"], "Missing 'ai.enabled'"
+    assert isinstance(cfg["ai"]["enabled"], bool), "'ai.enabled' must be boolean"
