@@ -6,7 +6,7 @@ from typing import Literal
 import json
 import yaml
 
-from .config import RiskSettings, AISettings, TimeOnlySettings
+from .config import RiskSettings, AISettings
 from .utils.timeframes import normalize_timeframe
 
 
@@ -38,12 +38,36 @@ class BrokerSettings:
 
 
 @dataclass
+class DecisionSettings:
+    min_confluence: int = 1
+
+
+@dataclass
+class LiveTimeModelSettings:
+    enabled: bool = False
+    path: Path | None = None
+    q_low: float = 0.1
+    q_high: float = 0.9
+
+    def __post_init__(self) -> None:
+        if self.path is not None:
+            self.path = Path(self.path)
+
+
+@dataclass
+class LiveTimeSettings:
+    blocked_weekdays: list[int] = field(default_factory=list)
+    blocked_hours: list[int] = field(default_factory=list)
+    model: LiveTimeModelSettings = field(default_factory=LiveTimeModelSettings)
+
+@dataclass
 class LiveSettings:
     broker: BrokerSettings
     strategy: StrategySettings = field(default_factory=StrategySettings)
     risk: RiskSettings = field(default_factory=RiskSettings)
     ai: AISettings = field(default_factory=AISettings)
-    time: TimeOnlySettings = field(default_factory=TimeOnlySettings)
+    decision: DecisionSettings = field(default_factory=DecisionSettings)
+    time: LiveTimeSettings = field(default_factory=LiveTimeSettings)
 
     @classmethod
     def from_dict(cls, data: dict) -> "LiveSettings":
@@ -52,7 +76,8 @@ class LiveSettings:
             strategy=StrategySettings(**data.get("strategy", {})),
             risk=RiskSettings(**data.get("risk", {})),
             ai=AISettings(**data.get("ai", {})),
-            time=TimeOnlySettings(**data.get("time", {})),
+            decision=DecisionSettings(**data.get("decision", {})),
+            time=LiveTimeSettings(**data.get("time", {})),
         )
 
     @classmethod
@@ -69,4 +94,11 @@ class LiveSettings:
         return cls.from_dict(data)
 
 
-__all__ = ["BrokerSettings", "StrategySettings", "LiveSettings"]
+__all__ = [
+    "BrokerSettings",
+    "StrategySettings",
+    "DecisionSettings",
+    "LiveTimeModelSettings",
+    "LiveTimeSettings",
+    "LiveSettings",
+]
