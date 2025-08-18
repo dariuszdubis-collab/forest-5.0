@@ -1,18 +1,9 @@
 broker:
-  type: MT4
-  bridge_dir: "${FOREST_MT4_BRIDGE_DIR}"   # lub wstaw bezpośrednią ścieżkę MQL4/Files/forest_bridge
+  type: "mt4"  # "paper" for tests
+  bridge_dir: "${FOREST_MT4_BRIDGE_DIR}"   # or path to MQL4/Files/forest_bridge
   symbol: "EURUSD"
   volume: 0.01
-
-strategy:
-  name: "ema_rsi"
   timeframe: "M1"
-  ema_fast: 12
-  ema_slow: 26
-  use_rsi: true
-  rsi_period: 14
-  rsi_overbought: 70
-  rsi_oversold: 30
 
 risk:
   risk_per_trade: 0.005
@@ -20,6 +11,9 @@ risk:
 
 ai:
   enabled: false
+  model: "gpt-4o-mini"
+  max_tokens: 200
+  context_file: "context.txt"
 
 decision:
   min_confluence: 2
@@ -27,6 +21,10 @@ decision:
 time:
   enabled: true
   blocked_hours: [22,23]
+  blocked_weekdays: [5,6]
   model:
     enabled: false
     path: "${FOREST_TIME_MODEL_PATH}"
+    q_low: 0.1
+    q_high: 0.9
+
