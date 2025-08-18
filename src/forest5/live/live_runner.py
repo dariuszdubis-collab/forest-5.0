@@ -6,8 +6,11 @@ import time
 
 import pandas as pd
 
+from pathlib import Path
+
 from ..config_live import LiveSettings
 from ..decision import DecisionAgent, DecisionConfig
+from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
 from .mt4_broker import MT4Broker
@@ -21,9 +24,28 @@ def run_live(settings: LiveSettings) -> None:
     broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
     broker.connect()
 
+    time_model = None
+    if settings.time.model.enabled and settings.time.model.path:
+        try:
+            time_model = TimeOnlyModel.load(settings.time.model.path)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("failed to load time model")
+
     agent = DecisionAgent(
-        router=broker, config=DecisionConfig(use_ai=settings.ai.enabled)
+        router=broker,
+        config=DecisionConfig(
+            use_ai=settings.ai.enabled,
+            time_model=time_model,
+            min_confluence=settings.decision.min_confluence,
+        ),
     )
+
+    context_text = ""
+    if settings.ai.context_file:
+        try:
+            context_text = Path(settings.ai.context_file).read_text(encoding="utf-8")
+        except Exception:  # pragma: no cover - defensive
+            log.exception("failed to read AI context file")
 
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
@@ -92,6 +114,7 @@ def run_live(settings: LiveSettings) -> None:
                                 sig,
                                 current_bar["close"],
                                 settings.broker.symbol,
+                                context_text,
                             )
                             log.info("decision: %s", decision)
                             if decision in ("BUY", "SELL"):
