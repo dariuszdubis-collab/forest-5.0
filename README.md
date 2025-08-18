@@ -46,6 +46,40 @@ np. `--sep ';'`.
    ```
    W celu testów bez realnych zleceń dopisz `--paper`.
 
+## Tryb PAPER (smoke test bez MT4)
+
+Do szybkiego testu bez uruchamiania MetaTradera można zasymulować most
+plikowy. Utwórz katalog `bridge/` z podkatalogami `ticks`, `state`,
+`commands` i `results` oraz minimalnymi plikami JSON:
+
+```bash
+mkdir -p bridge/{ticks,state,commands,results}
+echo '{"time": 1, "bid": 100}' > bridge/ticks/tick.json
+echo '{"equity": 0}' > bridge/state/account.json
+echo '{"qty": 0}' > bridge/state/position_EURUSD.json
+echo '{}' > bridge/commands/noop.json
+echo '{}' > bridge/results/noop.json
+```
+
+Następnie w Pythonie uruchom `run_live` z brokerem typu `paper`:
+
+```python
+from forest5.config_live import (
+    LiveSettings, BrokerSettings, DecisionSettings,
+    LiveTimeSettings, LiveTimeModelSettings,
+)
+from forest5.live.live_runner import run_live
+
+settings = LiveSettings(
+    broker=BrokerSettings(type="paper", bridge_dir="bridge", symbol="EURUSD"),
+    decision=DecisionSettings(min_confluence=2),
+    time=LiveTimeSettings(
+        model=LiveTimeModelSettings(enabled=True, path="models/model_time.json"),
+    ),
+)
+run_live(settings, max_steps=10)
+```
+
 ## Backtest + TimeOnly
 
 Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokować wybrane przedziały:
@@ -55,3 +89,20 @@ Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokowa�
 - `time.fusion_min_confluence` – minimalna konfluencja (0–1) wymagana do fuzji sygnału strategii z modelem.
 - `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
 - `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
+
+W trybie live pamiętaj o ustawieniu `decision.min_confluence` (np. `2`) i
+włączeniu modelu czasu:
+
+```yaml
+time:
+  model:
+    enabled: true
+    path: models/model_time.json
+```
+
+Podczas backtestów podobną funkcję pełnią opcje:
+
+```python
+settings.time.use_time_model = True
+settings.time.time_model_path = "models/model_time.json"
+```
