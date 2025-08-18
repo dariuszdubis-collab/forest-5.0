@@ -15,7 +15,7 @@ jobs:
         run: |
           python - <<'PY'
           from importlib import import_module
-          for m in ("yaml", "numpy", "pandas", "pytest"):
+          for m in ("yaml", "numpy", "pandas", "pytest", "structlog", "joblib"):
               import_module(m)
           print("deps-ok")
           PY
