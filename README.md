@@ -45,3 +45,13 @@ np. `--sep ';'`.
    poetry run forest5 live --config config/live.yaml
    ```
    W celu testów bez realnych zleceń dopisz `--paper`.
+
+## Backtest + TimeOnly
+
+Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokować wybrane przedziały:
+
+- `time.use_time_model` – włącza model czasu podczas backtestu (`true`/`false`).
+- `time.time_model_path` – ścieżka do pliku z zapisanym modelem czasu.
+- `time.fusion_min_confluence` – minimalna konfluencja (0–1) wymagana do fuzji sygnału strategii z modelem.
+- `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
+- `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
