@@ -13,16 +13,30 @@ from ..decision import DecisionAgent, DecisionConfig
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
-from .mt4_broker import MT4Broker
 
 log = logging.getLogger(__name__)
 
 
-def run_live(settings: LiveSettings) -> None:
-    if settings.broker.type.lower() != "mt4":
+def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
+    btype = settings.broker.type.lower()
+    if btype == "mt4":
+        try:
+            from .mt4_broker import MT4Broker
+        except Exception as exc:  # pragma: no cover - defensive
+            raise RuntimeError("MT4Broker import failed") from exc
+        broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
+    elif btype == "paper":
+        from .router import PaperBroker
+
+        broker = PaperBroker()
+        if settings.broker.bridge_dir is None:
+            raise ValueError("bridge_dir required for paper broker")
+        broker.ticks_dir = Path(settings.broker.bridge_dir) / "ticks"  # type: ignore[attr-defined]
+    else:
         raise ValueError(f"unsupported broker type: {settings.broker.type}")
-    broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
+
     broker.connect()
+    start_equity = broker.equity() or 0.0
 
     time_model = None
     if settings.time.model.enabled and settings.time.model.path:
@@ -56,6 +70,7 @@ def run_live(settings: LiveSettings) -> None:
     df = pd.DataFrame(columns=["open", "high", "low", "close"])
     current_bar: dict | None = None
     last_price: float | None = None
+    steps = 0
 
     try:
         while True:
@@ -102,6 +117,13 @@ def run_live(settings: LiveSettings) -> None:
                         ]
                         log.info("candle closed: %s", current_bar)
 
+                        cur_eq = broker.equity()
+                        if start_equity > 0 and cur_eq is not None:
+                            dd = (start_equity - cur_eq) / start_equity
+                            if dd >= settings.risk.max_drawdown:
+                                log.error("max drawdown reached: %.2f%%", dd * 100)
+                                break
+
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
                             or idx.hour in settings.time.blocked_hours
@@ -130,9 +152,14 @@ def run_live(settings: LiveSettings) -> None:
                             "low": price,
                             "close": price,
                         }
+
+                        steps += 1
+                        if max_steps is not None and steps >= max_steps:
+                            break
             time.sleep(0.25)
     except KeyboardInterrupt:
         log.info("KeyboardInterrupt received")
+    finally:
         pos = broker.position_qty()
         if pos > 0:
             broker.market_order("SELL", pos, last_price)
