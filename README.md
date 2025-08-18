@@ -6,10 +6,12 @@ Modułowy framework tradingowy łączący **analizę techniczną**, **agent AI (
 ## Szybki start
 
 ```bash
-# 1) Klon i środowisko (wybierz conda albo poetry)
+# 1) Klon i środowisko (wybierz conda, poetry lub pip)
 conda env create -f environment.yml && conda activate forest5
 # albo
 poetry install
+# albo
+pip install -e . && pip install -r requirements-dev.txt
 
 # 2) Testy i lint
 make lint && make test
