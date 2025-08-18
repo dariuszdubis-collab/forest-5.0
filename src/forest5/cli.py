@@ -7,8 +7,10 @@ from typing import Iterable, Optional
 import pandas as pd
 
 from forest5.config import BacktestSettings
+from forest5.config_live import LiveSettings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
+from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv
 from forest5.utils.argparse_ext import PercentAction
 
@@ -125,6 +127,14 @@ def cmd_grid(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_live(args: argparse.Namespace) -> int:
+    settings = LiveSettings.from_file(args.config)
+    if args.paper:
+        settings.broker.type = "paper"
+    run_live(settings)
+    return 0
+
+
 # --------------------------------- Parser ------------------------------------
 
 
@@ -180,6 +190,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
     p_gr.set_defaults(func=cmd_grid)
+
+    # live
+    p_lv = sub.add_parser("live", help="Uruchom trading na żywo")
+    p_lv.add_argument(
+        "--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami"
+    )
+    p_lv.add_argument(
+        "--paper", action="store_true", help="Wymuś paper trading (broker.type)"
+    )
+    p_lv.set_defaults(func=cmd_live)
 
     return p
 
