@@ -62,6 +62,18 @@ class LiveTimeSettings:
     blocked_hours: list[int] = field(default_factory=list)
     model: LiveTimeModelSettings = field(default_factory=LiveTimeModelSettings)
 
+    def __post_init__(self) -> None:
+        invalid_weekdays = [d for d in self.blocked_weekdays if d < 0 or d > 6]
+        invalid_hours = [h for h in self.blocked_hours if h < 0 or h > 23]
+        if invalid_weekdays:
+            raise ValueError(
+                f"blocked_weekdays must be in range 0-6: {invalid_weekdays}"
+            )
+        if invalid_hours:
+            raise ValueError(
+                f"blocked_hours must be in range 0-23: {invalid_hours}"
+            )
+
 
 @dataclass
 class LiveSettings:

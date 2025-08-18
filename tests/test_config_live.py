@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from forest5.config_live import LiveSettings, LiveTimeModelSettings
+from forest5.config_live import LiveSettings, LiveTimeModelSettings, LiveTimeSettings
 
 
 def test_live_settings_from_yaml(tmp_path: Path):
@@ -49,3 +49,13 @@ def test_live_time_model_quantile_valid():
 def test_live_time_model_quantile_invalid(q_low: float, q_high: float):
     with pytest.raises(ValueError, match="0.0 <= q_low < q_high <= 1.0"):
         LiveTimeModelSettings(q_low=q_low, q_high=q_high)
+
+
+def test_live_time_settings_invalid_weekday():
+    with pytest.raises(ValueError, match="blocked_weekdays"):
+        LiveTimeSettings(blocked_weekdays=[-1, 7])
+
+
+def test_live_time_settings_invalid_hour():
+    with pytest.raises(ValueError, match="blocked_hours"):
+        LiveTimeSettings(blocked_hours=[-1, 24])
