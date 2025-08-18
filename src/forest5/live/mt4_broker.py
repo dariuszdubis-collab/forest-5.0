@@ -99,6 +99,9 @@ class MT4Broker(OrderRouter):
         while time.time() < deadline:
             if res_path.exists():
                 try:
+                    if res_path.stat().st_size == 0:
+                        time.sleep(0.1)
+                        continue
                     data = json.loads(res_path.read_text(encoding="utf-8"))
                     status = data.get("status", "rejected")
                     price = float(data.get("price", data.get("avg_price", 0.0)))
@@ -106,9 +109,14 @@ class MT4Broker(OrderRouter):
                     err = data.get("error")
                     filled = qty if status == "filled" else 0.0
                     return OrderResult(int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err)
+                except json.JSONDecodeError:
+                    log.warning("invalid JSON result: %s", res_path)
+                    time.sleep(0.1)
+                    continue
                 except Exception as exc:  # pragma: no cover - defensive
                     log.exception("invalid result: %s", exc)
-                    break
+                    time.sleep(0.1)
+                    continue
             time.sleep(0.1)
         log.error("timeout waiting for result %s", uid)
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
