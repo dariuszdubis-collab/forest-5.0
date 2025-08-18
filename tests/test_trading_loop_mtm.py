@@ -41,6 +41,6 @@ def test_trading_loop_marks_once_per_bar():
     tb = TradeBook()
     rm = RiskManager(**settings.risk.model_dump())
     pos = bootstrap_position(df, sig, rm, tb, settings, "close", settings.atr_multiple)
-    _trading_loop(df, sig, rm, tb, pos, "close", settings.atr_multiple)
+    _trading_loop(df, sig, rm, tb, pos, "close", settings.atr_multiple, settings)
 
     assert len(rm.equity_curve) == len(df) + 1

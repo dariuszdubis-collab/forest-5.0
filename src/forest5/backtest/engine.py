@@ -13,6 +13,7 @@ from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from .risk import RiskManager
 from .tradebook import TradeBook
+from ..time_only import TimeOnlyModel
 
 
 @dataclass
@@ -63,6 +64,33 @@ def bootstrap_position(
     return position
 
 
+def _fuse_with_time(
+    tech_signal: int,
+    ts: pd.Timestamp,
+    price: float,
+    time_model: TimeOnlyModel | None,
+    min_conf: int,
+) -> int:
+    """Fuse technical signal with optional time-only model."""
+
+    votes = [1 if tech_signal > 0 else (-1 if tech_signal < 0 else 0)]
+    if time_model:
+        tm_decision = time_model.decide(ts, price)
+        if tm_decision == "WAIT":
+            return 0
+        votes.append(1 if tm_decision == "BUY" else -1)
+
+    pos = sum(1 for v in votes if v > 0)
+    neg = sum(1 for v in votes if v < 0)
+    if max(pos, neg) < max(min_conf, 1):
+        return 0
+    if pos > neg:
+        return 1
+    if neg > pos:
+        return -1
+    return 0
+
+
 def _trading_loop(
     df: pd.DataFrame,
     sig: pd.Series,
@@ -71,14 +99,39 @@ def _trading_loop(
     position: float,
     price_col: str,
     atr_multiple: float,
+    settings: BacktestSettings,
 ) -> float:
     """Główna pętla tradingowa z mark-to-market."""
     prices = df[price_col].to_numpy(dtype=float)
     atr_vals = df["atr"].to_numpy(dtype=float)
     sig_vals = sig.reindex(df.index).fillna(0).to_numpy(dtype=int)
 
+    time_model: TimeOnlyModel | None = None
+    if settings.time.use_time_model and settings.time.time_model_path:
+        time_model = TimeOnlyModel.load(settings.time.time_model_path)
+
+    blocked_hours = set(settings.time.blocked_hours)
+    blocked_weekdays = set(settings.time.blocked_weekdays)
+
     for t, price, atr_val, this_sig in zip(df.index, prices, atr_vals, sig_vals):
         this_sig = int(this_sig)
+
+        if t.weekday() in blocked_weekdays or t.hour in blocked_hours:
+            equity_mtm = rm.equity + position * price
+            rm.record_mark_to_market(equity_mtm)
+            if rm.exceeded_max_dd():
+                log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
+                break
+            continue
+
+        fused = _fuse_with_time(
+            this_sig,
+            t,
+            float(price),
+            time_model,
+            settings.time.fusion_min_confluence,
+        )
+        this_sig = fused
 
         if this_sig < 0 and position > 0.0:
             rm.sell(price, position)
@@ -138,7 +191,7 @@ def run_backtest(
     position = bootstrap_position(df, sig, rm, tb, settings, price_col, am)
 
     # 6) główna pętla handlowa
-    position = _trading_loop(df, sig, rm, tb, position, price_col, am)
+    position = _trading_loop(df, sig, rm, tb, position, price_col, am, settings)
 
     # 7) metryki
     eq, max_dd = _compute_metrics(rm.equity_curve)

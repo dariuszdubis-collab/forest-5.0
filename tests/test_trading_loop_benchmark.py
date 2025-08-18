@@ -83,7 +83,7 @@ def test_trading_loop_benchmark():
         tb = TradeBook()
         rm = RiskManager(**settings.risk.model_dump())
         pos = bootstrap_position(df, sig, rm, tb, settings, "close", settings.atr_multiple)
-        _trading_loop(df, sig, rm, tb, pos, "close", settings.atr_multiple)
+        _trading_loop(df, sig, rm, tb, pos, "close", settings.atr_multiple, settings)
 
     t_old = timeit.timeit(run_old, number=3)
     t_new = timeit.timeit(run_new, number=3)
