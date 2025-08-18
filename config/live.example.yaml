@@ -21,6 +21,12 @@ risk:
 ai:
   enabled: false
 
+decision:
+  min_confluence: 2
+
 time:
   enabled: true
   blocked_hours: [22,23]
+  model:
+    enabled: false
+    path: "${FOREST_TIME_MODEL_PATH}"
