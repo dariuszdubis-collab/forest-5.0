@@ -66,13 +66,9 @@ class LiveTimeSettings:
         invalid_weekdays = [d for d in self.blocked_weekdays if d < 0 or d > 6]
         invalid_hours = [h for h in self.blocked_hours if h < 0 or h > 23]
         if invalid_weekdays:
-            raise ValueError(
-                f"blocked_weekdays must be in range 0-6: {invalid_weekdays}"
-            )
+            raise ValueError(f"blocked_weekdays must be in range 0-6: {invalid_weekdays}")
         if invalid_hours:
-            raise ValueError(
-                f"blocked_hours must be in range 0-23: {invalid_hours}"
-            )
+            raise ValueError(f"blocked_hours must be in range 0-23: {invalid_hours}")
 
 
 @dataclass
@@ -100,12 +96,22 @@ class LiveSettings:
         p = Path(path)
         if not p.exists():
             raise FileNotFoundError(p)
+
+        config_dir = p.resolve().parent
+
         if p.suffix.lower() in {".yml", ".yaml"}:
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         elif p.suffix.lower() == ".json":
             data = json.loads(p.read_text(encoding="utf-8"))
         else:
             raise ValueError("Supported: .yaml/.yml/.json")
+
+        ai_data = data.get("ai", {})
+        context_file = ai_data.get("context_file")
+        if context_file:
+            ai_data["context_file"] = str((config_dir / context_file).resolve())
+            data["ai"] = ai_data
+
         return cls.from_dict(data)
 
 
