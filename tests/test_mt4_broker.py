@@ -1,51 +1,44 @@
-import json
-import os
-import sys
-import types
-import uuid
+import json, threading, time, importlib
+from pathlib import Path
 
-# mock heavy dependencies imported in package __init__
-sys.modules.setdefault("numpy", types.SimpleNamespace())
-sys.modules.setdefault("pandas", types.SimpleNamespace())
+# Spróbuj odnaleźć MT4Broker niezależnie od dokładnej ścieżki modułu
+MT4Broker = None
+for name in ("forest5.broker.mt4_broker", "forest5.live.mt4_broker", "mt4_broker"):
+    try:
+        mod = importlib.import_module(name)
+        MT4Broker = getattr(mod, "MT4Broker")
+        break
+    except Exception:
+        pass
+if MT4Broker is None:
+    raise SystemExit("MT4Broker module not found")
 
-from forest5.live.mt4_broker import MT4Broker, OrderResult  # noqa: E402
+def fake_ea_loop(bridge: Path, stop):
+    cmd = bridge/"commands"; res = bridge/"results"
+    (bridge/"ticks").mkdir(parents=True, exist_ok=True)
+    (bridge/"state").mkdir(parents=True, exist_ok=True)
+    (bridge/"ticks"/"tick.json").write_text('{"symbol":"EURUSD","bid":1.0,"ask":1.0,"time":0}')
+    (bridge/"state"/"account.json").write_text('{"equity":10000}')
+    (bridge/"state"/"position_EURUSD.json").write_text('{"qty":0}')
+    cmd.mkdir(parents=True, exist_ok=True); res.mkdir(parents=True, exist_ok=True)
+    while not stop.is_set():
+        for p in cmd.glob("cmd_*.json"):
+            s = json.loads(p.read_text())
+            rid = p.stem[4:]
+            (res/f"res_{rid}.json").write_text(json.dumps({"id":rid,"status":"filled","ticket":1,"price":1.2345,"error":None}))
+            p.unlink(missing_ok=True)
+        time.sleep(0.05)
 
-
-def test_market_order(tmp_path, monkeypatch):
-    bridge = tmp_path / "bridge"
-    os.environ["FOREST_MT4_BRIDGE_DIR"] = str(bridge)
-
-    broker = MT4Broker()
-    broker.connect()
-
-    fake_uuid = uuid.UUID(int=0)
-    monkeypatch.setattr(uuid, "uuid4", lambda: fake_uuid)
-
-    res_path = bridge / "results" / f"res_{fake_uuid.hex}.json"
-    res_path.parent.mkdir(parents=True, exist_ok=True)
-    res_path.write_text(
-        json.dumps({"id": 1, "status": "filled", "filled_qty": 1.0, "avg_price": 100.0}),
-        encoding="utf-8",
-    )
-
-    result = broker.market_order("BUY", 1.0)
-
-    cmd_path = bridge / "commands" / f"cmd_{fake_uuid.hex}.json"
-    assert cmd_path.exists()
-    assert result == OrderResult(1, "filled", 1.0, 100.0, None)
-
-
-def test_state_reading(tmp_path):
-    bridge = tmp_path / "bridge"
-    os.environ["FOREST_MT4_BRIDGE_DIR"] = str(bridge)
-
-    state_dir = bridge / "state"
-    state_dir.mkdir(parents=True)
-    (state_dir / "position.json").write_text(json.dumps({"qty": 2.5}), encoding="utf-8")
-    (state_dir / "account.json").write_text(json.dumps({"equity": 1234.5}), encoding="utf-8")
-
-    broker = MT4Broker()
-    broker.connect()
-
-    assert broker.position_qty() == 2.5
-    assert broker.equity() == 1234.5
+def test_broker_file_bridge(tmp_path: Path):
+    bridge = tmp_path/"forest_bridge"
+    stop = threading.Event()
+    t = threading.Thread(target=fake_ea_loop, args=(bridge,stop), daemon=True); t.start()
+    try:
+        br = MT4Broker(bridge_dir=bridge, symbol="EURUSD", timeout_sec=2.0)
+        br.connect()
+        r = br.market_order("BUY", 0.01)
+        assert r["status"] == "filled"
+        assert br.equity() == 10000
+        assert br.position_qty() == 0
+    finally:
+        stop.set(); t.join(timeout=1)

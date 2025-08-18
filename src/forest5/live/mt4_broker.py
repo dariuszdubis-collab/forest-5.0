@@ -24,11 +24,18 @@ class MT4Broker(OrderRouter):
         self,
         bridge_dir: Optional[str | Path] = None,
         *,
+        symbol: Optional[str] = None,
         config_path: Optional[str | Path] = None,
-        timeout: float = 5.0,
+        timeout_sec: float = 5.0,
+        timeout: Optional[float] = None,
     ) -> None:
         self._connected = False
-        self.timeout = float(timeout)
+        self._id = 0
+        if timeout is not None:
+            self.timeout = float(timeout)
+        else:
+            self.timeout = float(timeout_sec)
+
         if bridge_dir is None:
             env_dir = os.getenv("FOREST_MT4_BRIDGE_DIR")
             if env_dir:
@@ -40,6 +47,10 @@ class MT4Broker(OrderRouter):
         else:
             bridge_dir = Path(bridge_dir)
 
+        if symbol is None:
+            raise ValueError("symbol required")
+
+        self.symbol = str(symbol)
         self.bridge_dir = Path(bridge_dir)
         self.commands_dir = self.bridge_dir / "commands"
         self.results_dir = self.bridge_dir / "results"
@@ -82,20 +93,19 @@ class MT4Broker(OrderRouter):
     def _result_path(self, uid: str) -> Path:
         return self.results_dir / f"res_{uid}.json"
 
-    def _wait_for_result(self, uid: str) -> OrderResult:
+    def _wait_for_result(self, uid: str, qty: float) -> OrderResult:
         res_path = self._result_path(uid)
         deadline = time.time() + self.timeout
         while time.time() < deadline:
             if res_path.exists():
                 try:
                     data = json.loads(res_path.read_text(encoding="utf-8"))
-                    return OrderResult(
-                        int(data.get("id", 0)),
-                        data.get("status", "rejected"),
-                        float(data.get("filled_qty", 0.0)),
-                        float(data.get("avg_price", 0.0)),
-                        data.get("error"),
-                    )
+                    status = data.get("status", "rejected")
+                    price = float(data.get("price", data.get("avg_price", 0.0)))
+                    ticket = data.get("ticket", 0)
+                    err = data.get("error")
+                    filled = qty if status == "filled" else 0.0
+                    return OrderResult(int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err)
                 except Exception as exc:  # pragma: no cover - defensive
                     log.exception("invalid result: %s", exc)
                     break
@@ -113,9 +123,11 @@ class MT4Broker(OrderRouter):
         uid = uuid.uuid4().hex
         cmd = {
             "id": uid,
-            "type": "market_order",
-            "side": side,
-            "qty": qty,
+            "action": side.upper(),
+            "symbol": self.symbol,
+            "volume": qty,
+            "sl": None,
+            "tp": None,
         }
         if price is not None:
             cmd["price"] = price
@@ -123,11 +135,11 @@ class MT4Broker(OrderRouter):
         cmd_path = self._command_path(uid)
         cmd_path.write_text(json.dumps(cmd), encoding="utf-8")
         log.info("command written: %s", cmd_path)
-        return self._wait_for_result(uid)
+        return self._wait_for_result(uid, qty)
 
     # ------------------------------------------------------------------
     def position_qty(self) -> float:
-        pos_file = self.state_dir / "position.json"
+        pos_file = self.state_dir / f"position_{self.symbol}.json"
         try:
             data = json.loads(pos_file.read_text(encoding="utf-8"))
             return float(data.get("qty", 0.0))

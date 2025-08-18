@@ -1,0 +1,26 @@
+broker:
+  type: MT4
+  bridge_dir: "${FOREST_MT4_BRIDGE_DIR}"   # lub wstaw bezpośrednią ścieżkę MQL4/Files/forest_bridge
+  symbol: "EURUSD"
+  volume: 0.01
+
+strategy:
+  name: "ema_rsi"
+  timeframe: "M1"
+  ema_fast: 12
+  ema_slow: 26
+  use_rsi: true
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+
+risk:
+  risk_per_trade: 0.005
+  max_drawdown: 0.20
+
+ai:
+  enabled: false
+
+time:
+  enabled: true
+  blocked_hours: [22,23]
