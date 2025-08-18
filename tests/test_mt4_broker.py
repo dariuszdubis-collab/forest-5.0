@@ -8,7 +8,7 @@ import uuid
 sys.modules.setdefault("numpy", types.SimpleNamespace())
 sys.modules.setdefault("pandas", types.SimpleNamespace())
 
-from forest5.live.mt4_broker import MT4Broker, OrderResult
+from forest5.live.mt4_broker import MT4Broker, OrderResult  # noqa: E402
 
 
 def test_market_order(tmp_path, monkeypatch):
