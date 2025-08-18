@@ -11,5 +11,12 @@ jobs:
         run: |
           pip install -e .
           pip install -r requirements-dev.txt
+      - name: Sanity imports
+        run: python - <<'PY'
+from importlib import import_module
+for m in ("yaml", "numpy", "pandas", "pytest"):
+    import_module(m)
+print("deps-ok")
+PY
       - name: Run tests
         run: pytest -q
