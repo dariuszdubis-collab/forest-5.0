@@ -13,6 +13,7 @@ from ..decision import DecisionAgent, DecisionConfig
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
+from .risk_guard import should_halt_for_drawdown
 
 log = logging.getLogger(__name__)
 
@@ -118,11 +119,14 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
                         log.info("candle closed: %s", current_bar)
 
                         cur_eq = broker.equity()
-                        if start_equity > 0 and cur_eq is not None:
+                        if cur_eq is not None and should_halt_for_drawdown(
+                            start_equity,
+                            cur_eq,
+                            settings.risk.max_drawdown,
+                        ):
                             dd = (start_equity - cur_eq) / start_equity
-                            if dd >= settings.risk.max_drawdown:
-                                log.error("max drawdown reached: %.2f%%", dd * 100)
-                                break
+                            log.error("max drawdown reached: %.2f%%", dd * 100)
+                            break
 
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
