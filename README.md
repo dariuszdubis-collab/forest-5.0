@@ -28,15 +28,18 @@ CLI automatycznie wykrywa separator CSV przy użyciu `csv.Sniffer` i szybkiego
 parsera C. W razie potrzeby separator można podać ręcznie opcją `--sep`,
 np. `--sep ';'`.
 
-## Live trading z MT4
+## Live trading z MetaTrader 4
 
-1. Uruchom MT4 pod Wine (domyślnie `~/.mt4`). Hash katalogu danych znajdziesz w `Terminal/<hash>`.
-2. Wgraj EA: `mt4/ForestBridge.mq4` do `MQL4/Experts` i skompiluj w MetaEditorze (Navigator -> Refresh).
-3. Struktura mostu: `MQL4/Files/forest_bridge/{ticks,commands,results,state}` tworzy się automatycznie.
-4. Deploy EA: `export WINEPREFIX=~/.mt4 MT4_HASH=<hash> && bash scripts/mt4_deploy.sh`.
-5. Ustaw `FOREST_MT4_BRIDGE_DIR` i odpal smoke-test:
+1. Zainstaluj i uruchom MT4 (np. pod Wine w katalogu `~/.mt4`).
+2. Wgraj EA `mt4/ForestBridge.mq4` do `MQL4/Experts` i skompiluj go w MetaEditorze.
+3. Most komunikacyjny tworzy katalog `MQL4/Files/forest_bridge` – podaj tę ścieżkę w `broker.bridge_dir` lub poprzez zmienną `FOREST_MT4_BRIDGE_DIR`.
+4. Sklonuj przykład konfiguracji i dostosuj go do swoich potrzeb:
    ```bash
-   export FOREST_MT4_BRIDGE_DIR="/home/<user>/.mt4/drive_c/users/<user>/AppData/Roaming/MetaQuotes/Terminal/<hash>/MQL4/Files/forest_bridge"
-   python scripts/mt4_smoke_test.py
+   cp config/live.example.yaml config/live.yaml
    ```
-6. Start trybu live: `forest5 live --config config/live.example.yaml`.
+   W `config/live.yaml` ustaw symbol, wolumen i ścieżkę mostu.
+5. Uruchom tryb live:
+   ```bash
+   poetry run forest5 live --config config/live.yaml
+   ```
+   W celu testów bez realnych zleceń dopisz `--paper`.
