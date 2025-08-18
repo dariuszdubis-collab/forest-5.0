@@ -52,6 +52,8 @@ class LiveTimeModelSettings:
     def __post_init__(self) -> None:
         if self.path is not None:
             self.path = Path(self.path)
+        if not (0.0 <= self.q_low < self.q_high <= 1.0):
+            raise ValueError("q_low and q_high must satisfy 0.0 <= q_low < q_high <= 1.0")
 
 
 @dataclass
@@ -59,6 +61,7 @@ class LiveTimeSettings:
     blocked_weekdays: list[int] = field(default_factory=list)
     blocked_hours: list[int] = field(default_factory=list)
     model: LiveTimeModelSettings = field(default_factory=LiveTimeModelSettings)
+
 
 @dataclass
 class LiveSettings:
