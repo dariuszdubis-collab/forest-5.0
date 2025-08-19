@@ -25,6 +25,10 @@ def _ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
 
 def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
     name = getattr(settings.strategy, "name", "ema_cross")
+    if name in {"ema_rsi", "ema-cross+rsi"}:
+        settings.strategy.name = "ema_cross"
+        settings.strategy.use_rsi = True
+        name = "ema_cross"
     if name == "ema_cross":
         return _ema_cross_signal(df[price_col], settings.strategy.fast, settings.strategy.slow)
     raise ValueError(f"Unknown strategy: {name}")
