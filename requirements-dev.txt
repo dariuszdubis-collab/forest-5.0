@@ -1,7 +1,6 @@
 pytest
-pyyaml>=6.0.1,<7.0
-pandas
+pyyaml>=6.0
 numpy
-pydantic>=2.8,<3.0
-joblib>=1.4,<2.0
-structlog>=24.1,<25.0
+pandas
+structlog
+joblib
