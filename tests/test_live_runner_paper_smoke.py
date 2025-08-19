@@ -98,9 +98,13 @@ def test_live_runner_exits_on_idle_timeout(tmp_path: Path):
             errors.append(exc)
 
     t = threading.Thread(target=runner)
+    start = time.time()
     t.start()
     t.join(timeout=5)
+    elapsed = time.time() - start
 
     assert not t.is_alive(), "run_live did not exit on idle timeout"
+    # Give a small cushion above the requested timeout to account for scheduling
+    assert elapsed < 3, f"run_live took too long: {elapsed} sec"
     if errors:
         raise errors[0]
