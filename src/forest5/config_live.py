@@ -31,6 +31,7 @@ class BrokerSettings:
     bridge_dir: Path | None = None
     symbol: str = "SYMBOL"
     volume: float = 1.0
+    timeframe: str = "1m"
 
     def __post_init__(self) -> None:
         if self.bridge_dir is not None:
@@ -63,6 +64,8 @@ class LiveTimeSettings:
     model: LiveTimeModelSettings = field(default_factory=LiveTimeModelSettings)
 
     def __post_init__(self) -> None:
+        if isinstance(self.model, dict):
+            self.model = LiveTimeModelSettings(**self.model)
         invalid_weekdays = [d for d in self.blocked_weekdays if d < 0 or d > 6]
         invalid_hours = [h for h in self.blocked_hours if h < 0 or h > 23]
         if invalid_weekdays:
@@ -82,13 +85,24 @@ class LiveSettings:
 
     @classmethod
     def from_dict(cls, data: dict) -> "LiveSettings":
+        def _filter(cls, section: dict):
+            if hasattr(cls, "__dataclass_fields__"):
+                keys = cls.__dataclass_fields__
+            elif hasattr(cls, "model_fields"):
+                keys = cls.model_fields
+            elif hasattr(cls, "__fields__"):
+                keys = cls.__fields__
+            else:
+                return section
+            return {k: v for k, v in section.items() if k in keys}
+
         return cls(
-            broker=BrokerSettings(**data.get("broker", {})),
-            strategy=StrategySettings(**data.get("strategy", {})),
-            risk=RiskSettings(**data.get("risk", {})),
-            ai=AISettings(**data.get("ai", {})),
-            decision=DecisionSettings(**data.get("decision", {})),
-            time=LiveTimeSettings(**data.get("time", {})),
+            broker=BrokerSettings(**_filter(BrokerSettings, data.get("broker", {}))),
+            strategy=StrategySettings(**_filter(StrategySettings, data.get("strategy", {}))),
+            risk=RiskSettings(**_filter(RiskSettings, data.get("risk", {}))),
+            ai=AISettings(**_filter(AISettings, data.get("ai", {}))),
+            decision=DecisionSettings(**_filter(DecisionSettings, data.get("decision", {}))),
+            time=LiveTimeSettings(**_filter(LiveTimeSettings, data.get("time", {}))),
         )
 
     @classmethod
