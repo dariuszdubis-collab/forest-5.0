@@ -23,16 +23,18 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
     if btype == "mt4":
         try:
             from .mt4_broker import MT4Broker
-        except Exception as exc:  # pragma: no cover - defensive
-            raise RuntimeError("MT4Broker import failed") from exc
+        except Exception as e:  # pragma: no cover - defensive
+            raise RuntimeError(f"MT4 environment not available: {e}") from e
         broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
     elif btype == "paper":
         from .router import PaperBroker
 
-        broker = PaperBroker()
-        if settings.broker.bridge_dir is None:
-            raise ValueError("bridge_dir required for paper broker")
-        broker.ticks_dir = Path(settings.broker.bridge_dir) / "ticks"  # type: ignore[attr-defined]
+        try:
+            broker = PaperBroker(symbol=settings.broker.symbol)  # type: ignore[arg-type]
+        except TypeError:
+            broker = PaperBroker()
+        if settings.broker.bridge_dir is not None:
+            broker.ticks_dir = Path(settings.broker.bridge_dir) / "ticks"  # type: ignore[attr-defined]
     else:
         raise ValueError(f"unsupported broker type: {settings.broker.type}")
 
@@ -65,7 +67,8 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
 
-    tick_file = broker.ticks_dir / "tick.json"
+    tick_dir = getattr(broker, "ticks_dir", None)
+    tick_file = tick_dir / "tick.json" if tick_dir is not None else None
     last_mtime = 0.0
 
     df = pd.DataFrame(columns=["open", "high", "low", "close"])
@@ -75,7 +78,7 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
 
     try:
         while True:
-            if tick_file.exists():
+            if tick_file and tick_file.exists():
                 mtime = tick_file.stat().st_mtime
                 if mtime != last_mtime:
                     last_mtime = mtime
@@ -87,9 +90,7 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
                         continue
 
                     ts = float(tick.get("time", time.time()))
-                    price = float(
-                        tick.get("bid") or tick.get("price") or tick.get("ask")
-                    )
+                    price = float(tick.get("bid") or tick.get("price") or tick.get("ask"))
                     last_price = price
                     log.info("tick: %s", tick)
 
@@ -144,9 +145,7 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
                             )
                             log.info("decision: %s", decision)
                             if decision in ("BUY", "SELL"):
-                                res = broker.market_order(
-                                    decision, settings.broker.volume, price
-                                )
+                                res = broker.market_order(decision, settings.broker.volume, price)
                                 log.info("order result: %s", res)
 
                         current_bar = {
