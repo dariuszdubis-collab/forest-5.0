@@ -18,7 +18,12 @@ from .risk_guard import should_halt_for_drawdown
 log = logging.getLogger(__name__)
 
 
-def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
+def run_live(
+    settings: LiveSettings,
+    *,
+    max_steps: int | None = None,
+    timeout: float = 2.0,
+) -> None:
     btype = settings.broker.type.lower()
     if btype == "mt4":
         try:
@@ -72,9 +77,14 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
     current_bar: dict | None = None
     last_price: float | None = None
     steps = 0
+    last_candle_ts: float | None = None
 
     try:
         while True:
+            if last_candle_ts is not None and time.time() - last_candle_ts > timeout:
+                log.info("idle timeout reached")
+                break
+
             if tick_file.exists():
                 mtime = tick_file.stat().st_mtime
                 if mtime != last_mtime:
@@ -117,6 +127,7 @@ def run_live(settings: LiveSettings, *, max_steps: int | None = None) -> None:
                             current_bar["close"],
                         ]
                         log.info("candle closed: %s", current_bar)
+                        last_candle_ts = time.time()
 
                         cur_eq = broker.equity()
                         if cur_eq is not None and should_halt_for_drawdown(
