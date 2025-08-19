@@ -2,9 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import re
 import yaml
 
 from typing import Type
+
+
+WINDOWS_PATH_LITERAL_RE = re.compile(r"^[A-Za-z]:\\")
+
+
+def _is_windows_path_literal(path: str | None) -> bool:
+    if path is None:
+        return False
+    return WINDOWS_PATH_LITERAL_RE.match(path) is not None
 
 
 def _pydantic_validate(model_cls: Type, data: dict):
