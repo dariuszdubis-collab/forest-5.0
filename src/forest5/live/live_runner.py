@@ -24,6 +24,21 @@ def run_live(
     max_steps: int | None = None,
     timeout: float = 2.0,
 ) -> None:
+    """Run the live trading loop.
+
+    The loop processes incoming ticks, closes candles, and makes trading
+    decisions. It will exit early if no new candles are processed within
+    ``timeout`` seconds.
+
+    Parameters
+    ----------
+    settings:
+        Configuration for the live run.
+    max_steps:
+        Optional limit on number of candles to process.
+    timeout:
+        Seconds to wait for a new candle before stopping.
+    """
     btype = settings.broker.type.lower()
     if btype == "mt4":
         try:
