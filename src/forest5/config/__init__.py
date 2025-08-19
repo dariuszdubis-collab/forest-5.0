@@ -9,7 +9,7 @@ _spec = importlib.util.spec_from_file_location(
     "forest5._legacy_config", Path(__file__).resolve().parent.parent / "config.py"
 )
 _legacy = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
-assert _spec.loader is not None
+assert _spec.loader is not None  # nosec B101
 sys.modules[_spec.name] = _legacy  # register before execution for pydantic
 _spec.loader.exec_module(_legacy)  # type: ignore[assignment]
 
@@ -38,7 +38,7 @@ for _name in [
     _cls.__module__ = __name__
     globals()[_name] = _cls
 
-from .loader import load_live_settings
+from .loader import load_live_settings  # noqa: E402
 
 __all__ = [
     "load_live_settings",

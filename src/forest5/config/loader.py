@@ -21,4 +21,6 @@ def load_live_settings(path: str | Path):
     p = Path(path)
     text = os.path.expandvars(p.read_text(encoding="utf-8"))
     data = yaml.safe_load(text) or {}
+    if hasattr(LiveSettings, "from_dict"):
+        return LiveSettings.from_dict(data)
     return _pydantic_validate(LiveSettings, data)
