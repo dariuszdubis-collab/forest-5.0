@@ -38,12 +38,15 @@ class TimeOnlyModel:
         return "WAIT"
 
     def save(self, path: str | Path) -> None:
+        Path(path).write_text(self.to_json())
+
+    def to_json(self) -> str:
         data = {
             "quantile_gates": {str(k): v for k, v in self.quantile_gates.items()},
             "q_low": self.q_low,
             "q_high": self.q_high,
         }
-        Path(path).write_text(json.dumps(data))
+        return json.dumps(data)
 
     @classmethod
     def load(cls, path: str | Path) -> "TimeOnlyModel":
