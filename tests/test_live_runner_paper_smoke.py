@@ -89,14 +89,6 @@ def test_live_runner_exits_on_idle_timeout(tmp_path: Path):
         risk=RiskSettings(),
     )
 
-    tick_file = bridge / "ticks" / "tick.json"
-
-    def write_tick(tick: dict) -> None:
-        tmp = tick_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps(tick), encoding="utf-8")
-        tmp.replace(tick_file)
-        os.utime(tick_file, (tick["time"], tick["time"]))
-
     errors: list[Exception] = []
 
     def runner() -> None:
@@ -107,9 +99,6 @@ def test_live_runner_exits_on_idle_timeout(tmp_path: Path):
 
     t = threading.Thread(target=runner)
     t.start()
-    time.sleep(0.1)
-    # write a tick to close the first candle
-    write_tick({"time": 1_000_000_060, "bid": 101})
     t.join(timeout=5)
 
     assert not t.is_alive(), "run_live did not exit on idle timeout"
