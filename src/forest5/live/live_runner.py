@@ -77,11 +77,12 @@ def run_live(
     current_bar: dict | None = None
     last_price: float | None = None
     steps = 0
-    last_candle_ts: float | None = None
+    # Track when the last candle was processed to detect idle periods
+    last_candle_ts = time.time()
 
     try:
         while True:
-            if last_candle_ts is not None and time.time() - last_candle_ts > timeout:
+            if time.time() - last_candle_ts > timeout:
                 log.info("idle timeout reached")
                 break
 
@@ -97,9 +98,7 @@ def run_live(
                         continue
 
                     ts = float(tick.get("time", time.time()))
-                    price = float(
-                        tick.get("bid") or tick.get("price") or tick.get("ask")
-                    )
+                    price = float(tick.get("bid") or tick.get("price") or tick.get("ask"))
                     last_price = price
                     log.info("tick: %s", tick)
 
@@ -155,9 +154,7 @@ def run_live(
                             )
                             log.info("decision: %s", decision)
                             if decision in ("BUY", "SELL"):
-                                res = broker.market_order(
-                                    decision, settings.broker.volume, price
-                                )
+                                res = broker.market_order(decision, settings.broker.volume, price)
                                 log.info("order result: %s", res)
 
                         current_bar = {
