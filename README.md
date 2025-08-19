@@ -106,3 +106,14 @@ Podczas backtestów podobną funkcję pełnią opcje:
 settings.time.use_time_model = True
 settings.time.time_model_path = "models/model_time.json"
 ```
+
+## Trening modelu czasu
+
+Aby wytrenować prosty model czasu na danych z pliku CSV zawierającego kolumny
+`time` i `y` użyj skryptu `scripts/time_train.py`:
+
+```bash
+python scripts/time_train.py --input demo.csv --output models/model_time.json
+```
+
+Opcje `--q-low` i `--q-high` pozwalają dostroić kwantyle decyzyjne modelu.
