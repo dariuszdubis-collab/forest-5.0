@@ -5,7 +5,10 @@ import os
 import re
 import yaml
 
-from typing import Type
+from typing import Any, TYPE_CHECKING, Type
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ..config_live import LiveSettings
 
 
 WINDOWS_PATH_LITERAL_RE = re.compile(r"^[A-Za-z]:\\")
@@ -34,15 +37,15 @@ def _norm_path(base_dir: Path, v: str | None) -> str | None:
     return str(p.resolve(strict=False))
 
 
-def _pydantic_validate(model_cls: Type, data: dict):
+def _pydantic_validate(model_cls: Type, data: dict) -> Any:
     if hasattr(model_cls, "model_validate"):
-        return model_cls.model_validate(data)  # type: ignore[call-arg]
+        return model_cls.model_validate(data)
     if hasattr(model_cls, "parse_obj"):
-        return model_cls.parse_obj(data)  # type: ignore[attr-defined]
+        return model_cls.parse_obj(data)
     return model_cls(**data)
 
 
-def load_live_settings(path: str | Path):
+def load_live_settings(path: str | Path) -> "LiveSettings":
     from ..config_live import LiveSettings
 
     p = Path(path)

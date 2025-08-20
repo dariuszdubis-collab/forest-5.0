@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pandas as pd
+
 from .ai_agent import SentimentAgent
 from .live.router import OrderRouter, PaperBroker
 from .time_only import TimeOnlyModel
@@ -33,7 +35,7 @@ class DecisionAgent:
 
     def decide(
         self,
-        ts,
+        ts: pd.Timestamp,
         tech_signal: int,
         value: float,
         symbol: str,

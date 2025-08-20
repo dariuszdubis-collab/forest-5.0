@@ -115,7 +115,7 @@ class MT4Broker(OrderRouter):
                     time.sleep(min(delay, max(0, deadline - time.time())))
                     delay = min(delay * 2, 1.0)
                     continue
-                except Exception as exc:  # pragma: no cover - defensive
+                except (OSError, ValueError, TypeError) as exc:  # pragma: no cover - defensive
                     log.exception("invalid_result", path=str(res_path), error=str(exc))
                     time.sleep(min(delay, max(0, deadline - time.time())))
                     continue
@@ -168,7 +168,7 @@ class MT4Broker(OrderRouter):
             if tmp_path.exists():
                 try:
                     tmp_path.unlink()
-                except Exception:
+                except OSError:
                     pass
         send_latency_ms = (time.time() - start_ts) * 1000.0
         log.info(
@@ -215,7 +215,7 @@ class MT4Broker(OrderRouter):
         except FileNotFoundError:
             log.warning("position_file_missing", path=str(pos_file))
             return 0.0
-        except Exception:  # pragma: no cover - defensive
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):  # pragma: no cover - defensive
             log.exception("position_file_error")
             return 0.0
 
@@ -227,7 +227,7 @@ class MT4Broker(OrderRouter):
         except FileNotFoundError:
             log.warning("account_file_missing", path=str(acc_file))
             return 0.0
-        except Exception:  # pragma: no cover - defensive
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):  # pragma: no cover - defensive
             log.exception("account_file_error")
             return 0.0
 

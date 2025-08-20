@@ -14,6 +14,7 @@ from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
 from .risk_guard import should_halt_for_drawdown
 from ..utils.log import log
+from .router import OrderRouter
 
 
 def _read_context(path: str | Path, max_bytes: int) -> str:
@@ -26,7 +27,7 @@ def _read_context(path: str | Path, max_bytes: int) -> str:
         with open(path, "rb") as fh:
             data = fh.read(max_bytes)
         return data.decode("utf-8", errors="ignore")
-    except Exception:  # pragma: no cover - defensive
+    except OSError:  # pragma: no cover - defensive
         log.exception("failed to read context file", path=str(path))
         return ""
 
@@ -53,30 +54,33 @@ def run_live(
         Seconds to wait for a new candle before stopping.
     """
     btype = settings.broker.type.lower()
+    broker: OrderRouter
     if btype == "mt4":
         try:
             from .mt4_broker import MT4Broker
-        except Exception as exc:  # pragma: no cover - defensive
+        except ImportError as exc:  # pragma: no cover - defensive
             raise RuntimeError("MT4Broker import failed") from exc
         broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
+        tick_dir = broker.ticks_dir
     elif btype == "paper":
         from .router import PaperBroker
 
         broker = PaperBroker()
         if settings.broker.bridge_dir is None:
             raise ValueError("bridge_dir required for paper broker")
-        broker.ticks_dir = Path(settings.broker.bridge_dir) / "ticks"  # type: ignore[attr-defined]
+        tick_dir = Path(settings.broker.bridge_dir) / "ticks"
+        broker.ticks_dir = tick_dir  # type: ignore[attr-defined]
     else:
         raise ValueError(f"unsupported broker type: {settings.broker.type}")
 
     broker.connect()
     start_equity = broker.equity() or 0.0
 
-    time_model = None
+    time_model: TimeOnlyModel | None = None
     if settings.time.model.enabled and settings.time.model.path:
         try:
             time_model = TimeOnlyModel.load(settings.time.model.path)
-        except Exception:  # pragma: no cover - defensive
+        except (OSError, json.JSONDecodeError, KeyError):  # pragma: no cover - defensive
             log.exception("failed to load time model")
 
     agent = DecisionAgent(
@@ -95,7 +99,7 @@ def run_live(
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
 
-    tick_file = broker.ticks_dir / "tick.json"
+    tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
     df = pd.DataFrame(columns=["open", "high", "low", "close"])
@@ -118,7 +122,7 @@ def run_live(
                     last_mtime = mtime
                     try:
                         tick = json.loads(_read_context(tick_file, 4096))
-                    except Exception:  # pragma: no cover - defensive
+                    except json.JSONDecodeError:  # pragma: no cover - defensive
                         log.exception("invalid tick data")
                         time.sleep(0.25)
                         continue
