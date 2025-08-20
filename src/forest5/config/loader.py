@@ -11,30 +11,33 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..config_live import LiveSettings
 
 
-WINDOWS_PATH_LITERAL_RE = re.compile(r"^[A-Za-z]:\\")
+WINDOWS_LITERAL_RE = re.compile(r"^(?:[A-Za-z]:\\|\\\\\\?\\)")
 
 
-def _is_windows_path_literal(path: str | None) -> bool:
-    if path is None:
+def _is_win_literal(p: str | None) -> bool:
+    if not p:
         return False
-    return WINDOWS_PATH_LITERAL_RE.match(path) is not None
+    return WINDOWS_LITERAL_RE.match(p) is not None
 
 
-def _expand_env_user(v: str) -> str:
-    return os.path.expanduser(os.path.expandvars(v))
+def _expand_env_user(s: str) -> str:
+    return os.path.expanduser(os.path.expandvars(s))
+
+
+def _resolve_from_yaml(base: Path, p: str) -> Path:
+    p = _expand_env_user(p)
+    if _is_win_literal(p):
+        return Path(p)
+    q = Path(p)
+    if not q.is_absolute():
+        q = base / q
+    return q.resolve(strict=False)
 
 
 def _norm_path(base_dir: Path, v: str | None) -> str | None:
-    if v is None:
-        return None
-    if v == "":
-        return ""
-    if _is_windows_path_literal(v):
-        return _expand_env_user(v)
-    p = Path(_expand_env_user(v))
-    if not p.is_absolute():
-        p = base_dir / p
-    return str(p.resolve(strict=False))
+    if v in (None, ""):
+        return v
+    return str(_resolve_from_yaml(base_dir, v))
 
 
 def _pydantic_validate(model_cls: Type, data: dict) -> Any:
@@ -55,21 +58,34 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
 
     broker = data.get("broker")
     if isinstance(broker, dict):
-        broker["bridge_dir"] = _norm_path(cfg_dir, broker.get("bridge_dir"))
+        b_raw = broker.get("bridge_dir")
+        if b_raw:
+            broker["bridge_dir"] = _resolve_from_yaml(cfg_dir, b_raw)
+        else:
+            env_bridge = os.getenv("FOREST_MT4_BRIDGE_DIR")
+            broker["bridge_dir"] = (
+                _resolve_from_yaml(cfg_dir, env_bridge) if env_bridge else None
+            )
         data["broker"] = broker
 
     ai = data.get("ai")
     if isinstance(ai, dict):
-        ctx = _norm_path(cfg_dir, ai.get("context_file"))
-        ai["context_file"] = "" if ctx is None else ctx
+        a_raw = ai.get("context_file")
+        if a_raw:
+            ai["context_file"] = str(_resolve_from_yaml(cfg_dir, a_raw))
+        else:
+            ai["context_file"] = ""
         data["ai"] = ai
 
     time = data.get("time")
     if isinstance(time, dict):
         model = time.get("model")
         if isinstance(model, dict):
-            mpath = _norm_path(cfg_dir, model.get("path"))
-            model["path"] = "" if mpath is None else mpath
+            m_raw = model.get("path")
+            if m_raw:
+                model["path"] = _resolve_from_yaml(cfg_dir, m_raw)
+            else:
+                model["path"] = ""
             time["model"] = model
         data["time"] = time
 
