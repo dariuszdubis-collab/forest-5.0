@@ -1,3 +1,5 @@
+import pytest
+
 from forest5.live.router import PaperBroker
 
 
@@ -23,3 +25,14 @@ def test_rejects_without_price_or_connection():
     assert r.error is not None
     b.connect()
     assert b.market_order("BUY", 1).status == "rejected"  # no price
+
+
+def test_sell_fee_uses_executed_qty():
+    b = PaperBroker(fee_perc=0.1)
+    b.connect()
+    b.set_price(100.0)
+    b.market_order("BUY", 5)
+    b.set_price(100.0)
+    r = b.market_order("SELL", 10)
+    assert r.filled_qty == 5
+    assert b.equity() == pytest.approx(99_900.0)
