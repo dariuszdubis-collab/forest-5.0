@@ -21,5 +21,24 @@ jobs:
               import_module(m)
           print("deps-ok")
           PY
+      - name: Lint
+        run: |
+          set -o pipefail
+          ruff check . | tee ruff.txt
+      - name: Type check
+        run: |
+          set -o pipefail
+          mypy src | tee mypy.txt
       - name: Run tests
-        run: pytest -q
+        run: pytest --cov=src --cov-report=xml --junitxml=pytest-junit.xml -q
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            pytest-junit.xml
+            coverage.xml
+            ruff.txt
+            mypy.txt
+          if-no-files-found: ignore
