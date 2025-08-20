@@ -23,3 +23,7 @@ jobs:
           PY
       - name: Run tests
         run: pytest -q
+      - name: Lint with ruff
+        run: ruff check .
+      - name: Type-check with mypy
+        run: mypy src/forest5
