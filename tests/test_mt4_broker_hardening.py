@@ -1,6 +1,8 @@
-import json, threading, time, importlib
+import json
+import threading
+import time
+import importlib
 from pathlib import Path
-import pytest
 
 def _import_mt4broker():
     """
@@ -48,11 +50,20 @@ def _fake_ea_loop(bridge: Path, stop_evt: threading.Event):
     while not stop_evt.is_set():
         for p in list(cmd.glob("cmd_*.json")):
             try:
-                s = json.loads(p.read_text(encoding="utf-8"))
+                json.loads(p.read_text(encoding="utf-8"))
                 rid = p.stem[4:]  # po 'cmd_'
-                _write_text(res / f"res_{rid}.json",
-                            json.dumps({"id": rid, "status": "filled",
-                                        "ticket": 1, "price": 1.23456, "error": None}))
+                _write_text(
+                    res / f"res_{rid}.json",
+                    json.dumps(
+                        {
+                            "id": rid,
+                            "status": "filled",
+                            "ticket": 1,
+                            "price": 1.23456,
+                            "error": None,
+                        }
+                    ),
+                )
                 p.unlink(missing_ok=True)
             except Exception:
                 # Nie maskujemy błędów modułów – ale w testowej pętli EA
