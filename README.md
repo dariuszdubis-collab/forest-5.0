@@ -80,6 +80,28 @@ settings = LiveSettings(
 run_live(settings, max_steps=10)
 ```
 
+## Zarządzanie ryzykiem
+
+### `risk.on_drawdown.action`
+
+Parametr `risk.on_drawdown.action` określa reakcję systemu po osiągnięciu
+progu `risk.max_drawdown`.
+
+- `"halt"` – natychmiast wstrzymuje handel po przekroczeniu maksymalnego
+  obsunięcia kapitału (wymagany ręczny restart).
+- `"soft_wait"` – pauzuje otwieranie nowych pozycji do czasu, aż kapitał
+  powróci powyżej zadanego progu.
+
+Przykład konfiguracji:
+
+```yaml
+risk:
+  risk_per_trade: 0.005
+  max_drawdown: 0.20
+  on_drawdown:
+    action: "halt"  # lub "soft_wait"
+```
+
 ## Backtest + TimeOnly
 
 Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokować wybrane przedziały:
