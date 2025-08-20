@@ -13,3 +13,9 @@ def test_read_context_removes_binary_noise(tmp_path: Path) -> None:
     p = tmp_path / "ctx.txt"
     p.write_bytes(b"hello\xffworld")
     assert _read_context(p, 100) == "helloworld"
+
+
+def test_read_context_binary_truncated(tmp_path: Path) -> None:
+    p = tmp_path / "ctx.bin"
+    p.write_bytes(b"abc\xffdefghij")
+    assert _read_context(p, 8) == "abcdefg"

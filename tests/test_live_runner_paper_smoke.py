@@ -33,7 +33,7 @@ def _mk_bridge(tmpdir: Path) -> Path:
     return bridge
 
 
-def test_run_live_paper(tmp_path: Path):
+def test_run_live_paper(tmp_path: Path, capfd):
     bridge = _mk_bridge(tmp_path)
     s = LiveSettings(
         broker=BrokerSettings(
@@ -45,6 +45,8 @@ def test_run_live_paper(tmp_path: Path):
         risk=RiskSettings(max_drawdown=0.5),
     )
     run_live(s, max_steps=2)
+    out = capfd.readouterr().out
+    assert "idle_timeout_reached" in out
 
 
 def test_incremental_signal_perf():
