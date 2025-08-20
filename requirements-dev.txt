@@ -11,3 +11,6 @@ flake8>=7.1
 bandit>=1.8.6
 pip-audit>=2.9.0
 pytest-cov>=6.2.1
+mypy
+pandas-stubs
+types-PyYAML
