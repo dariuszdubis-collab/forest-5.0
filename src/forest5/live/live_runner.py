@@ -16,6 +16,21 @@ from .risk_guard import should_halt_for_drawdown
 from ..utils.log import log
 
 
+def _read_context(path: str | Path, max_bytes: int) -> str:
+    """Read up to ``max_bytes`` from ``path`` as UTF-8 text.
+
+    Bytes that cannot be decoded are ignored. Any I/O errors are logged and an
+    empty string is returned.
+    """
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read(max_bytes)
+        return data.decode("utf-8", errors="ignore")
+    except Exception:  # pragma: no cover - defensive
+        log.exception("failed to read context file", path=str(path))
+        return ""
+
+
 def run_live(
     settings: LiveSettings,
     *,
@@ -75,10 +90,7 @@ def run_live(
 
     context_text = ""
     if settings.ai.context_file:
-        try:
-            context_text = Path(settings.ai.context_file).read_text(encoding="utf-8")
-        except Exception:  # pragma: no cover - defensive
-            log.exception("failed to read AI context file")
+        context_text = _read_context(settings.ai.context_file, 32_768)
 
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
@@ -104,7 +116,7 @@ def run_live(
                 if mtime != last_mtime:
                     last_mtime = mtime
                     try:
-                        tick = json.loads(tick_file.read_text(encoding="utf-8"))
+                        tick = json.loads(_read_context(tick_file, 4096))
                     except Exception:  # pragma: no cover - defensive
                         log.exception("invalid tick data")
                         time.sleep(0.25)
