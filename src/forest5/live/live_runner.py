@@ -104,6 +104,7 @@ def run_live(
     steps = 0
     # Track when the last candle was processed to detect idle periods
     last_candle_ts = time.time()
+    risk_halt = False
 
     try:
         while True:
@@ -160,8 +161,12 @@ def run_live(
                             settings.risk.max_drawdown,
                         ):
                             dd = (start_equity - cur_eq) / start_equity
-                            log.error("risk_guard_halt", drawdown_pct=dd * 100)
-                            break
+                            if settings.risk.on_drawdown.action == "halt":
+                                log.error("risk_guard_halt", drawdown_pct=dd * 100)
+                                break
+                            elif settings.risk.on_drawdown.action == "soft_wait":
+                                risk_halt = True
+                                log.info("risk_guard_halt", drawdown_pct=dd * 100)
 
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
@@ -186,7 +191,10 @@ def run_live(
                                 reason=reason,
                             )
                             if decision in ("BUY", "SELL"):
-                                broker.market_order(decision, settings.broker.volume, price)
+                                if risk_halt:
+                                    log.info("risk_guard_active", decision=decision)
+                                else:
+                                    broker.market_order(decision, settings.broker.volume, price)
 
                         current_bar = {
                             "start": bar_start,
