@@ -32,6 +32,55 @@ def _read_context(path: str | Path, max_bytes: int) -> str:
         return ""
 
 
+def _append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) -> int:
+    """Append ``bar`` to ``df`` and return only the latest signal.
+
+    This updates EMA values incrementally so indicator calculations scale
+    with the number of new bars instead of the full history.
+    """
+    idx = pd.to_datetime(bar["start"], unit="s")
+    df.loc[idx, ["open", "high", "low", "close"]] = [
+        bar["open"],
+        bar["high"],
+        bar["low"],
+        bar["close"],
+    ]
+
+    # Only the EMA cross strategy is used in tests; fall back to the original
+    # implementation for anything else.
+    if getattr(settings.strategy, "name", "ema_cross") != "ema_cross":
+        return int(compute_signal(df, settings, "close").iloc[-1])
+
+    close = float(bar["close"])
+    fast = settings.strategy.fast
+    slow = settings.strategy.slow
+    alpha_fast = 2 / (fast + 1)
+    alpha_slow = 2 / (slow + 1)
+
+    if "ema_fast" not in df.columns:
+        df["ema_fast"] = pd.Series(dtype=float)
+        df["ema_slow"] = pd.Series(dtype=float)
+
+    if len(df) > 1:
+        prev_fast = float(df["ema_fast"].iloc[-2])
+        prev_slow = float(df["ema_slow"].iloc[-2])
+    else:
+        prev_fast = prev_slow = close
+
+    ema_fast = close * alpha_fast + prev_fast * (1 - alpha_fast)
+    ema_slow = close * alpha_slow + prev_slow * (1 - alpha_slow)
+    df.at[idx, "ema_fast"] = ema_fast
+    df.at[idx, "ema_slow"] = ema_slow
+
+    sig = 0
+    if len(df) > 1:
+        prev_dir = 1 if prev_fast > prev_slow else -1
+        direction = 1 if ema_fast > ema_slow else -1
+        if direction != prev_dir:
+            sig = direction
+    return sig
+
+
 def run_live(
     settings: LiveSettings,
     *,
@@ -149,12 +198,7 @@ def run_live(
                         current_bar["close"] = price
                     else:
                         idx = pd.to_datetime(current_bar["start"], unit="s")
-                        df.loc[idx] = [
-                            current_bar["open"],
-                            current_bar["high"],
-                            current_bar["low"],
-                            current_bar["close"],
-                        ]
+                        sig = _append_bar_and_signal(df, current_bar, settings)
                         log.info("candle_closed", **current_bar)
                         last_candle_ts = time.time()
 
@@ -184,7 +228,6 @@ def run_live(
                         ):
                             log.info("time_blocked", time=str(idx))
                         else:
-                            sig = int(compute_signal(df, settings, "close").iloc[-1])
                             decision, votes, reason = agent.decide(
                                 idx,
                                 sig,
