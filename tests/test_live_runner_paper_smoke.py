@@ -37,6 +37,6 @@ def test_run_live_paper(tmp_path: Path):
         decision=DecisionSettings(min_confluence=1),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),
-        risk=RiskSettings(max_drawdown=0.5),
+        risk=RiskSettings(max_drawdown=0.5, on_drawdown={"action": "halt"}),
     )
     run_live(s, max_steps=2)

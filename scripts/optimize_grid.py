@@ -241,6 +241,7 @@ def main() -> None:
             max_drawdown=0.3,
             fee_perc=float(args.fee_perc),
             slippage_perc=float(args.slippage_perc),
+            on_drawdown={"action": "halt"},
         ),
         atr_period=int(args.atr_period),
         atr_multiple=float(args.atr_multiple),

@@ -50,6 +50,7 @@ def main() -> None:
             max_drawdown=0.30,
             fee_perc=args.fee_perc,
             slippage_perc=args.slippage_perc,
+            on_drawdown={"action": "halt"},
         ),
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,

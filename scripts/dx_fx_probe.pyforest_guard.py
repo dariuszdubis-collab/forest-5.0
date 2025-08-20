@@ -53,6 +53,7 @@ def main() -> None:
             risk_per_trade=args.risk,
             fee_perc=args.fee_perc,
             slippage_perc=0.0,
+            on_drawdown={"action": "halt"},
         ),
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,

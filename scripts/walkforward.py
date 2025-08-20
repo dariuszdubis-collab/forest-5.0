@@ -217,6 +217,7 @@ def _mk_settings(
         risk_per_trade=float(risk),
         fee_perc=float(fee_perc),
         slippage_perc=float(slippage_perc),
+        on_drawdown={"action": "halt"},
     )
     return BacktestSettings(
         symbol=symbol,

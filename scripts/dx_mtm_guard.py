@@ -43,7 +43,11 @@ def main():
         symbol=args.symbol,
         strategy=StrategySettings(name="ema_cross", fast=args.fast, slow=args.slow, use_rsi=False),
         risk=RiskSettings(
-            initial_capital=args.capital, risk_per_trade=args.risk, fee_perc=0.0, slippage_perc=0.0
+            initial_capital=args.capital,
+            risk_per_trade=args.risk,
+            fee_perc=0.0,
+            slippage_perc=0.0,
+            on_drawdown={"action": "halt"},
         ),
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,

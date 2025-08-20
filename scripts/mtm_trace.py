@@ -11,7 +11,11 @@ df.index.name = "time"
 s = BacktestSettings(
     strategy=StrategySettings(name="ema_cross", fast=12, slow=26, use_rsi=False),
     risk=RiskSettings(
-        initial_capital=100_000.0, risk_per_trade=0.01, fee_perc=0.0, slippage_perc=0.0
+        initial_capital=100_000.0,
+        risk_per_trade=0.01,
+        fee_perc=0.0,
+        slippage_perc=0.0,
+        on_drawdown={"action": "halt"},
     ),
     atr_period=14,
     atr_multiple=2.0,
