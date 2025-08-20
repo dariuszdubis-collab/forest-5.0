@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 
 import pandas as pd
@@ -12,13 +13,12 @@ from ..decision import DecisionAgent, DecisionConfig
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
-from .risk_guard import should_halt_for_drawdown
 from ..utils.log import log
 from .router import OrderRouter
 
 
-def _read_context(path: str | Path, max_bytes: int) -> str:
-    """Read up to ``max_bytes`` from ``path`` as UTF-8 text.
+def _read_context(path: str | Path, max_bytes: int = 16_384) -> str:
+    """Read up to ``max_bytes`` bytes from ``path`` as UTF-8 text.
 
     Bytes that cannot be decoded are ignored. Any I/O errors are logged and an
     empty string is returned.
@@ -126,16 +126,28 @@ def run_live(
     start_equity = broker.equity() or 0.0
 
     time_model: TimeOnlyModel | None = None
-    if settings.time.model.enabled and settings.time.model.path:
+    tm_path = settings.time.model.path
+    if (
+        settings.time.model.enabled
+        and tm_path
+        and Path(tm_path).exists()
+    ):
         try:
-            time_model = TimeOnlyModel.load(settings.time.model.path)
+            time_model = TimeOnlyModel.load(tm_path)
         except (OSError, json.JSONDecodeError, KeyError):  # pragma: no cover - defensive
             log.exception("failed to load time model")
+    else:
+        log.info("time_model_missing", path=tm_path)
+
+    use_ai = settings.ai.enabled
+    if use_ai and not os.getenv("OPENAI_API_KEY"):
+        log.info("ai_disabled_no_api_key")
+        use_ai = False
 
     agent = DecisionAgent(
         router=broker,
         config=DecisionConfig(
-            use_ai=settings.ai.enabled,
+            use_ai=use_ai,
             time_model=time_model,
             min_confluence=settings.decision.min_confluence,
         ),
@@ -157,7 +169,6 @@ def run_live(
     steps = 0
     # Track when the last candle was processed to detect idle periods
     last_candle_ts = time.time()
-    risk_halt = False
 
     try:
         while True:
@@ -203,24 +214,15 @@ def run_live(
                         last_candle_ts = time.time()
 
                         cur_eq = broker.equity()
-                        if cur_eq is not None:
-                            if should_halt_for_drawdown(
-                                start_equity,
-                                cur_eq,
-                                settings.risk.max_drawdown,
-                            ):
-                                dd = (start_equity - cur_eq) / start_equity
-                                if settings.risk.on_drawdown.action == "halt":
-                                    log.error("risk_guard_halt", drawdown_pct=dd * 100)
-                                    break
-                                elif settings.risk.on_drawdown.action == "soft_wait":
-                                    if not risk_halt:
-                                        log.info("risk_guard_active", drawdown_pct=dd * 100)
-                                    risk_halt = True
-                            elif risk_halt:
-                                dd = (start_equity - cur_eq) / start_equity
-                                risk_halt = False
-                                log.info("risk_guard_cleared", drawdown_pct=dd * 100)
+                        if (
+                            cur_eq is not None
+                            and start_equity > 0
+                            and settings.risk.max_drawdown > 0
+                        ):
+                            dd = (start_equity - cur_eq) / start_equity
+                            if dd >= settings.risk.max_drawdown:
+                                log.error("max_drawdown_reached", drawdown_pct=dd * 100)
+                                break
 
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
@@ -244,10 +246,7 @@ def run_live(
                                 reason=reason,
                             )
                             if decision in ("BUY", "SELL"):
-                                if risk_halt:
-                                    log.info("risk_guard_blocked", decision=decision)
-                                else:
-                                    broker.market_order(decision, settings.broker.volume, price)
+                                broker.market_order(decision, settings.broker.volume, price)
 
                         current_bar = {
                             "start": bar_start,
