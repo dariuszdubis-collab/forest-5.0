@@ -1,13 +1,13 @@
 broker:
   type: "mt4"  # "paper" for tests
-  bridge_dir: "${FOREST_MT4_BRIDGE_DIR}"   # or path to MQL4/Files/forest_bridge
+  bridge_dir: "${FOREST_MT4_BRIDGE_DIR}"  # set via $FOREST_MT4_BRIDGE_DIR or path to MQL4/Files/forest_bridge
   symbol: "EURUSD"
   volume: 0.01
   timeframe: "M1"
 
 risk:
   risk_per_trade: 0.005
-  max_drawdown: 0.20
+  max_drawdown: 0.20  # halt after 20% equity loss; adjust conservatively
   on_drawdown:
     action: "halt"  # or "soft_wait"
 
@@ -15,18 +15,18 @@ ai:
   enabled: false
   model: "gpt-4o-mini"
   max_tokens: 200
-  context_file: "context.txt"
+  context_file: "context.txt"  # use absolute path; on Windows/Wine use Z:\\path\\to\\context.txt
 
 decision:
-  min_confluence: 2
+  min_confluence: 2  # number of indicators that must agree; lower values may create false signals
 
 time:
   enabled: true
   blocked_hours: [22,23]
   blocked_weekdays: [5,6]
   model:
-    enabled: false
-    path: "${FOREST_TIME_MODEL_PATH}"
+    enabled: false  # true when using a trained time filter model
+    path: "${FOREST_TIME_MODEL_PATH}"  # e.g., /models/time_model.pkl
     q_low: 0.1
     q_high: 0.9
 
