@@ -46,25 +46,30 @@ class DecisionAgent:
             "time": 0,
             "ai": 0,
         }
+        pos = {"tech": 1 if votes["tech"] > 0 else 0, "time": 0, "ai": 0}
+        neg = {"tech": 1 if votes["tech"] < 0 else 0, "time": 0, "ai": 0}
 
         if self.config.time_model:
             tm_decision = self.config.time_model.decide(ts, value)
             if tm_decision == "WAIT":
                 return "WAIT", votes, "time_wait"
             votes["time"] = 1 if tm_decision == "BUY" else -1
+            pos["time"] = 1 if votes["time"] > 0 else 0
+            neg["time"] = 1 if votes["time"] < 0 else 0
 
         if self.ai:
             s = self.ai.analyse(context_text, symbol).score
             votes["ai"] = 1 if s > 0 else (-1 if s < 0 else 0)
+            pos["ai"] = 1 if votes["ai"] > 0 else 0
+            neg["ai"] = 1 if votes["ai"] < 0 else 0
 
-        pos = sum(1 for v in votes.values() if v > 0)
-        neg = sum(1 for v in votes.values() if v < 0)
-
-        if max(pos, neg) < (self.config.min_confluence or 1):
+        pos_total = sum(pos.values())
+        neg_total = sum(neg.values())
+        if max(pos_total, neg_total) < (self.config.min_confluence or 1):
             return "WAIT", votes, "no_consensus"
 
-        if pos > neg:
+        if pos_total > neg_total:
             return "BUY", votes, "buy_majority"
-        if neg > pos:
+        if neg_total > pos_total:
             return "SELL", votes, "sell_majority"
         return "WAIT", votes, "no_consensus"
