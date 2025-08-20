@@ -94,11 +94,13 @@ class MT4Broker(OrderRouter):
     def _wait_for_result(self, uid: str, qty: float) -> OrderResult:
         res_path = self._result_path(uid)
         deadline = time.time() + self.timeout
+        attempt = 0
+        delay = 0.1
         while time.time() < deadline:
             if res_path.exists():
                 try:
                     if res_path.stat().st_size == 0:
-                        time.sleep(0.1)
+                        time.sleep(min(delay, max(0, deadline - time.time())))
                         continue
                     data = json.loads(res_path.read_text(encoding="utf-8"))
                     status = data.get("status", "rejected")
@@ -108,14 +110,16 @@ class MT4Broker(OrderRouter):
                     filled = qty if status == "filled" else 0.0
                     return OrderResult(int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err)
                 except json.JSONDecodeError:
-                    log.warning("invalid_json_result", path=str(res_path))
-                    time.sleep(0.1)
+                    attempt += 1
+                    log.warning("invalid_json_result", path=str(res_path), attempt=attempt)
+                    time.sleep(min(delay, max(0, deadline - time.time())))
+                    delay = min(delay * 2, 1.0)
                     continue
                 except Exception as exc:  # pragma: no cover - defensive
                     log.exception("invalid_result", path=str(res_path), error=str(exc))
-                    time.sleep(0.1)
+                    time.sleep(min(delay, max(0, deadline - time.time())))
                     continue
-            time.sleep(0.1)
+            time.sleep(min(delay, max(0, deadline - time.time())))
         log.error("timeout_waiting_for_result", order_id=uid)
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 
@@ -156,7 +160,16 @@ class MT4Broker(OrderRouter):
             cmd["price"] = price
 
         cmd_path = self._command_path(uid)
-        cmd_path.write_text(json.dumps(cmd), encoding="utf-8")
+        tmp_path = self.commands_dir / f"cmd_{uid}.json.tmp"
+        try:
+            tmp_path.write_text(json.dumps(cmd), encoding="utf-8")
+            os.replace(tmp_path, cmd_path)
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
         send_latency_ms = (time.time() - start_ts) * 1000.0
         log.info(
             "order_sent",
