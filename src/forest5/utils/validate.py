@@ -9,6 +9,7 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
     - Ustawia indeks czasu (tz-naive) z aliasów: time/date/datetime/timestamp
     - Sortuje, usuwa duplikaty, nazywa indeks 'time'
     """
+    df = df.copy()
     required = {"open", "high", "low", "close"}
     if not required.issubset(set(df.columns)):
         raise ValueError(f"CSV must contain columns: {sorted(required)}")
@@ -24,7 +25,6 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
             raise ValueError(
                 "DataFrame must have DatetimeIndex or one of: 'time', 'date', 'datetime', 'timestamp'."
             )
-        df = df.copy()
         df[time_col] = pd.to_datetime(df[time_col], utc=False, errors="coerce")
         df = df.set_index(time_col)
 
