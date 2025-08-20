@@ -21,12 +21,16 @@ def _expand_env_user(v: str) -> str:
     return os.path.expanduser(os.path.expandvars(v))
 
 
-def _norm_path(v: str | None) -> str | None:
+def _norm_path(base_dir: Path, v: str | None) -> str | None:
     if v is None:
         return None
     if v == "":
         return ""
+    if _is_windows_path_literal(v):
+        return _expand_env_user(v)
     p = Path(_expand_env_user(v))
+    if not p.is_absolute():
+        p = base_dir / p
     return str(p.resolve(strict=False))
 
 
@@ -42,19 +46,18 @@ def load_live_settings(path: str | Path):
     from ..config_live import LiveSettings
 
     p = Path(path)
+    cfg_dir = p.resolve().parent
     text = p.read_text(encoding="utf-8")
     data = yaml.safe_load(text) or {}
 
     broker = data.get("broker")
     if isinstance(broker, dict):
-        bridge_dir = broker.get("bridge_dir")
-        if not _is_windows_path_literal(bridge_dir):
-            broker["bridge_dir"] = _norm_path(bridge_dir)
+        broker["bridge_dir"] = _norm_path(cfg_dir, broker.get("bridge_dir"))
         data["broker"] = broker
 
     ai = data.get("ai")
     if isinstance(ai, dict):
-        ctx = _norm_path(ai.get("context_file"))
+        ctx = _norm_path(cfg_dir, ai.get("context_file"))
         ai["context_file"] = "" if ctx is None else ctx
         data["ai"] = ai
 
@@ -62,7 +65,7 @@ def load_live_settings(path: str | Path):
     if isinstance(time, dict):
         model = time.get("model")
         if isinstance(model, dict):
-            mpath = _norm_path(model.get("path"))
+            mpath = _norm_path(cfg_dir, model.get("path"))
             model["path"] = "" if mpath is None else mpath
             time["model"] = model
         data["time"] = time
