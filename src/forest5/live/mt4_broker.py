@@ -132,17 +132,14 @@ class MT4Broker(OrderRouter):
             log.info(
                 "order_result",
                 timestamp=time.time(),
-                mode="live",
                 symbol=self.symbol,
                 action="market_order",
                 side=side.upper(),
-                qty=qty,
+                qty=0.0,
                 price=price,
                 latency_ms=0.0,
-                decision=side.upper(),
-                votes=None,
-                reason="not connected",
                 error=res.error,
+                context={"status": res.status, "id": res.id},
             )
             return res
 
@@ -174,17 +171,14 @@ class MT4Broker(OrderRouter):
         log.info(
             "order_sent",
             timestamp=start_ts,
-            mode="live",
             symbol=self.symbol,
             action="market_order",
             side=side.upper(),
             qty=qty,
             price=price,
             latency_ms=send_latency_ms,
-            decision=side.upper(),
-            votes=None,
-            reason=None,
             error=None,
+            context={"id": uid},
         )
 
         res = self._wait_for_result(uid, qty)
@@ -192,17 +186,14 @@ class MT4Broker(OrderRouter):
         log.info(
             "order_result",
             timestamp=time.time(),
-            mode="live",
             symbol=self.symbol,
             action="market_order",
             side=side.upper(),
-            qty=qty,
+            qty=res.filled_qty,
             price=res.avg_price,
             latency_ms=total_latency_ms,
-            decision=side.upper(),
-            votes=None,
-            reason=None,
             error=res.error,
+            context={"status": res.status, "id": res.id},
         )
         return res
 

@@ -239,14 +239,38 @@ def run_live(
                             )
                             log.info(
                                 "decision",
-                                time=str(idx),
+                                timestamp=time.time(),
                                 symbol=settings.broker.symbol,
-                                decision=decision,
-                                votes=votes,
-                                reason=reason,
+                                action="decision",
+                                side=decision,
+                                qty=(
+                                    settings.broker.volume
+                                    if decision in ("BUY", "SELL")
+                                    else 0
+                                ),
+                                price=current_bar["close"],
+                                latency_ms=0.0,
+                                error=None,
+                                context={"votes": votes, "reason": reason},
                             )
                             if decision in ("BUY", "SELL"):
-                                broker.market_order(decision, settings.broker.volume, price)
+                                start_ts = time.time()
+                                res = broker.market_order(
+                                    decision, settings.broker.volume, price
+                                )
+                                latency = (time.time() - start_ts) * 1000.0
+                                log.info(
+                                    "order_result",
+                                    timestamp=time.time(),
+                                    symbol=settings.broker.symbol,
+                                    action="market_order",
+                                    side=decision,
+                                    qty=res.filled_qty,
+                                    price=res.avg_price,
+                                    latency_ms=latency,
+                                    error=res.error,
+                                    context={"status": res.status, "id": res.id},
+                                )
 
                         current_bar = {
                             "start": bar_start,
