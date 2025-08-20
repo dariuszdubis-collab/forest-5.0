@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from ..config import OnDrawdownSettings
+
 
 @dataclass
 class RiskManager:
@@ -11,6 +13,7 @@ class RiskManager:
     max_drawdown: float = 0.30
     fee_perc: float = 0.0005
     slippage_perc: float = 0.0
+    on_drawdown: OnDrawdownSettings | dict = field(default_factory=OnDrawdownSettings)
 
     _cash: float = field(default=0.0, init=False)
     _position: float = field(default=0.0, init=False)  # qty (long-only w testach)
@@ -19,6 +22,8 @@ class RiskManager:
     _peak: float = field(init=False)
 
     def __post_init__(self) -> None:
+        if isinstance(self.on_drawdown, dict):
+            self.on_drawdown = OnDrawdownSettings(**self.on_drawdown)
         self._cash = float(self.initial_capital)
         self._peak = float(self.initial_capital)
         # baseline – 1 punkt na starcie

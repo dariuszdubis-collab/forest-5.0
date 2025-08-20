@@ -17,6 +17,7 @@ _spec.loader.exec_module(_legacy)  # type: ignore[assignment]
 for _model in (
     _legacy.StrategySettings,
     _legacy.RiskSettings,
+    _legacy.OnDrawdownSettings,
     _legacy.AISettings,
     _legacy.TimeOnlySettings,
     _legacy.BacktestTimeSettings,
@@ -29,6 +30,7 @@ for _model in (
 for _name in [
     "StrategySettings",
     "RiskSettings",
+    "OnDrawdownSettings",
     "AISettings",
     "TimeOnlySettings",
     "BacktestTimeSettings",
@@ -44,6 +46,7 @@ __all__ = [
     "load_live_settings",
     "StrategySettings",
     "RiskSettings",
+    "OnDrawdownSettings",
     "AISettings",
     "TimeOnlySettings",
     "BacktestTimeSettings",

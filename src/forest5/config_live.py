@@ -95,7 +95,19 @@ class LiveSettings:
                 keys = cls.__fields__
             else:
                 return section
-            return {k: v for k, v in section.items() if k in keys}
+
+            result = {}
+            for k, v in section.items():
+                if k in keys:
+                    field_info = keys[k]
+                    field_type = getattr(
+                        field_info, "type", getattr(field_info, "annotation", getattr(field_info, "outer_type_", None))
+                    )
+                    if isinstance(v, dict) and field_type is not None:
+                        result[k] = _filter(field_type, v)
+                    else:
+                        result[k] = v
+            return result
 
         return cls(
             broker=BrokerSettings(**_filter(BrokerSettings, data.get("broker", {}))),
