@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 import uuid
@@ -9,8 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from .router import OrderRouter, OrderResult
-
-log = logging.getLogger(__name__)
+from ..utils.log import log
 
 
 class MT4Broker(OrderRouter):
@@ -80,11 +78,11 @@ class MT4Broker(OrderRouter):
         ]:
             d.mkdir(parents=True, exist_ok=True)
         self._connected = True
-        log.info("MT4Broker connected: %s", self.bridge_dir)
+        log.info("broker_connected", bridge_dir=str(self.bridge_dir))
 
     def close(self) -> None:
         self._connected = False
-        log.info("MT4Broker closed")
+        log.info("broker_closed")
 
     # ------------------------------------------------------------------
     def _command_path(self, uid: str) -> Path:
@@ -110,15 +108,15 @@ class MT4Broker(OrderRouter):
                     filled = qty if status == "filled" else 0.0
                     return OrderResult(int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err)
                 except json.JSONDecodeError:
-                    log.warning("invalid JSON result: %s", res_path)
+                    log.warning("invalid_json_result", path=str(res_path))
                     time.sleep(0.1)
                     continue
                 except Exception as exc:  # pragma: no cover - defensive
-                    log.exception("invalid result: %s", exc)
+                    log.exception("invalid_result", path=str(res_path), error=str(exc))
                     time.sleep(0.1)
                     continue
             time.sleep(0.1)
-        log.error("timeout waiting for result %s", uid)
+        log.error("timeout_waiting_for_result", order_id=uid)
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 
     # ------------------------------------------------------------------
@@ -126,8 +124,25 @@ class MT4Broker(OrderRouter):
         self, side: str, qty: float, price: Optional[float] = None
     ) -> OrderResult:
         if not self._connected:
-            return OrderResult(0, "rejected", 0.0, 0.0, "not connected")
+            res = OrderResult(0, "rejected", 0.0, 0.0, "not connected")
+            log.info(
+                "order_result",
+                timestamp=time.time(),
+                mode="live",
+                symbol=self.symbol,
+                action="market_order",
+                side=side.upper(),
+                qty=qty,
+                price=price,
+                latency_ms=0.0,
+                decision=side.upper(),
+                votes=None,
+                reason="not connected",
+                error=res.error,
+            )
+            return res
 
+        start_ts = time.time()
         uid = uuid.uuid4().hex
         cmd = {
             "id": uid,
@@ -142,8 +157,41 @@ class MT4Broker(OrderRouter):
 
         cmd_path = self._command_path(uid)
         cmd_path.write_text(json.dumps(cmd), encoding="utf-8")
-        log.info("command written: %s", cmd_path)
-        return self._wait_for_result(uid, qty)
+        send_latency_ms = (time.time() - start_ts) * 1000.0
+        log.info(
+            "order_sent",
+            timestamp=start_ts,
+            mode="live",
+            symbol=self.symbol,
+            action="market_order",
+            side=side.upper(),
+            qty=qty,
+            price=price,
+            latency_ms=send_latency_ms,
+            decision=side.upper(),
+            votes=None,
+            reason=None,
+            error=None,
+        )
+
+        res = self._wait_for_result(uid, qty)
+        total_latency_ms = (time.time() - start_ts) * 1000.0
+        log.info(
+            "order_result",
+            timestamp=time.time(),
+            mode="live",
+            symbol=self.symbol,
+            action="market_order",
+            side=side.upper(),
+            qty=qty,
+            price=res.avg_price,
+            latency_ms=total_latency_ms,
+            decision=side.upper(),
+            votes=None,
+            reason=None,
+            error=res.error,
+        )
+        return res
 
     # ------------------------------------------------------------------
     def position_qty(self) -> float:
@@ -152,10 +200,10 @@ class MT4Broker(OrderRouter):
             data = json.loads(pos_file.read_text(encoding="utf-8"))
             return float(data.get("qty", 0.0))
         except FileNotFoundError:
-            log.warning("position file missing: %s", pos_file)
+            log.warning("position_file_missing", path=str(pos_file))
             return 0.0
         except Exception:  # pragma: no cover - defensive
-            log.exception("error reading position file")
+            log.exception("position_file_error")
             return 0.0
 
     def equity(self) -> float:
@@ -164,10 +212,10 @@ class MT4Broker(OrderRouter):
             data = json.loads(acc_file.read_text(encoding="utf-8"))
             return float(data.get("equity", 0.0))
         except FileNotFoundError:
-            log.warning("account file missing: %s", acc_file)
+            log.warning("account_file_missing", path=str(acc_file))
             return 0.0
         except Exception:  # pragma: no cover - defensive
-            log.exception("error reading account file")
+            log.exception("account_file_error")
             return 0.0
 
     # ------------------------------------------------------------------

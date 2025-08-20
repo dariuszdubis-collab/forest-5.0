@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 
 import pandas as pd
@@ -14,8 +13,7 @@ from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..utils.timeframes import _TF_MINUTES
 from .risk_guard import should_halt_for_drawdown
-
-log = logging.getLogger(__name__)
+from ..utils.log import log
 
 
 def run_live(
@@ -98,7 +96,7 @@ def run_live(
     try:
         while True:
             if time.time() - last_candle_ts > timeout:
-                log.info("idle timeout reached")
+                log.info("idle_timeout_reached")
                 break
 
             if tick_file.exists():
@@ -115,7 +113,7 @@ def run_live(
                     ts = float(tick.get("time", time.time()))
                     price = float(tick.get("bid") or tick.get("price") or tick.get("ask"))
                     last_price = price
-                    log.info("tick: %s", tick)
+                    log.info("tick", **tick)
 
                     bar_start = int(ts // bar_sec) * bar_sec
                     if current_bar is None:
@@ -140,7 +138,7 @@ def run_live(
                             current_bar["low"],
                             current_bar["close"],
                         ]
-                        log.info("candle closed: %s", current_bar)
+                        log.info("candle_closed", **current_bar)
                         last_candle_ts = time.time()
 
                         cur_eq = broker.equity()
@@ -150,14 +148,14 @@ def run_live(
                             settings.risk.max_drawdown,
                         ):
                             dd = (start_equity - cur_eq) / start_equity
-                            log.error("max drawdown reached: %.2f%%", dd * 100)
+                            log.error("risk_guard_halt", drawdown_pct=dd * 100)
                             break
 
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
                             or idx.hour in settings.time.blocked_hours
                         ):
-                            log.info("time blocked: %s", idx)
+                            log.info("time_blocked", time=str(idx))
                         else:
                             sig = int(compute_signal(df, settings, "close").iloc[-1])
                             decision = agent.decide(
@@ -167,10 +165,14 @@ def run_live(
                                 settings.broker.symbol,
                                 context_text,
                             )
-                            log.info("decision: %s", decision)
+                            log.info(
+                                "decision",
+                                time=str(idx),
+                                symbol=settings.broker.symbol,
+                                decision=decision,
+                            )
                             if decision in ("BUY", "SELL"):
-                                res = broker.market_order(decision, settings.broker.volume, price)
-                                log.info("order result: %s", res)
+                                broker.market_order(decision, settings.broker.volume, price)
 
                         current_bar = {
                             "start": bar_start,
@@ -185,7 +187,7 @@ def run_live(
                             break
             time.sleep(0.25)
     except KeyboardInterrupt:
-        log.info("KeyboardInterrupt received")
+        log.info("keyboard_interrupt")
     finally:
         pos = broker.position_qty()
         if pos > 0:
