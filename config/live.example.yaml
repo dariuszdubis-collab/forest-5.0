@@ -8,6 +8,8 @@ broker:
 risk:
   risk_per_trade: 0.005
   max_drawdown: 0.20
+  on_drawdown:
+    action: "halt"  # or "soft_wait"
 
 ai:
   enabled: false
