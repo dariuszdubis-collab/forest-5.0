@@ -19,12 +19,17 @@ class StrategySettings(BaseModel):
     rsi_oversold: int = 30
 
 
+class OnDrawdownSettings(BaseModel):
+    action: Literal["halt", "soft_wait"] = "halt"
+
+
 class RiskSettings(BaseModel):
     initial_capital: float = 100_000.0
     risk_per_trade: float = 0.01
     max_drawdown: float = 0.30
     fee_perc: float = 0.0005
     slippage_perc: float = 0.0
+    on_drawdown: OnDrawdownSettings = Field(default_factory=OnDrawdownSettings)
 
 
 class AISettings(BaseModel):
