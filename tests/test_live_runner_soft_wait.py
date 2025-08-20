@@ -33,6 +33,7 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
     bridge = _mk_bridge(tmp_path)
     ready = threading.Event()
     tick_event = threading.Event()
+    tick_file = bridge / "ticks" / "tick.json"
 
     def fake_compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
         return pd.Series([1] * len(df), index=df.index)
@@ -50,6 +51,15 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr("forest5.live.live_runner.log.info", log_info)
 
+    orig_exists = Path.exists
+
+    def exists(self: Path) -> bool:
+        if self == tick_file and not ready.is_set():
+            ready.set()
+        return orig_exists(self)
+
+    monkeypatch.setattr(Path, "exists", exists)
+
     settings = LiveSettings(
         broker=BrokerSettings(
             type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=1
@@ -63,15 +73,10 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
         ),
     )
 
-    def runner() -> None:
-        ready.set()
-        run_live(settings, max_steps=1, timeout=2.0)
-
-    t = threading.Thread(target=runner)
+    t = threading.Thread(target=lambda: run_live(settings, max_steps=1, timeout=2.0))
     t.start()
     assert ready.wait(timeout=5)
 
-    tick_file = bridge / "ticks" / "tick.json"
     tick_file.write_text(
         json.dumps({"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 0}),
         encoding="utf-8",
