@@ -158,7 +158,7 @@ def run_live(
                             log.info("time_blocked", time=str(idx))
                         else:
                             sig = int(compute_signal(df, settings, "close").iloc[-1])
-                            decision = agent.decide(
+                            decision, votes, reason = agent.decide(
                                 idx,
                                 sig,
                                 current_bar["close"],
@@ -170,6 +170,8 @@ def run_live(
                                 time=str(idx),
                                 symbol=settings.broker.symbol,
                                 decision=decision,
+                                votes=votes,
+                                reason=reason,
                             )
                             if decision in ("BUY", "SELL"):
                                 broker.market_order(decision, settings.broker.volume, price)
