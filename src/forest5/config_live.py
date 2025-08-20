@@ -8,6 +8,7 @@ import yaml
 
 from .config import RiskSettings, AISettings
 from .utils.timeframes import normalize_timeframe
+from .config.loader import _norm_path
 
 
 @dataclass
@@ -120,11 +121,24 @@ class LiveSettings:
         else:
             raise ValueError("Supported: .yaml/.yml/.json")
 
+        broker = data.get("broker")
+        if isinstance(broker, dict):
+            broker["bridge_dir"] = _norm_path(config_dir, broker.get("bridge_dir"))
+            data["broker"] = broker
+
         ai_data = data.get("ai", {})
-        context_file = ai_data.get("context_file")
-        if context_file:
-            ai_data["context_file"] = str((config_dir / context_file).resolve())
-            data["ai"] = ai_data
+        ctx = _norm_path(config_dir, ai_data.get("context_file"))
+        ai_data["context_file"] = "" if ctx is None else ctx
+        data["ai"] = ai_data
+
+        time = data.get("time")
+        if isinstance(time, dict):
+            model = time.get("model")
+            if isinstance(model, dict):
+                mpath = _norm_path(config_dir, model.get("path"))
+                model["path"] = "" if mpath is None else mpath
+                time["model"] = model
+            data["time"] = time
 
         return cls.from_dict(data)
 
