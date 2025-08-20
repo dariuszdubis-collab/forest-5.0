@@ -30,6 +30,7 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.strategy.fast == 10  # nosec B101
     assert s.strategy.timeframe == "1m"  # nosec B101
     assert s.time.blocked_weekdays == [5, 6]  # nosec B101
+    assert s.risk.on_drawdown.action == "halt"  # nosec B101
 
 
 def test_live_settings_ai_context_file_resolved(tmp_path: Path):
@@ -46,6 +47,7 @@ def test_live_settings_ai_context_file_resolved(tmp_path: Path):
     settings = LiveSettings.from_file(cfg)
 
     assert settings.ai.context_file == str(ctx)  # nosec B101
+    assert settings.risk.on_drawdown.action == "halt"  # nosec B101
 
 
 def test_live_time_model_quantile_valid():

@@ -17,3 +17,6 @@ def test_live_example_yaml_parses_and_has_fields():
     assert hasattr(tm, "path")  # nosec B101
     assert hasattr(tm, "q_low")  # nosec B101
     assert hasattr(tm, "q_high")  # nosec B101
+    assert hasattr(s, "risk")  # nosec B101
+    assert getattr(s.risk, "on_drawdown", None) is not None  # nosec B101
+    assert s.risk.on_drawdown.action == "halt"  # nosec B101
