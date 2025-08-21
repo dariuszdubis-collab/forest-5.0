@@ -112,6 +112,31 @@ Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokowa�
 - `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
 - `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
 
+Z poziomu CLI odpowiadają im flagi polecenia `forest5 backtest`:
+
+```bash
+poetry run forest5 backtest --csv demo.csv --fast 12 --slow 26 \
+    --time-model models/model_time.json \
+    --min-confluence 2 \
+    --blocked-hours 0,1,2 \
+    --blocked-weekdays 5,6
+```
+
+Podanie `--time-model` automatycznie ustawia `time.use_time_model=True` i ścieżkę
+`time.time_model_path`.  `--min-confluence` ustawia próg `time.fusion_min_confluence`,
+a listy w `--blocked-hours` i `--blocked-weekdays` trafiają odpowiednio do
+`time.blocked_hours` oraz `time.blocked_weekdays`.
+
+Powyższy przykład jest równoważny następującym ustawieniom API:
+
+```python
+settings.time.use_time_model = True
+settings.time.time_model_path = "models/model_time.json"
+settings.time.fusion_min_confluence = 2
+settings.time.blocked_hours = [0, 1, 2]
+settings.time.blocked_weekdays = [5, 6]
+```
+
 W trybie live pamiętaj o ustawieniu `decision.min_confluence` (np. `2`) i
 włączeniu modelu czasu:
 
@@ -141,6 +166,9 @@ settings = BacktestSettings(
 )
 settings.time.use_time_model = True
 settings.time.time_model_path = "models/model_time.json"
+settings.time.fusion_min_confluence = 2
+settings.time.blocked_hours = [0, 1, 2]
+settings.time.blocked_weekdays = [5, 6]
 ```
 
 ## Trening modelu czasu
