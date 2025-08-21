@@ -1,9 +1,26 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
 from dataclasses import dataclass
 
 from pydantic import BaseModel, ValidationError
+
+
+logger = logging.getLogger(__name__)
+
+try:  # legacy SDK
+    from openai.error import OpenAIError  # type: ignore
+except ImportError:
+    try:  # new SDK
+        from openai import OpenAIError  # type: ignore
+    except ImportError:  # pragma: no cover - openai not installed
+
+        class OpenAIError(Exception):
+            """Fallback when openai package is missing."""
+
+            pass
 
 
 @dataclass
@@ -34,14 +51,16 @@ class SentimentAgent:
 
             self._client = OpenAI()
             self._mode = "sdk1"
-        except Exception:
+        except ImportError as e:
+            logger.warning("New OpenAI SDK not available: %s", e)
             try:
                 import openai  # type: ignore
 
                 self._client = openai
                 self._client.api_key = os.getenv("OPENAI_API_KEY")
                 self._mode = "legacy"
-            except Exception:
+            except ImportError as e2:
+                logger.warning("Legacy OpenAI SDK not available: %s", e2)
                 self.enabled = False
                 self._client = None
                 self._mode = "none"
@@ -88,9 +107,6 @@ class SentimentAgent:
                     max_tokens=self.max_tokens,
                 )["choices"][0]["message"]["content"]
 
-            # bardzo defensywne parsowanie
-            import json
-
             data = json.loads(txt)
             try:
                 parsed = SentimentResponse.model_validate(data)
@@ -99,5 +115,9 @@ class SentimentAgent:
 
             score = -1 if parsed.score < 0 else (1 if parsed.score > 0 else 0)
             return Sentiment(score, parsed.reason[:200])
-        except Exception as e:
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse AI response: %s", e)
+            return Sentiment(0, f"AI parse error -> neutral: {e}")
+        except OpenAIError as e:
+            logger.error("OpenAI API error: %s", e)
             return Sentiment(0, f"AI error -> neutral: {e}")
