@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import argparse
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 import pandas as pd
 
