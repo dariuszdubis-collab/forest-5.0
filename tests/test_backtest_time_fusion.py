@@ -1,13 +1,14 @@
 from datetime import datetime
+from typing import Literal
 
 from forest5.backtest.engine import _fuse_with_time
 
 
 class DummyTimeModel:
-    def __init__(self, decision: str) -> None:
+    def __init__(self, decision: Literal["BUY", "SELL", "WAIT"]) -> None:
         self.decision = decision
 
-    def decide(self, ts, value: float) -> str:
+    def decide(self, ts, value: float) -> Literal["BUY", "SELL", "WAIT"]:
         return self.decision
 
 

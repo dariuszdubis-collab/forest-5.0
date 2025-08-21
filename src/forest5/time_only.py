@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import tempfile
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Literal
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ class TimeOnlyModel:
     q_low: float
     q_high: float
 
-    def decide(self, ts: datetime, value: float) -> str:
+    def decide(self, ts: datetime, value: float) -> Literal["BUY", "SELL", "WAIT"]:
         """Return BUY/SELL/WAIT decision based on quantile gates."""
         hour = ts.hour
         gates = self.quantile_gates.get(hour)
