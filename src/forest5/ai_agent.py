@@ -44,33 +44,23 @@ class SentimentAgent:
         self.model = model
         self.max_tokens = max_tokens
         api_key = os.getenv("OPENAI_API_KEY")
-        self.enabled = bool(api_key)
 
-        if not self.enabled:
-            # brak klucza -> agent w trybie "none" (można podmienić klienta w testach)
-            self._client = None
-            self._mode = "none"
-            return
-
-        try:
-            # próba nowego SDK
-            from openai import OpenAI  # type: ignore
-
-            self._client = OpenAI(api_key=api_key)
-            self._mode = "sdk1"
-        except ImportError as e:
-            logger.warning("New OpenAI SDK not available: %s", e)
+        if api_key:
             try:
-                import openai  # type: ignore
+                from openai import OpenAI  # type: ignore
 
-                self._client = openai
-                self._client.api_key = api_key
-                self._mode = "legacy"
-            except ImportError as e2:
-                logger.warning("Legacy OpenAI SDK not available: %s", e2)
-                self.enabled = False
+                self._client = OpenAI(api_key=api_key)
+                self.enabled = True
+                self._mode = "sdk1"
+            except Exception as e:
+                logger.warning("OpenAI SDK not available: %s", e)
                 self._client = None
+                self.enabled = False
                 self._mode = "none"
+        else:
+            self._client = None
+            self.enabled = False
+            self._mode = "none"
 
     def analyse(self, context: str, symbol: str) -> Sentiment:
         if not self.enabled or self._client is None:
