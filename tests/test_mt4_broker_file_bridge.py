@@ -40,9 +40,8 @@ def _respond_once(bridge: Path):
     cmd_dir = bridge / "commands"
     res_dir = bridge / "results"
     # Wait until a command file appears, but abort after a short timeout
-    start = time.time()
-    timeout = 1.5
-    while time.time() - start < timeout:
+    deadline = time.time() + 1.5
+    while time.time() < deadline:
         cmds = list(cmd_dir.glob("cmd_*.json"))
         if cmds:
             p = cmds[0]
