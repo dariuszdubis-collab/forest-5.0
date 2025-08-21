@@ -16,15 +16,15 @@ from forest5.utils.io import read_ohlc_csv
 from forest5.utils.argparse_ext import PercentAction
 
 
-class SafeHelpFormatter(
-    argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter
-):
+class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
     """Help formatter that escapes bare '%' to avoid ValueError in argparse."""
 
     def _expand_help(self, action):
         params = dict(vars(action), prog=self._prog)
         help_text = self._get_help_string(action) or ""
-        # Zamień każdy '%' niepoprzedzony '(' na '%%' (nie ruszaj np. '%(default)s')
+        # Replace bare '%' with '%%' so argparse doesn't treat it as a
+        # formatting placeholder. We intentionally ignore patterns like
+        # '%(foo)s', which argparse uses to inject defaults.
         help_text = re.sub(r"%(?!\()", "%%", help_text)
         return help_text % params
 
@@ -214,15 +214,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.set_defaults(func=cmd_grid)
 
     # live
-    p_lv = sub.add_parser(
-        "live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter
-    )
-    p_lv.add_argument(
-        "--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami"
-    )
-    p_lv.add_argument(
-        "--paper", action="store_true", help="Wymuś paper trading (broker.type)"
-    )
+    p_lv = sub.add_parser("live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter)
+    p_lv.add_argument("--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami")
+    p_lv.add_argument("--paper", action="store_true", help="Wymuś paper trading (broker.type)")
     p_lv.set_defaults(func=cmd_live)
 
     return p
