@@ -9,7 +9,15 @@ mt4_module = pytest.importorskip("forest5.live.mt4_broker")
 MT4Broker = mt4_module.MT4Broker
 
 
-def fake_ea_loop(bridge: Path, stop):
+def fake_ea_loop(bridge: Path, stop, timeout: float = 5.0):
+    """Simulate an Expert Advisor loop.
+
+    The loop normally exits when ``stop`` is set but, to prevent tests from
+    hanging indefinitely, a ``timeout`` is provided as a secondary escape hatch
+    and the function will terminate after ``timeout`` seconds even if ``stop``
+    was never set.
+    """
+
     cmd = bridge / "commands"
     res = bridge / "results"
     (bridge / "ticks").mkdir(parents=True, exist_ok=True)
@@ -21,6 +29,7 @@ def fake_ea_loop(bridge: Path, stop):
     (bridge / "state" / "position_EURUSD.json").write_text('{"qty":0}', encoding="utf-8")
     cmd.mkdir(parents=True, exist_ok=True)
     res.mkdir(parents=True, exist_ok=True)
+    start = time.time()
     while not stop.is_set():
         for p in cmd.glob("cmd_*.json"):
             json.loads(p.read_text(encoding="utf-8"))
@@ -38,6 +47,8 @@ def fake_ea_loop(bridge: Path, stop):
                 encoding="utf-8",
             )
             p.unlink(missing_ok=True)
+        if time.time() - start > timeout:
+            break
         time.sleep(0.05)
 
 
