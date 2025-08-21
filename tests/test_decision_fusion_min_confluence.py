@@ -101,4 +101,3 @@ def test_min_confluence_with_ai() -> None:
         {"tech": 1, "time": 0, "ai": -1},
         "no_consensus",
     )
-

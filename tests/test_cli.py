@@ -23,36 +23,40 @@ def _write_csv(path):
 def test_cli_backtest(tmp_path, monkeypatch):
     csv_path = _write_csv(tmp_path / "data.csv")
     monkeypatch.chdir(tmp_path)
-    rc = main([
-        "backtest",
-        "--csv",
-        str(csv_path),
-        "--fast",
-        "2",
-        "--slow",
-        "3",
-        "--atr-period",
-        "1",
-    ])
+    rc = main(
+        [
+            "backtest",
+            "--csv",
+            str(csv_path),
+            "--fast",
+            "2",
+            "--slow",
+            "3",
+            "--atr-period",
+            "1",
+        ]
+    )
     assert rc == 0
 
 
 def test_cli_grid(tmp_path, monkeypatch):
     csv_path = _write_csv(tmp_path / "data.csv")
     monkeypatch.chdir(tmp_path)
-    rc = main([
-        "grid",
-        "--csv",
-        str(csv_path),
-        "--fast-values",
-        "2",
-        "--slow-values",
-        "3",
-        "--jobs",
-        "1",
-        "--top",
-        "1",
-    ])
+    rc = main(
+        [
+            "grid",
+            "--csv",
+            str(csv_path),
+            "--fast-values",
+            "2",
+            "--slow-values",
+            "3",
+            "--jobs",
+            "1",
+            "--top",
+            "1",
+        ]
+    )
     assert rc == 0
 
 

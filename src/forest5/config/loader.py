@@ -63,9 +63,7 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
             broker["bridge_dir"] = _resolve_from_yaml(cfg_dir, b_raw)
         else:
             env_bridge = os.getenv("FOREST_MT4_BRIDGE_DIR")
-            broker["bridge_dir"] = (
-                _resolve_from_yaml(cfg_dir, env_bridge) if env_bridge else None
-            )
+            broker["bridge_dir"] = _resolve_from_yaml(cfg_dir, env_bridge) if env_bridge else None
         data["broker"] = broker
 
     ai = data.get("ai")

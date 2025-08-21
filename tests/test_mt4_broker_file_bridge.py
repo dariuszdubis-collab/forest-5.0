@@ -17,17 +17,13 @@ live_pkg = types.ModuleType("forest5.live")
 live_pkg.__path__ = [str(LIVE_DIR)]
 sys.modules.setdefault("forest5.live", live_pkg)
 
-spec_router = importlib.util.spec_from_file_location(
-    "forest5.live.router", LIVE_DIR / "router.py"
-)
+spec_router = importlib.util.spec_from_file_location("forest5.live.router", LIVE_DIR / "router.py")
 router_module = importlib.util.module_from_spec(spec_router)
 assert spec_router.loader is not None
 sys.modules["forest5.live.router"] = router_module
 spec_router.loader.exec_module(router_module)
 
-spec = importlib.util.spec_from_file_location(
-    "forest5.live.mt4_broker", LIVE_DIR / "mt4_broker.py"
-)
+spec = importlib.util.spec_from_file_location("forest5.live.mt4_broker", LIVE_DIR / "mt4_broker.py")
 mt4_module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 sys.modules["forest5.live.mt4_broker"] = mt4_module
@@ -59,8 +55,8 @@ def test_market_order_success(tmp_path: Path):
     br = MT4Broker(bridge_dir=bridge, symbol="EURUSD", timeout_sec=1.0)
     br.connect()
     # prepare state files for equity and position
-    (bridge / "state" / "account.json").write_text("{\"equity\":1234}", encoding="utf-8")
-    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":1.5}", encoding="utf-8")
+    (bridge / "state" / "account.json").write_text('{"equity":1234}', encoding="utf-8")
+    (bridge / "state" / "position_EURUSD.json").write_text('{"qty":1.5}', encoding="utf-8")
     # start helper thread to respond to command
     t = Thread(target=_respond_once, args=(bridge,), daemon=True)
     t.start()
@@ -85,7 +81,7 @@ def test_position_and_equity(tmp_path: Path):
     bridge = tmp_path / "bridge"
     br = MT4Broker(bridge_dir=bridge, symbol="EURUSD")
     br.connect()
-    (bridge / "state" / "account.json").write_text("{\"equity\":999}", encoding="utf-8")
-    (bridge / "state" / "position_EURUSD.json").write_text("{\"qty\":2.0}", encoding="utf-8")
+    (bridge / "state" / "account.json").write_text('{"equity":999}', encoding="utf-8")
+    (bridge / "state" / "position_EURUSD.json").write_text('{"qty":2.0}', encoding="utf-8")
     assert br.equity() == 999
     assert br.position_qty() == 2.0

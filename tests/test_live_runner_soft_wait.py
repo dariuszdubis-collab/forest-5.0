@@ -20,12 +20,8 @@ def _mk_bridge(tmpdir: Path) -> Path:
     bridge = tmpdir / "forest_bridge"
     for sub in ("ticks", "state", "commands", "results"):
         (bridge / sub).mkdir(parents=True, exist_ok=True)
-    (bridge / "state" / "account.json").write_text(
-        '{"equity":10000}', encoding="utf-8"
-    )
-    (bridge / "state" / "position_EURUSD.json").write_text(
-        '{"qty":0}', encoding="utf-8"
-    )
+    (bridge / "state" / "account.json").write_text('{"equity":10000}', encoding="utf-8")
+    (bridge / "state" / "position_EURUSD.json").write_text('{"qty":0}', encoding="utf-8")
     return bridge
 
 
@@ -38,9 +34,7 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
     def fake_compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
         return pd.Series([1] * len(df), index=df.index)
 
-    monkeypatch.setattr(
-        "forest5.live.live_runner.compute_signal", fake_compute_signal
-    )
+    monkeypatch.setattr("forest5.live.live_runner.compute_signal", fake_compute_signal)
 
     orig_log = run_live.__globals__["log"].info
 
@@ -61,9 +55,7 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(Path, "exists", exists)
 
     settings = LiveSettings(
-        broker=BrokerSettings(
-            type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=1
-        ),
+        broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=1),
         decision=DecisionSettings(min_confluence=1),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),

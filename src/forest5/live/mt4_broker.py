@@ -108,7 +108,9 @@ class MT4Broker(OrderRouter):
                     ticket = data.get("ticket", 0)
                     err = data.get("error")
                     filled = qty if status == "filled" else 0.0
-                    return OrderResult(int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err)
+                    return OrderResult(
+                        int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err
+                    )
                 except json.JSONDecodeError:
                     attempt += 1
                     log.warning("invalid_json_result", path=str(res_path), attempt=attempt)
@@ -124,9 +126,7 @@ class MT4Broker(OrderRouter):
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 
     # ------------------------------------------------------------------
-    def market_order(
-        self, side: str, qty: float, price: Optional[float] = None
-    ) -> OrderResult:
+    def market_order(self, side: str, qty: float, price: Optional[float] = None) -> OrderResult:
         if not self._connected:
             res = OrderResult(0, "rejected", 0.0, 0.0, "not connected")
             log.info(
@@ -206,7 +206,12 @@ class MT4Broker(OrderRouter):
         except FileNotFoundError:
             log.warning("position_file_missing", path=str(pos_file))
             return 0.0
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):  # pragma: no cover - defensive
+        except (
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError,
+        ):  # pragma: no cover - defensive
             log.exception("position_file_error")
             return 0.0
 
@@ -218,7 +223,12 @@ class MT4Broker(OrderRouter):
         except FileNotFoundError:
             log.warning("account_file_missing", path=str(acc_file))
             return 0.0
-        except (OSError, json.JSONDecodeError, ValueError, TypeError):  # pragma: no cover - defensive
+        except (
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError,
+        ):  # pragma: no cover - defensive
             log.exception("account_file_error")
             return 0.0
 
