@@ -18,5 +18,10 @@ s = BacktestSettings(
 )
 
 res = run_backtest(df, s)
-print(f"bars: {len(df)} equity marks: {len(res.equity_curve)}")
-print(res.equity_curve.head(12))
+
+equity = res.equity_curve
+equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
+ret = equity_end / float(s.risk.initial_capital) - 1.0
+print(f"bars: {len(df)} equity marks: {len(equity)}")
+print(equity.head(12))
+print(f"return: {ret:.6f} max_dd: {res.max_dd:.6f} trades: {len(res.trades.trades)}")

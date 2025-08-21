@@ -105,9 +105,14 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         atr_multiple=args.atr_multiple,
     )
 
+    equity = res.equity_curve
+    equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
+    ret = equity_end / float(settings.risk.initial_capital) - 1.0
+
     # stdout: prosty podgląd najważniejszych metryk
     print(
-        f"Equity end: {res.equity_curve.iloc[-1]:.2f} | "
+        f"Equity end: {equity_end:.2f} | "
+        f"Return: {ret:.6f} | "
         f"MaxDD: {res.max_dd:.3f} | Trades: {len(res.trades.trades)}"
     )
 

@@ -57,6 +57,10 @@ def main() -> None:
 
     res = run_backtest(df, settings)
 
+    equity = res.equity_curve
+    equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
+    ret = equity_end / float(settings.risk.initial_capital) - 1.0
+
     # diagnostyka – eksport krzywej equity M2M
     if args.inspect_n and args.inspect_n > 0:
         n = min(args.inspect_n, len(res.equity_curve))
@@ -67,7 +71,8 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "equity_end": float(res.equity_curve.iloc[-1]),
+                "equity_end": equity_end,
+                "ret": ret,
                 "max_dd": float(res.max_dd),
                 "trades": len(res.trades.trades),
                 "event": "backtest_done",

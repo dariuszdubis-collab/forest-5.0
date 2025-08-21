@@ -50,9 +50,13 @@ def main():
     )
     res = run_backtest(df, s)
 
+    equity = res.equity_curve
+    equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
+    ret = equity_end / float(s.risk.initial_capital) - 1.0
+
     bars = len(df)
-    marks = len(res.equity_curve)
-    mean_eq = float(np.mean(res.equity_curve)) if marks else float("nan")
+    marks = len(equity)
+    mean_eq = float(np.mean(equity)) if marks else float("nan")
 
     # Heurystyki
     ok_len = marks in (bars, bars + 1)
@@ -68,7 +72,7 @@ def main():
         ts = pd.RangeIndex(marks)
 
     out = Path(args.out)
-    out_df = pd.DataFrame({"time": ts, "equity": res.equity_curve.values})
+    out_df = pd.DataFrame({"time": ts, "equity": equity.values})
     out_df.to_csv(out, index=False)
 
     summary = {
@@ -77,6 +81,7 @@ def main():
         "ok_len": ok_len,
         "ok_scale": ok_scale,
         "equity_mean": mean_eq,
+        "ret": ret,
         "max_dd": res.max_dd,
         "out": str(out),
     }
