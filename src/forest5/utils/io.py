@@ -62,10 +62,12 @@ def read_ohlc_csv(
                 break
 
     if time_col and time_col in df.columns:
-        idx = pd.to_datetime(df[time_col], errors="coerce", utc=False)
+        idx = pd.to_datetime(
+            df[time_col], errors="coerce", utc=False, format="mixed"
+        )
         df = df.drop(columns=[time_col])
     else:
-        idx = pd.to_datetime(df.index, errors="coerce", utc=False)
+        idx = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
 
     if idx.isna().any():
         bad = int(idx.isna().sum())

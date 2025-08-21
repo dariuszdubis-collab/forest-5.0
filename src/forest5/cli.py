@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import argparse
 from pathlib import Path
 from typing import Iterable, Optional
@@ -13,6 +14,19 @@ from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv
 from forest5.utils.argparse_ext import PercentAction
+
+
+class SafeHelpFormatter(
+    argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter
+):
+    """Help formatter that escapes bare '%' to avoid ValueError in argparse."""
+
+    def _expand_help(self, action):
+        params = dict(vars(action), prog=self._prog)
+        help_text = self._get_help_string(action) or ""
+        # Zamień każdy '%' niepoprzedzony '(' na '%%' (nie ruszaj np. '%(default)s')
+        help_text = re.sub(r"%(?!\()", "%%", help_text)
+        return help_text % params
 
 
 # ---------------------------- CSV loading helpers ----------------------------
@@ -139,11 +153,17 @@ def cmd_live(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="forest5", description="FOREST 5.0 CLI")
+    p = argparse.ArgumentParser(
+        prog="forest5",
+        description="Forest 5.0 – modularny framework tradingowy.",
+        formatter_class=SafeHelpFormatter,
+    )
     sub = p.add_subparsers(dest="command")
 
     # backtest
-    p_bt = sub.add_parser("backtest", help="Uruchom pojedynczy backtest")
+    p_bt = sub.add_parser(
+        "backtest", help="Uruchom pojedynczy backtest", formatter_class=SafeHelpFormatter
+    )
     p_bt.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
     p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
     p_bt.add_argument(
@@ -173,7 +193,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.set_defaults(func=cmd_backtest)
 
     # grid
-    p_gr = sub.add_parser("grid", help="Przeszukiwanie parametrów")
+    p_gr = sub.add_parser(
+        "grid", help="Przeszukiwanie parametrów", formatter_class=SafeHelpFormatter
+    )
     p_gr.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
     p_gr.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
     p_gr.add_argument(
@@ -192,7 +214,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.set_defaults(func=cmd_grid)
 
     # live
-    p_lv = sub.add_parser("live", help="Uruchom trading na żywo")
+    p_lv = sub.add_parser(
+        "live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter
+    )
     p_lv.add_argument(
         "--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami"
     )
