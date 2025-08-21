@@ -132,6 +132,7 @@ def _trading_loop(
         this_sig = int(this_sig)
 
         if t.weekday() in blocked_weekdays or t.hour in blocked_hours:
+            log.info("time_blocked", time=str(t))
             equity_mtm = rm.equity + position * price
             rm.record_mark_to_market(equity_mtm)
             if rm.exceeded_max_dd():
