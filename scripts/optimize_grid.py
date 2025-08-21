@@ -116,11 +116,13 @@ def _run_one(
         atr_multiple=base.atr_multiple,
     )
     res = run_backtest(df, s)
+
+    equity = res.equity_curve
+    equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
     initial = float(s.risk.initial_capital)
-    equity_end = float(res.equity_curve.iloc[-1])
     ret = equity_end / initial - 1.0
     max_dd = float(res.max_dd)
-    trades = int(len(res.trades.trades))
+    trades = len(res.trades.trades)
     score = ret - dd_penalty * max_dd
     return GridResult(
         fast=gp.fast,

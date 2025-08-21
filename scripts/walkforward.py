@@ -232,12 +232,14 @@ def evaluate_df(
     settings: BacktestSettings,
 ) -> Tuple[float, float, int, float]:
     res = run_backtest(df, settings)
-    eq_end = float(res.equity_curve.iloc[-1]) if len(res.equity_curve) else 0.0
+
+    equity = res.equity_curve
+    eq_end = float(equity.iloc[-1]) if not equity.empty else 0.0
     init_cap = float(settings.risk.initial_capital)
     ret = (eq_end / init_cap) - 1.0 if init_cap > 0 else 0.0
     max_dd = float(res.max_dd)
-    trades = len(getattr(res.trades, "trades", getattr(res.trades, "__iter__", [])))
-    return ret, max_dd, int(trades), eq_end
+    trades = len(res.trades.trades)
+    return ret, max_dd, trades, eq_end
 
 
 def pick_best_on_train(
