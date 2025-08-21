@@ -39,8 +39,10 @@ def _respond_once(bridge: Path):
     """Wait for a single command file and write corresponding result."""
     cmd_dir = bridge / "commands"
     res_dir = bridge / "results"
-    # Wait until a command file appears
-    while True:
+    # Wait until a command file appears, but abort after a short timeout
+    start = time.time()
+    timeout = 1.5
+    while time.time() - start < timeout:
         cmds = list(cmd_dir.glob("cmd_*.json"))
         if cmds:
             p = cmds[0]
@@ -48,8 +50,9 @@ def _respond_once(bridge: Path):
             rid = data["id"]
             result = {"id": rid, "status": "filled", "ticket": 1, "price": 1.2345}
             (res_dir / f"res_{rid}.json").write_text(json.dumps(result), encoding="utf-8")
-            break
+            return
         time.sleep(0.05)
+    raise AssertionError("No command file appeared within 1.5s")
 
 
 def test_market_order_success(tmp_path: Path):
