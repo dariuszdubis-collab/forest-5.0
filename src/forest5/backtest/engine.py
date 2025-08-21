@@ -107,8 +107,8 @@ def _trading_loop(
     sig_vals = sig.reindex(df.index).fillna(0).to_numpy(dtype=int)
 
     time_model: TimeOnlyModel | None = None
-    if settings.time.use_time_model and settings.time.time_model_path:
-        time_model = TimeOnlyModel.load(settings.time.time_model_path)
+    if settings.time.model.enabled and settings.time.model.path:
+        time_model = TimeOnlyModel.load(settings.time.model.path)
 
     blocked_hours = set(settings.time.blocked_hours)
     blocked_weekdays = set(settings.time.blocked_weekdays)

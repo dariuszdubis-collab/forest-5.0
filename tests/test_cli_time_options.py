@@ -54,7 +54,7 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
     cmd_backtest(args)
 
     settings = captured["settings"]
-    assert settings.time.use_time_model is True
-    assert settings.time.time_model_path == model_path
+    assert settings.time.model.enabled is True
+    assert settings.time.model.path == model_path
     assert settings.time.blocked_hours == [1, 2]
     assert settings.time.blocked_weekdays == [0, 6]

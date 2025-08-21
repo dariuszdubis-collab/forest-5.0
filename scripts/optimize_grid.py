@@ -271,8 +271,8 @@ def main() -> None:
         atr_multiple=float(args.atr_multiple),
     )
 
-    base.time.use_time_model = bool(args.time_model)
-    base.time.time_model_path = args.time_model
+    base.time.model.enabled = bool(args.time_model)
+    base.time.model.path = args.time_model
     base.time.fusion_min_confluence = int(args.min_confluence)
     base.time.blocked_hours = args.blocked_hours or []
     base.time.blocked_weekdays = args.blocked_weekdays or []
