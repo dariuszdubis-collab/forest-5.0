@@ -43,13 +43,20 @@ class SentimentAgent:
     def __init__(self, model: str = "gpt-4o-mini", max_tokens: int = 256) -> None:
         self.model = model
         self.max_tokens = max_tokens
-        self.enabled = bool(os.getenv("OPENAI_API_KEY"))
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.enabled = bool(api_key)
+
+        if not self.enabled:
+            # brak klucza -> agent w trybie "none" (można podmienić klienta w testach)
+            self._client = None
+            self._mode = "none"
+            return
 
         try:
             # próba nowego SDK
             from openai import OpenAI  # type: ignore
 
-            self._client = OpenAI()
+            self._client = OpenAI(api_key=api_key)
             self._mode = "sdk1"
         except ImportError as e:
             logger.warning("New OpenAI SDK not available: %s", e)
@@ -57,7 +64,7 @@ class SentimentAgent:
                 import openai  # type: ignore
 
                 self._client = openai
-                self._client.api_key = os.getenv("OPENAI_API_KEY")
+                self._client.api_key = api_key
                 self._mode = "legacy"
             except ImportError as e2:
                 logger.warning("Legacy OpenAI SDK not available: %s", e2)
