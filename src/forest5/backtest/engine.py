@@ -70,23 +70,38 @@ def _fuse_with_time(
     price: float,
     time_model: TimeOnlyModel | None,
     min_conf: int,
+    ai_decision: int | None = None,
 ) -> int:
-    """Fuse technical signal with optional time-only model."""
+    """Fuse technical, time and optional AI signals into one decision."""
 
-    votes = [1 if tech_signal > 0 else (-1 if tech_signal < 0 else 0)]
+    votes = {
+        "tech": 1 if tech_signal > 0 else (-1 if tech_signal < 0 else 0),
+        "time": 0,
+        "ai": 0,
+    }
+    pos = {"tech": 1 if votes["tech"] > 0 else 0, "time": 0, "ai": 0}
+    neg = {"tech": 1 if votes["tech"] < 0 else 0, "time": 0, "ai": 0}
+
     if time_model:
         tm_decision = time_model.decide(ts, price)
         if tm_decision == "WAIT":
             return 0
-        votes.append(1 if tm_decision == "BUY" else -1)
+        votes["time"] = 1 if tm_decision == "BUY" else -1
+        pos["time"] = 1 if votes["time"] > 0 else 0
+        neg["time"] = 1 if votes["time"] < 0 else 0
 
-    pos = sum(1 for v in votes if v > 0)
-    neg = sum(1 for v in votes if v < 0)
-    if max(pos, neg) < max(min_conf, 1):
+    if ai_decision is not None:
+        votes["ai"] = 1 if ai_decision > 0 else (-1 if ai_decision < 0 else 0)
+        pos["ai"] = 1 if votes["ai"] > 0 else 0
+        neg["ai"] = 1 if votes["ai"] < 0 else 0
+
+    pos_total = sum(pos.values())
+    neg_total = sum(neg.values())
+    if max(pos_total, neg_total) < max(min_conf, 1):
         return 0
-    if pos > neg:
+    if pos_total > neg_total:
         return 1
-    if neg > pos:
+    if neg_total > pos_total:
         return -1
     return 0
 
@@ -130,6 +145,7 @@ def _trading_loop(
             float(price),
             time_model,
             settings.time.fusion_min_confluence,
+            None,
         )
         this_sig = fused
 
