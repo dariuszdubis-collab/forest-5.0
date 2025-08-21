@@ -33,3 +33,14 @@ def test_conflict_returns_neutral() -> None:
 def test_passthrough_without_time_model() -> None:
     ts = datetime(2024, 1, 1)
     assert _fuse_with_time(-1, ts, 1.0, None, 1) == -1
+
+
+def test_ai_vote_satisfies_min_confluence() -> None:
+    ts = datetime(2024, 1, 1)
+    assert _fuse_with_time(1, ts, 1.0, None, 2) == 0
+    assert _fuse_with_time(1, ts, 1.0, None, 2, 1) == 1
+
+
+def test_ai_conflict_returns_neutral() -> None:
+    ts = datetime(2024, 1, 1)
+    assert _fuse_with_time(1, ts, 1.0, None, 1, -1) == 0
