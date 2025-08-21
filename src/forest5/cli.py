@@ -58,6 +58,13 @@ def _parse_range(spec: str) -> Iterable[int]:
     return [int(x) for x in spec.split(",") if x]
 
 
+def _parse_int_list(spec: str | None) -> list[int]:
+    """Parse comma-separated integers into a list of ints."""
+    if not spec:
+        return []
+    return [int(x.strip()) for x in spec.split(",") if x.strip()]
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
@@ -82,6 +89,12 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,
     )
+
+    settings.time.use_time_model = bool(args.time_model)
+    settings.time.time_model_path = args.time_model
+    settings.time.fusion_min_confluence = int(args.min_confluence)
+    settings.time.blocked_hours = args.blocked_hours or []
+    settings.time.blocked_weekdays = args.blocked_weekdays or []
 
     res = run_backtest(
         df,
@@ -188,6 +201,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bt.add_argument("--atr-period", type=int, default=14)
     p_bt.add_argument("--atr-multiple", type=float, default=2.0)
+
+    p_bt.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
+    p_bt.add_argument(
+        "--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji"
+    )
+    p_bt.add_argument(
+        "--blocked-hours",
+        type=_parse_int_list,
+        default=None,
+        help="Zablokowane godziny (0-23), np. 0,1,2",
+    )
+    p_bt.add_argument(
+        "--blocked-weekdays",
+        type=_parse_int_list,
+        default=None,
+        help="Zablokowane dni tygodnia 0=Mon..6=Sun",
+    )
 
     p_bt.add_argument("--export-equity", default=None, help="Zapisz equity do CSV")
     p_bt.set_defaults(func=cmd_backtest)
