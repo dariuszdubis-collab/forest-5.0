@@ -41,21 +41,60 @@ def load_ohlc_csv(
 # ------------------------------- CLI commands --------------------------------
 
 
-def _parse_range(spec: str) -> Iterable[int]:
+def _parse_span_or_list(spec: str) -> list[int]:
+    """Parse a numeric span (``lo-hi[:step]``) or comma-separated list.
+
+    Examples::
+        "5-7"        -> [5, 6, 7]
+        "1-5:2"      -> [1, 3, 5]
+        "1,2,10"     -> [1, 2, 10]
+
+    The range is inclusive and supports negative numbers, e.g. ``-3--1``.
+    Raises :class:`argparse.ArgumentTypeError` when the specification is
+    malformed, ``lo > hi`` or ``step <= 0``.
     """
-    Formaty:
-      - pojedyncze wartości oddzielone przecinkami: 5,8,13
-      - zakres: start:stop:step (np. 5:20:1)
-    """
-    spec = spec.strip()
-    if ":" in spec:
-        parts = [int(x) for x in spec.split(":")]
-        if len(parts) not in (2, 3):
-            raise ValueError("Zakres musi być w formacie start:stop[:step]")
-        start, stop = parts[0], parts[1]
-        step = parts[2] if len(parts) == 3 else 1
-        return list(range(start, stop + 1, step))
-    return [int(x) for x in spec.split(",") if x]
+
+    spec = str(spec).strip()
+
+    # Comma separated list of values
+    if "," in spec:
+        try:
+            return [int(float(x.strip())) for x in spec.split(",") if x.strip()]
+        except ValueError as ex:
+            raise argparse.ArgumentTypeError(f"Invalid list: {spec}") from ex
+
+    # Extract optional step (lo-hi[:step])
+    core, step_str = (spec.split(":", 1) + ["1"])[:2]
+    try:
+        step = int(float(step_str))
+    except ValueError as ex:
+        raise argparse.ArgumentTypeError(f"Invalid step: {step_str}") from ex
+    if step <= 0:
+        raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
+
+    # Single value without span
+    import re
+
+    m = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*-\s*([+-]?\d+(?:\.\d+)?)\s*", core)
+    if not m:
+        try:
+            return [int(float(core))]
+        except ValueError as ex:
+            raise argparse.ArgumentTypeError(f"Invalid range: {spec}") from ex
+
+    lo = int(float(m.group(1)))
+    hi = int(float(m.group(2)))
+    if hi < lo:
+        raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
+
+    vals: list[int] = list(range(lo, hi + 1, step))
+    if vals[-1] != hi:
+        vals.append(hi)
+    return vals
+
+
+# Backwards compatibility – old name used in previous versions/tests
+_parse_range = _parse_span_or_list
 
 
 def _parse_int_list(spec: str | None) -> list[int]:
@@ -127,8 +166,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 def cmd_grid(args: argparse.Namespace) -> int:
     df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
-    fast_vals = list(_parse_range(args.fast_values))
-    slow_vals = list(_parse_range(args.slow_values))
+    fast_vals = list(_parse_span_or_list(args.fast_values))
+    slow_vals = list(_parse_span_or_list(args.slow_values))
 
     out = run_grid(
         df,
