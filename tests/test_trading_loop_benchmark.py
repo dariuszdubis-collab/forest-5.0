@@ -26,9 +26,7 @@ def _old_trading_loop(df, sig, rm, tb, position, price_col, atr_multiple):
             position = 0.0
 
         if this_sig > 0 and position <= 0.0:
-            qty = rm.position_size(
-                price=price, atr=float(row["atr"]), atr_multiple=atr_multiple
-            )
+            qty = rm.position_size(price=price, atr=float(row["atr"]), atr_multiple=atr_multiple)
             if qty > 0.0:
                 rm.buy(price, qty)
                 tb.add(t, price, qty, "BUY")

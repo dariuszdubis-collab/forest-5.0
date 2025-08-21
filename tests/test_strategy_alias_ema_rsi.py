@@ -15,4 +15,3 @@ def test_strategy_alias_enables_rsi_filter() -> None:
     assert settings.strategy.use_rsi is True
     assert list(sig.index) == list(df.index)  # nosec B101
     assert set(sig.unique()).issubset({-1, 0, 1})  # nosec B101
-

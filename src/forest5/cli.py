@@ -247,9 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--atr-multiple", type=float, default=2.0)
 
     p_bt.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
-    p_bt.add_argument(
-        "--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji"
-    )
+    p_bt.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
     p_bt.add_argument(
         "--blocked-hours",
         type=_parse_int_list,

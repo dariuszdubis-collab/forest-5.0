@@ -101,7 +101,9 @@ class LiveSettings:
                 if k in keys:
                     field_info = keys[k]
                     field_type = getattr(
-                        field_info, "type", getattr(field_info, "annotation", getattr(field_info, "outer_type_", None))
+                        field_info,
+                        "type",
+                        getattr(field_info, "annotation", getattr(field_info, "outer_type_", None)),
                     )
                     if isinstance(v, dict) and field_type is not None:
                         result[k] = _filter(field_type, v)

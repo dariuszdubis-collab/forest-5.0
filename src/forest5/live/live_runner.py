@@ -127,11 +127,7 @@ def run_live(
 
     time_model: TimeOnlyModel | None = None
     tm_path = settings.time.model.path
-    if (
-        settings.time.model.enabled
-        and tm_path
-        and Path(tm_path).exists()
-    ):
+    if settings.time.model.enabled and tm_path and Path(tm_path).exists():
         try:
             time_model = TimeOnlyModel.load(tm_path)
         except (OSError, json.JSONDecodeError, KeyError):  # pragma: no cover - defensive
@@ -243,11 +239,7 @@ def run_live(
                                 symbol=settings.broker.symbol,
                                 action="decision",
                                 side=decision,
-                                qty=(
-                                    settings.broker.volume
-                                    if decision in ("BUY", "SELL")
-                                    else 0
-                                ),
+                                qty=(settings.broker.volume if decision in ("BUY", "SELL") else 0),
                                 price=current_bar["close"],
                                 latency_ms=0.0,
                                 error=None,
@@ -255,9 +247,7 @@ def run_live(
                             )
                             if decision in ("BUY", "SELL"):
                                 start_ts = time.time()
-                                res = broker.market_order(
-                                    decision, settings.broker.volume, price
-                                )
+                                res = broker.market_order(decision, settings.broker.volume, price)
                                 latency = (time.time() - start_ts) * 1000.0
                                 log.info(
                                     "order_result",

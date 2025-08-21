@@ -28,5 +28,7 @@ jobs:
               import_module(m)
           print("deps-ok")
           PY
+      - name: Run lint
+        run: make lint
       - name: Run tests
         run: pytest -q

@@ -29,4 +29,3 @@ def test_train_decide_and_serialize(tmp_path: Path) -> None:
 
     assert loaded.quantile_gates == model.quantile_gates
     assert loaded.decide(ts, 3.0) == "BUY"
-

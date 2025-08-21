@@ -46,6 +46,7 @@ WF_OUT   ?= $(OUTDIR)/walkforward.csv
 all: lint test
 
 lint:
+	black --check .
 	$(PY) -m ruff check .
 
 test:
