@@ -56,3 +56,4 @@ def test_broker_file_bridge(tmp_path: Path):
     finally:
         stop.set()
         t.join(timeout=1)
+        assert not t.is_alive(), "fake EA thread did not stop"

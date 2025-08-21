@@ -118,3 +118,4 @@ def test_back_to_back_orders_and_cleanup(tmp_path: Path):
     finally:
         stop.set()
         t.join(timeout=1)
+        assert not t.is_alive(), "EA thread did not stop"
