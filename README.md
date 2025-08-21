@@ -108,76 +108,29 @@ Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokowa�
 
 - `time.model.enabled` – włącza model czasu podczas backtestu (`true`/`false`).
 - `time.model.path` – ścieżka do pliku z zapisanym modelem czasu.
-- `time.fusion_min_confluence` – minimalna konfluencja (0–1) wymagana do fuzji sygnału strategii z modelem.
 - `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
 - `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
+- `decision.min_confluence` – minimalna liczba głosów wymaganych do otwarcia pozycji.
 
-Z poziomu CLI odpowiadają im flagi polecenia `forest5 backtest`:
-
-```bash
-poetry run forest5 backtest --csv demo.csv --fast 12 --slow 26 \
-    --time-model models/model_time.json \
-    --min-confluence 2 \
-    --blocked-hours 0,1,2 \
-    --blocked-weekdays 5,6
-```
-
-Podanie `--time-model` automatycznie ustawia `time.model.enabled=True` i ścieżkę
-`time.model.path`.  `--min-confluence` ustawia próg `time.fusion_min_confluence`,
-a listy w `--blocked-hours` i `--blocked-weekdays` trafiają odpowiednio do
-`time.blocked_hours` oraz `time.blocked_weekdays`.
-
-Powyższy przykład jest równoważny następującym ustawieniom API:
-
-```python
-settings.time.model.enabled = True
-settings.time.model.path = "models/model_time.json"
-settings.time.fusion_min_confluence = 2
-settings.time.blocked_hours = [0, 1, 2]
-settings.time.blocked_weekdays = [5, 6]
-```
-
-W trybie live pamiętaj o ustawieniu `decision.min_confluence` (np. `2`) i
-włączeniu modelu czasu:
+Przykładowa konfiguracja:
 
 ```yaml
 time:
+  blocked_hours: [0,1,2,3]
+  blocked_weekdays: [5,6]
   model:
     enabled: true
-    path: models/model_time.json
+    path: "models/model_time.json"
+decision:
+  min_confluence: 2
 ```
 
-Podczas backtestów podobną funkcję pełnią opcje:
-
-```python
-from forest5.config import BacktestSettings, StrategySettings, RiskSettings
-
-settings = BacktestSettings(
-    symbol="EURUSD",
-    timeframe="1h",
-    strategy=StrategySettings(fast=12, slow=26),
-    risk=RiskSettings(
-        initial_capital=100_000.0,
-        risk_per_trade=0.01,
-        max_drawdown=0.30,
-        fee_perc=0.0005,
-        slippage_perc=0.0,
-    ),
-)
-settings.time.model.enabled = True
-settings.time.model.path = "models/model_time.json"
-settings.time.fusion_min_confluence = 2
-settings.time.blocked_hours = [0, 1, 2]
-settings.time.blocked_weekdays = [5, 6]
-```
-
-## Trening modelu czasu
-
-Aby wytrenować prosty model czasu na danych z pliku CSV zawierającego kolumny
-`time` i `y` użyj skryptu `scripts/time_train.py`:
+Przykładowe polecenia:
 
 ```bash
-python scripts/time_train.py --input demo.csv --output models/model_time.json
+python scripts/time_train.py --input data.csv --output models/model_time.json --q-low 0.25 --q-high 0.75
+poetry run forest5 backtest --config config/backtest.yaml
+poetry run forest5 live --config config/live.yaml --paper
 ```
 
 Opcje `--q-low` i `--q-high` pozwalają dostroić kwantyle decyzyjne modelu.
