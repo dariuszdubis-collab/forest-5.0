@@ -1,10 +1,13 @@
 from datetime import datetime
+from typing import Literal
 
 from forest5.decision import DecisionAgent, DecisionConfig
 
 
 class DummyTimeModel:
-    def decide(self, ts, value: float) -> str:  # pragma: no cover - simple
+    def decide(
+        self, ts, value: float
+    ) -> Literal["BUY", "SELL", "WAIT"]:  # pragma: no cover - simple
         return "SELL"
 
 
