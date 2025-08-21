@@ -106,8 +106,8 @@ risk:
 
 Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokować wybrane przedziały:
 
-- `time.use_time_model` – włącza model czasu podczas backtestu (`true`/`false`).
-- `time.time_model_path` – ścieżka do pliku z zapisanym modelem czasu.
+- `time.model.enabled` – włącza model czasu podczas backtestu (`true`/`false`).
+- `time.model.path` – ścieżka do pliku z zapisanym modelem czasu.
 - `time.fusion_min_confluence` – minimalna konfluencja (0–1) wymagana do fuzji sygnału strategii z modelem.
 - `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
 - `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
@@ -122,16 +122,16 @@ poetry run forest5 backtest --csv demo.csv --fast 12 --slow 26 \
     --blocked-weekdays 5,6
 ```
 
-Podanie `--time-model` automatycznie ustawia `time.use_time_model=True` i ścieżkę
-`time.time_model_path`.  `--min-confluence` ustawia próg `time.fusion_min_confluence`,
+Podanie `--time-model` automatycznie ustawia `time.model.enabled=True` i ścieżkę
+`time.model.path`.  `--min-confluence` ustawia próg `time.fusion_min_confluence`,
 a listy w `--blocked-hours` i `--blocked-weekdays` trafiają odpowiednio do
 `time.blocked_hours` oraz `time.blocked_weekdays`.
 
 Powyższy przykład jest równoważny następującym ustawieniom API:
 
 ```python
-settings.time.use_time_model = True
-settings.time.time_model_path = "models/model_time.json"
+settings.time.model.enabled = True
+settings.time.model.path = "models/model_time.json"
 settings.time.fusion_min_confluence = 2
 settings.time.blocked_hours = [0, 1, 2]
 settings.time.blocked_weekdays = [5, 6]
@@ -164,8 +164,8 @@ settings = BacktestSettings(
         slippage_perc=0.0,
     ),
 )
-settings.time.use_time_model = True
-settings.time.time_model_path = "models/model_time.json"
+settings.time.model.enabled = True
+settings.time.model.path = "models/model_time.json"
 settings.time.fusion_min_confluence = 2
 settings.time.blocked_hours = [0, 1, 2]
 settings.time.blocked_weekdays = [5, 6]

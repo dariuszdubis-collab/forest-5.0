@@ -45,21 +45,25 @@ class TimeOnlySettings(BaseModel):
     blocked_hours: list[int] = Field(default_factory=list)  # 0..23
 
 
-class BacktestTimeSettings(BaseModel):
-    use_time_model: bool = False
-    time_model_path: Path | None = None
-    q_low: float = 0.1
-    q_high: float = 0.9
-    blocked_hours: list[int] = Field(default_factory=list)
-    blocked_weekdays: list[int] = Field(default_factory=list)
-    fusion_min_confluence: int = 1
+class BacktestTimeModelSettings(BaseModel):
+    enabled: bool = False
+    path: Path | None = None
 
-    @field_validator("time_model_path", mode="before")
+    @field_validator("path", mode="before")
     @classmethod
     def _to_path(cls, v: str | Path | None) -> Path | None:
         if v is None:
             return None
         return Path(v)
+
+
+class BacktestTimeSettings(BaseModel):
+    model: BacktestTimeModelSettings = Field(default_factory=BacktestTimeModelSettings)
+    q_low: float = 0.1
+    q_high: float = 0.9
+    blocked_hours: list[int] = Field(default_factory=list)
+    blocked_weekdays: list[int] = Field(default_factory=list)
+    fusion_min_confluence: int = 1
 
     @field_validator("q_high")
     @classmethod

@@ -129,8 +129,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         atr_multiple=args.atr_multiple,
     )
 
-    settings.time.use_time_model = bool(args.time_model)
-    settings.time.time_model_path = args.time_model
+    settings.time.model.enabled = bool(args.time_model)
+    settings.time.model.path = args.time_model
     settings.time.fusion_min_confluence = int(args.min_confluence)
     settings.time.blocked_hours = args.blocked_hours or []
     settings.time.blocked_weekdays = args.blocked_weekdays or []

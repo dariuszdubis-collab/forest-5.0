@@ -20,6 +20,7 @@ for _model in (
     _legacy.OnDrawdownSettings,
     _legacy.AISettings,
     _legacy.TimeOnlySettings,
+    _legacy.BacktestTimeModelSettings,
     _legacy.BacktestTimeSettings,
     _legacy.BacktestSettings,
 ):
@@ -33,6 +34,7 @@ for _name in [
     "OnDrawdownSettings",
     "AISettings",
     "TimeOnlySettings",
+    "BacktestTimeModelSettings",
     "BacktestTimeSettings",
     "BacktestSettings",
 ]:
@@ -49,6 +51,7 @@ __all__ = [
     "OnDrawdownSettings",
     "AISettings",
     "TimeOnlySettings",
+    "BacktestTimeModelSettings",
     "BacktestTimeSettings",
     "BacktestSettings",
 ]
