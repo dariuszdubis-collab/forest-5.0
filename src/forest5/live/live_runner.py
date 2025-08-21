@@ -127,11 +127,11 @@ def run_live(
 
     time_model: TimeOnlyModel | None = None
     tm_path = settings.time.model.path
-    if settings.time.model.enabled and tm_path and Path(tm_path).exists():
+    if settings.time.model.enabled and tm_path:
         try:
             time_model = TimeOnlyModel.load(tm_path)
         except (OSError, json.JSONDecodeError, KeyError):  # pragma: no cover - defensive
-            log.exception("failed to load time model")
+            log.warning("time_model_load_failed", path=str(tm_path))
     else:
         log.info("time_model_missing", path=tm_path)
 

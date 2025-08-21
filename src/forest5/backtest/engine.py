@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+import json
 import numpy as np
 import pandas as pd
 
@@ -108,7 +109,14 @@ def _trading_loop(
 
     time_model: TimeOnlyModel | None = None
     if settings.time.model.enabled and settings.time.model.path:
-        time_model = TimeOnlyModel.load(settings.time.model.path)
+        try:
+            time_model = TimeOnlyModel.load(settings.time.model.path)
+        except (OSError, json.JSONDecodeError, KeyError):
+            log.warning(
+                "time_model_load_failed",
+                path=str(settings.time.model.path),
+            )
+            time_model = None
 
     blocked_hours = set(settings.time.blocked_hours)
     blocked_weekdays = set(settings.time.blocked_weekdays)
@@ -122,6 +130,7 @@ def _trading_loop(
             if rm.exceeded_max_dd():
                 log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
                 break
+            log.info("time_blocked", time=str(t))
             continue
 
         fused = _fuse_with_time(
