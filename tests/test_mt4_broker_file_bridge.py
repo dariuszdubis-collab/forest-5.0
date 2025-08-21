@@ -67,6 +67,7 @@ def test_market_order_success(tmp_path: Path):
     t.start()
     result = br.market_order("BUY", 0.1)
     t.join(timeout=1)
+    assert not t.is_alive(), "responder thread did not finish"
     assert result["status"] == "filled"
     assert br.equity() == 1234
     assert br.position_qty() == 1.5
