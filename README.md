@@ -125,6 +125,20 @@ time:
 Podczas backtestów podobną funkcję pełnią opcje:
 
 ```python
+from forest5.config import BacktestSettings, StrategySettings, RiskSettings
+
+settings = BacktestSettings(
+    symbol="EURUSD",
+    timeframe="1h",
+    strategy=StrategySettings(fast=12, slow=26),
+    risk=RiskSettings(
+        initial_capital=100_000.0,
+        risk_per_trade=0.01,
+        max_drawdown=0.30,
+        fee_perc=0.0005,
+        slippage_perc=0.0,
+    ),
+)
 settings.time.use_time_model = True
 settings.time.time_model_path = "models/model_time.json"
 ```

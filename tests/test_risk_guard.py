@@ -1,5 +1,3 @@
-import logging
-
 from forest5.live.risk_guard import should_halt_for_drawdown
 from forest5.utils.log import log
 
