@@ -4,6 +4,7 @@ import time
 import importlib
 from pathlib import Path
 
+
 def _import_mt4broker():
     """
     Szukamy klasy MT4Broker w kilku możliwych lokalizacjach.
@@ -25,14 +26,20 @@ def _import_mt4broker():
             continue
         if hasattr(mod, "MT4Broker"):
             return getattr(mod, "MT4Broker")
-    raise AssertionError("MT4Broker not found. Tried: " + ", ".join(candidates) +
-                         (" | import errors: " + " ; ".join(last_mnf) if last_mnf else ""))
+    raise AssertionError(
+        "MT4Broker not found. Tried: "
+        + ", ".join(candidates)
+        + (" | import errors: " + " ; ".join(last_mnf) if last_mnf else "")
+    )
+
 
 MT4Broker = _import_mt4broker()
+
 
 def _write_text(p: Path, s: str):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(s, encoding="utf-8")
+
 
 def _fake_ea_loop(bridge: Path, stop_evt: threading.Event):
     cmd = bridge / "commands"
@@ -65,11 +72,12 @@ def _fake_ea_loop(bridge: Path, stop_evt: threading.Event):
                     ),
                 )
                 p.unlink(missing_ok=True)
-            except Exception:
+            except (FileNotFoundError, json.JSONDecodeError) as e:
                 # Nie maskujemy błędów modułów – ale w testowej pętli EA
                 # dopuszczamy bezpieczne pominięcie pojedynczego pliku.
-                pass
+                print(f"Ignoring command {p}: {e}")
         time.sleep(0.02)
+
 
 def test_timeout_returns_result_object(tmp_path: Path):
     """
@@ -80,8 +88,7 @@ def test_timeout_returns_result_object(tmp_path: Path):
     # Minimalna struktura, ale BEZ pętli EA -> zasymuluj timeout
     for d in ("ticks", "commands", "results", "state"):
         (bridge / d).mkdir(parents=True, exist_ok=True)
-    _write_text(bridge / "ticks" / "tick.json",
-                '{"symbol":"EURUSD","bid":1,"ask":1,"time":0}')
+    _write_text(bridge / "ticks" / "tick.json", '{"symbol":"EURUSD","bid":1,"ask":1,"time":0}')
 
     br = MT4Broker(bridge_dir=bridge, symbol="EURUSD", timeout_sec=0.5)
     br.connect()
@@ -89,6 +96,7 @@ def test_timeout_returns_result_object(tmp_path: Path):
 
     assert result["status"].lower() == "rejected"
     assert str(result["error"]).lower() == "timeout"
+
 
 def test_back_to_back_orders_and_cleanup(tmp_path: Path):
     bridge = tmp_path / "forest_bridge"

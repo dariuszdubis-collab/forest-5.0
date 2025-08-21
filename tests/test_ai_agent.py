@@ -87,4 +87,4 @@ def test_analyse_handles_malformed_json() -> None:
     result = agent.analyse("ctx", "EURUSD")
 
     assert result.score == 0
-    assert "AI error" in result.reason
+    assert "AI parse error" in result.reason
