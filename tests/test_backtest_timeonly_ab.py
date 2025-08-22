@@ -13,8 +13,8 @@ class StubModel:
         self.decision = decision
         self.weight = weight
 
-    def decide(self, ts, value):  # pragma: no cover - simple stub
-        return self.decision, self.weight
+    def decide(self, ts):  # pragma: no cover - simple stub
+        return {"decision": self.decision, "confidence": self.weight}
 
 
 def _make_df() -> pd.DataFrame:

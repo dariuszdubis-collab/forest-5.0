@@ -1,19 +1,20 @@
 from datetime import datetime
 from typing import Literal
 
+
 from forest5.backtest.engine import _fuse_with_time
 
 
 class DummyTimeModel:
-    def __init__(self, decision: Literal["BUY", "SELL", "WAIT"]) -> None:
+    def __init__(self, decision: Literal["BUY", "SELL", "HOLD"]) -> None:
         self.decision = decision
 
-    def decide(self, ts, value: float) -> Literal["BUY", "SELL", "WAIT"]:
-        return self.decision
+    def decide(self, ts):  # pragma: no cover - simple stub
+        return {"decision": self.decision}
 
 
 def test_wait_short_circuit() -> None:
-    tm = DummyTimeModel("WAIT")
+    tm = DummyTimeModel("HOLD")
     ts = datetime(2024, 1, 1)
     assert _fuse_with_time(1, ts, 1.0, tm, 2) == 0
 
