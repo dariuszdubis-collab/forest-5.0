@@ -162,6 +162,8 @@ def run_live(
         router=broker,
         config=DecisionConfig(
             use_ai=use_ai,
+            ai_model=settings.ai.model,
+            ai_max_tokens=settings.ai.max_tokens,
             time_model=time_model,
             min_confluence=settings.decision.min_confluence,
         ),
