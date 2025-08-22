@@ -23,5 +23,5 @@ class DebugLogger:
     def close(self) -> None:
         try:
             self._fh.close()
-        except Exception:
+        except Exception:  # nosec B110 - best effort close
             pass

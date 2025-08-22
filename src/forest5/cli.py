@@ -9,8 +9,7 @@ from typing import Optional
 
 import pandas as pd
 
-from forest5.config import BacktestSettings
-from forest5.config_live import LiveSettings
+from forest5.config import BacktestSettings, load_live_settings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
@@ -258,7 +257,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
 
 def cmd_live(args: argparse.Namespace) -> int:
-    settings = LiveSettings.from_file(args.config)
+    settings = load_live_settings(args.config)
     if args.paper:
         settings.broker.type = "paper"
     kwargs = {}
