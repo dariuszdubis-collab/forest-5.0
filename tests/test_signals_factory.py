@@ -36,8 +36,6 @@ def test_compute_signal_does_not_mutate_settings(alias):
     assert (sig != 0).any()  # nosec B101
 
 
-
-
 def test_compute_signal_with_rsi_filter_matches_manual():
     df = generate_ohlc(periods=60, start_price=100.0)
     s = BacktestSettings()
@@ -45,8 +43,8 @@ def test_compute_signal_with_rsi_filter_matches_manual():
 
     sig = compute_signal(df, s)
 
-    base = _ema_cross_signal(df['close'], s.strategy.fast, s.strategy.slow)
-    rsi_series = rsi(df['close'], s.strategy.rsi_period)
+    base = _ema_cross_signal(df["close"], s.strategy.fast, s.strategy.slow)
+    rsi_series = rsi(df["close"], s.strategy.rsi_period)
     candles = candles_signal(df)
     expected = confirm_with_candles(
         apply_rsi_filter(
@@ -58,6 +56,7 @@ def test_compute_signal_with_rsi_filter_matches_manual():
         candles,
     )
     assert sig.equals(expected)
+
 
 def test_compute_signal_macd_cross_basic():
     idx = pd.date_range("2024-01-01", periods=20, freq="D")
