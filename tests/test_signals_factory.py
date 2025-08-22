@@ -61,4 +61,3 @@ def test_compute_signal_unknown_strategy_raises():
 
     with pytest.raises(ValueError, match="Unknown strategy"):
         compute_signal(df, s)
-
