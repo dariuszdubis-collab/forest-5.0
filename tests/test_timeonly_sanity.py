@@ -23,6 +23,9 @@ def test_timeonly_save_load_and_decide_roundtrip(tmp_path) -> None:
     loaded = time_only.TimeOnlyModel.load(path)
 
     ts = datetime(2024, 1, 1, 0)
-    assert loaded.decide(ts, 0.5) == "SELL"
-    assert loaded.decide(ts, 2.5) == "BUY"
-    assert loaded.decide(ts, 1.5) == "WAIT"
+    dec, _ = loaded.decide(ts, 0.5)
+    assert dec == "SELL"
+    dec, _ = loaded.decide(ts, 2.5)
+    assert dec == "BUY"
+    dec, _ = loaded.decide(ts, 1.5)
+    assert dec == "WAIT"
