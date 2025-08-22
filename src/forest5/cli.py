@@ -42,11 +42,13 @@ def load_ohlc_csv(
 
 
 def _parse_span_or_list(spec: str) -> list[int]:
-    """Parse a numeric span (``lo-hi[:step]``) or comma-separated list.
+    """Parse a numeric span (``lo-hi[:step]`` or ``lo:hi:step``) or
+    comma-separated list.
 
     Examples::
         "5-7"        -> [5, 6, 7]
         "1-5:2"      -> [1, 3, 5]
+        "8:16:1"     -> [8, 9, 10, 11, 12, 13, 14, 15, 16]
         "1,2,10"     -> [1, 2, 10]
 
     The range is inclusive and supports negative numbers, e.g. ``-3--1``.
@@ -62,8 +64,27 @@ def _parse_span_or_list(spec: str) -> list[int]:
             return [int(float(x.strip())) for x in spec.split(",") if x.strip()]
         except ValueError as ex:
             raise argparse.ArgumentTypeError(f"Invalid list: {spec}") from ex
+    import re
 
-    # Extract optional step (lo-hi[:step])
+    # ``lo:hi:step`` form
+    m = re.fullmatch(
+        r"\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*",
+        spec,
+    )
+    if m:
+        lo = int(float(m.group(1)))
+        hi = int(float(m.group(2)))
+        step = int(float(m.group(3)))
+        if step <= 0:
+            raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
+        if hi < lo:
+            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
+        vals: list[int] = list(range(lo, hi + 1, step))
+        if vals[-1] != hi:
+            vals.append(hi)
+        return vals
+
+    # Extract optional step for ``lo-hi[:step]``
     core, step_str = (spec.split(":", 1) + ["1"])[:2]
     try:
         step = int(float(step_str))
@@ -72,25 +93,24 @@ def _parse_span_or_list(spec: str) -> list[int]:
     if step <= 0:
         raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
 
-    # Single value without span
-    import re
-
     m = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*-\s*([+-]?\d+(?:\.\d+)?)\s*", core)
-    if not m:
-        try:
-            return [int(float(core))]
-        except ValueError as ex:
-            raise argparse.ArgumentTypeError(f"Invalid range: {spec}") from ex
+    if m:
+        lo = int(float(m.group(1)))
+        hi = int(float(m.group(2)))
+        if hi < lo:
+            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
+        vals = list(range(lo, hi + 1, step))
+        if vals[-1] != hi:
+            vals.append(hi)
+        return vals
 
-    lo = int(float(m.group(1)))
-    hi = int(float(m.group(2)))
-    if hi < lo:
-        raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
-
-    vals: list[int] = list(range(lo, hi + 1, step))
-    if vals[-1] != hi:
-        vals.append(hi)
-    return vals
+    # Single value without span
+    try:
+        return [int(float(spec))]
+    except ValueError as ex:
+        raise argparse.ArgumentTypeError(
+            f"Invalid range: {spec}. Expected formats: lo-hi[:step] or lo:hi:step"
+        ) from ex
 
 
 # Backwards compatibility – old name used in previous versions/tests

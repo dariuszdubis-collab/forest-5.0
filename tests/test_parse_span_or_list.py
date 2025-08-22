@@ -16,6 +16,10 @@ def test_parse_span_list():
     assert _parse_span_or_list("1,4,7") == [1, 4, 7]
 
 
+def test_parse_span_colon_syntax():
+    assert _parse_span_or_list("8:16:1") == [8, 9, 10, 11, 12, 13, 14, 15, 16]
+
+
 def test_parse_span_step_error():
     with pytest.raises(argparse.ArgumentTypeError, match="Step"):
         _parse_span_or_list("1-5:0")
