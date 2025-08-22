@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -28,14 +28,30 @@ def _compute_metrics(equity: pd.Series) -> tuple[float, float, float]:
     return end, max_dd, cagr
 
 
-def param_grid(fast_values: Iterable[int], slow_values: Iterable[int]) -> list[tuple[int, int]]:
-    return [(f, s) for f, s in product(fast_values, slow_values) if f < s]
+def param_grid(param_lists: Dict[str, Iterable[Any]]) -> List[Dict[str, Any]]:
+    """Generate a grid of parameters for any number of dimensions.
+
+    Parameters
+    ----------
+    param_lists: dict
+        Mapping from parameter name to an iterable of possible values.
+
+    Returns
+    -------
+    list of dict
+        Each dict contains one concrete combination of parameters.
+    """
+
+    keys = list(param_lists.keys())
+    return [dict(zip(keys, values)) for values in product(*[param_lists[k] for k in keys])]
 
 
 @dataclass
 class GridResult:
     fast: int
     slow: int
+    risk: float
+    rsi_period: int
     equity_end: float
     max_dd: float
     cagr: float
@@ -46,6 +62,8 @@ def run_grid(
     symbol: str,
     fast_values: list[int],
     slow_values: list[int],
+    risk_values: list[float] | None = None,
+    rsi_period_values: list[int] | None = None,
     capital: float = 100_000.0,
     risk: float = 0.01,
     max_dd: float = 0.30,
@@ -68,7 +86,16 @@ def run_grid(
     blocked_weekdays = blocked_weekdays or []
 
     mem = Memory(cache_dir, verbose=0)
-    combos = param_grid(fast_values, slow_values)
+    param_lists = {
+        "fast": fast_values,
+        "slow": slow_values,
+    }
+    if risk_values is not None:
+        param_lists["risk"] = risk_values
+    if rsi_period_values is not None:
+        param_lists["rsi_period"] = rsi_period_values
+
+    combos = [c for c in param_grid(param_lists) if c["fast"] < c["slow"]]
 
     # Cache indicator computations to avoid recomputation for repeated parameters
     from ..core import indicators
@@ -78,7 +105,7 @@ def run_grid(
     indicators.ema = mem.cache(indicators.ema)
 
     @mem.cache
-    def _single_run(fast: int, slow: int) -> GridResult:
+    def _single_run(fast: int, slow: int, risk_value: float, rsi_period_value: int) -> GridResult:
         settings = BacktestSettings(
             symbol=symbol,
             timeframe="1h",
@@ -87,13 +114,13 @@ def run_grid(
                 fast=fast,
                 slow=slow,
                 use_rsi=use_rsi,
-                rsi_period=rsi_period,
+                rsi_period=rsi_period_value,
                 rsi_overbought=rsi_overbought,
                 rsi_oversold=rsi_oversold,
             ),
             risk=dict(
                 initial_capital=capital,
-                risk_per_trade=risk,
+                risk_per_trade=risk_value,
                 max_drawdown=max_dd,
                 fee_perc=fee,
                 slippage_perc=slippage,
@@ -108,13 +135,37 @@ def run_grid(
         settings.time.blocked_weekdays = list(blocked_weekdays)
         res = run_backtest(df, settings)
         end, mdd, cagr = _compute_metrics(res.equity_curve)
-        return GridResult(fast=fast, slow=slow, equity_end=end, max_dd=mdd, cagr=cagr)
+        return GridResult(
+            fast=fast,
+            slow=slow,
+            risk=risk_value,
+            rsi_period=rsi_period_value,
+            equity_end=end,
+            max_dd=mdd,
+            cagr=cagr,
+        )
 
     try:
         if n_jobs == 1:
-            results = [_single_run(f, s) for (f, s) in combos]
+            results = [
+                _single_run(
+                    c["fast"],
+                    c["slow"],
+                    c.get("risk", risk),
+                    c.get("rsi_period", rsi_period),
+                )
+                for c in combos
+            ]
         else:
-            results = Parallel(n_jobs=n_jobs)(delayed(_single_run)(f, s) for (f, s) in combos)
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(_single_run)(
+                    c["fast"],
+                    c["slow"],
+                    c.get("risk", risk),
+                    c.get("rsi_period", rsi_period),
+                )
+                for c in combos
+            )
     finally:
         indicators.atr = atr_orig
         indicators.ema = ema_orig
