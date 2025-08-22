@@ -140,7 +140,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         df = load_symbol_csv(args.symbol)
 
     settings = BacktestSettings(
-        symbol=args.symbol or "SYMBOL",
+        symbol=args.symbol,
         strategy={
             "name": "ema_cross",
             "fast": args.fast,
@@ -169,7 +169,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     res = run_backtest(
         df,
         settings,
-        symbol=args.symbol or "SYMBOL",
+        symbol=args.symbol,
         price_col="close",
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,
@@ -210,7 +210,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         sys.exit(1)
 
     kwargs = dict(
-        symbol=args.symbol or "SYMB",
+        symbol=args.symbol,
         fast_values=fast_vals,
         slow_values=slow_vals,
         capital=float(args.capital),
@@ -284,14 +284,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt = sub.add_parser(
         "backtest", help="Uruchom pojedynczy backtest", formatter_class=SafeHelpFormatter
     )
-    p_bt.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
+    p_bt.add_argument(
+        "--csv",
+        required=False,
+        help=(
+            "Ścieżka do pliku CSV z danymi OHLC (przysłania automatyczne "
+            "wyszukanie w /home/daro/Fxdata/{SYMBOL}_H1.csv)"
+        ),
+    )
     p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
     p_bt.add_argument(
         "--sep",
         default=None,
         help="Separator CSV (np. ';'). Brak = autodetekcja",
     )
-    p_bt.add_argument("--symbol", default="SYMBOL", help="Symbol (np. EURUSD)")
+    p_bt.add_argument("--symbol", required=True, help="Symbol (np. EURUSD)")
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
     p_bt.add_argument("--slow", type=int, default=26, help="Wolna EMA")
 
@@ -322,14 +329,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr = sub.add_parser(
         "grid", help="Przeszukiwanie parametrów", formatter_class=SafeHelpFormatter
     )
-    p_gr.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
+    p_gr.add_argument(
+        "--csv",
+        required=False,
+        help=(
+            "Ścieżka do pliku CSV z danymi OHLC (przysłania automatyczne "
+            "wyszukanie w /home/daro/Fxdata/{SYMBOL}_H1.csv)"
+        ),
+    )
     p_gr.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
     p_gr.add_argument(
         "--sep",
         default=None,
         help="Separator CSV (np. ';'). Brak = autodetekcja",
     )
-    p_gr.add_argument("--symbol", default="SYMB", help="Symbol (np. EURUSD)")
+    p_gr.add_argument("--symbol", required=True, help="Symbol (np. EURUSD)")
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
     p_gr.add_argument("--strategy", default=None, help="Nazwa strategii")

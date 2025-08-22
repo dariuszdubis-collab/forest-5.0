@@ -138,5 +138,8 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
 
     path = data_dir / f"{symbol}_H1.csv"
     if not path.exists():
-        raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
+        raise FileNotFoundError(
+            f"CSV for symbol '{symbol}' not found at {path}. "
+            "Pass --csv to override the default lookup."
+        )
     return read_ohlc_csv(path)

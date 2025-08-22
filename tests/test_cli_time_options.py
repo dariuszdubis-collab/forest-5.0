@@ -28,6 +28,8 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
     args = parser.parse_args(
         [
             "backtest",
+            "--symbol",
+            "EURUSD",
             "--csv",
             str(csv_path),
             "--time-model",

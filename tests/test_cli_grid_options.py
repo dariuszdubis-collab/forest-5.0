@@ -29,6 +29,8 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     args = parser.parse_args(
         [
             "grid",
+            "--symbol",
+            "EURUSD",
             "--csv",
             str(csv_path),
             "--fast-values",
