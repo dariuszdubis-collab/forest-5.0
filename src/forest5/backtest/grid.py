@@ -79,14 +79,10 @@ def run_grid(
     rsi_overbought: int = 70,
     time_model: Path | None = None,
     min_confluence: int = 1,
-    blocked_hours: list[int] | None = None,
-    blocked_weekdays: list[int] | None = None,
     n_jobs: int = 1,
     cache_dir: str = ".cache/forest5-grid",
     debug_dir: Path | None = None,
 ) -> pd.DataFrame:
-    blocked_hours = blocked_hours or []
-    blocked_weekdays = blocked_weekdays or []
 
     mem = Memory(cache_dir, verbose=0)
     param_lists = {
@@ -152,8 +148,6 @@ def run_grid(
         settings.time.model.enabled = bool(time_model)
         settings.time.model.path = time_model
         settings.time.fusion_min_confluence = int(min_confluence)
-        settings.time.blocked_hours = list(blocked_hours)
-        settings.time.blocked_weekdays = list(blocked_weekdays)
         res = run_backtest(df, settings)
         end, mdd, cagr = _compute_metrics(res.equity_curve)
         return GridResult(

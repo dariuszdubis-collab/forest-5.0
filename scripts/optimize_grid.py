@@ -60,13 +60,6 @@ def parse_range(spec: str) -> list[int]:
     return vals
 
 
-def _parse_int_list(spec: str | None) -> list[int]:
-    """Parse comma-separated integers into a list."""
-    if not spec:
-        return []
-    return [int(x.strip()) for x in spec.split(",") if x.strip()]
-
-
 @dataclass(frozen=True)
 class GridPoint:
     fast: int
@@ -222,18 +215,6 @@ def main() -> None:
 
     parser.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu.")
     parser.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
-    parser.add_argument(
-        "--blocked-hours",
-        type=_parse_int_list,
-        default=None,
-        help="Zablokowane godziny (0-23), np. 0,1,2",
-    )
-    parser.add_argument(
-        "--blocked-weekdays",
-        type=_parse_int_list,
-        default=None,
-        help="Zablokowane dni tygodnia 0=Mon..6=Sun",
-    )
 
     parser.add_argument("--start", type=str, default=None, help="Początek zakresu (YYYY-MM-DD).")
     parser.add_argument("--end", type=str, default=None, help="Koniec zakresu (YYYY-MM-DD).")
@@ -274,8 +255,6 @@ def main() -> None:
     base.time.model.enabled = bool(args.time_model)
     base.time.model.path = args.time_model
     base.time.fusion_min_confluence = int(args.min_confluence)
-    base.time.blocked_hours = args.blocked_hours or []
-    base.time.blocked_weekdays = args.blocked_weekdays or []
 
     fast_vals = parse_range(args.fast)
     slow_vals = parse_range(args.slow)

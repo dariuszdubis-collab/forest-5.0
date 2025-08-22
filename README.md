@@ -104,20 +104,16 @@ risk:
 
 ## Backtest + TimeOnly
 
-Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu oraz blokować wybrane przedziały:
+Sekcja `time` pozwala łączyć sygnały strategii z modelem czasu:
 
 - `time.model.enabled` – włącza model czasu podczas backtestu (`true`/`false`).
 - `time.model.path` – ścieżka do pliku z zapisanym modelem czasu.
-- `time.blocked_hours` – lista godzin (0–23), w których handel jest zablokowany.
-- `time.blocked_weekdays` – lista dni tygodnia (0=pon … 6=niedz), w których handel jest wyłączony.
 - `decision.min_confluence` – minimalna liczba głosów wymaganych do otwarcia pozycji.
 
 Przykładowa konfiguracja:
 
 ```yaml
 time:
-  blocked_hours: [0,1,2,3]
-  blocked_weekdays: [5,6]
   model:
     enabled: true
     path: "models/model_time.json"

@@ -43,8 +43,6 @@ class AISettings(BaseModel):
 
 class TimeOnlySettings(BaseModel):
     enabled: bool = False
-    blocked_weekdays: list[int] = Field(default_factory=list)  # 0=Mon..6=Sun
-    blocked_hours: list[int] = Field(default_factory=list)  # 0..23
 
 
 class BacktestTimeModelSettings(BaseModel):
@@ -63,8 +61,6 @@ class BacktestTimeSettings(BaseModel):
     model: BacktestTimeModelSettings = Field(default_factory=BacktestTimeModelSettings)
     q_low: float = 0.1
     q_high: float = 0.9
-    blocked_hours: list[int] = Field(default_factory=list)
-    blocked_weekdays: list[int] = Field(default_factory=list)
     fusion_min_confluence: int = 1
 
     @field_validator("q_high")
@@ -73,22 +69,6 @@ class BacktestTimeSettings(BaseModel):
         q_low = info.data.get("q_low")
         if not (0.0 <= q_low < v <= 1.0):
             raise BacktestConfigError("0.0 <= q_low < q_high <= 1.0")
-        return v
-
-    @field_validator("blocked_weekdays")
-    @classmethod
-    def _check_weekdays(cls, v: list[int]) -> list[int]:
-        invalid = [d for d in v if d < 0 or d > 6]
-        if invalid:
-            raise BacktestConfigError(f"blocked_weekdays must be in range 0-6: {invalid}")
-        return v
-
-    @field_validator("blocked_hours")
-    @classmethod
-    def _check_hours(cls, v: list[int]) -> list[int]:
-        invalid = [h for h in v if h < 0 or h > 23]
-        if invalid:
-            raise BacktestConfigError(f"blocked_hours must be in range 0-23: {invalid}")
         return v
 
 

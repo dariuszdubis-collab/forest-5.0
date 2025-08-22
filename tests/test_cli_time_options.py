@@ -32,10 +32,6 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
             str(csv_path),
             "--time-model",
             str(model_path),
-            "--blocked-hours",
-            "1,2",
-            "--blocked-weekdays",
-            "0,6",
         ]
     )
 
@@ -56,5 +52,3 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
     settings = captured["settings"]
     assert settings.time.model.enabled is True
     assert settings.time.model.path == model_path
-    assert settings.time.blocked_hours == [1, 2]
-    assert settings.time.blocked_weekdays == [0, 6]

@@ -67,7 +67,7 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=1),
         decision=DecisionSettings(min_confluence=1),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
-        time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),
+        time=TimeSettings(),
         risk=RiskSettings(
             max_drawdown=0.01,
             on_drawdown=OnDrawdownSettings(action="soft_wait"),
