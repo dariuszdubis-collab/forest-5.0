@@ -35,6 +35,12 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "2",
             "--slow-values",
             "5",
+            "--strategy",
+            "macd_cross",
+            "--risk-values",
+            "0.01,0.02",
+            "--max-dd-values",
+            "0.2,0.3",
             "--use-rsi",
             "--rsi-period",
             "7",
@@ -80,6 +86,9 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     cmd_grid(args)
 
     kw = captured["kwargs"]
+    assert kw["strategy"] == "macd_cross"
+    assert kw["risk_values"] == pytest.approx([0.01, 0.02])
+    assert kw["max_dd_values"] == pytest.approx([0.2, 0.3])
     assert kw["use_rsi"] is True
     assert kw["rsi_period"] == 7
     assert kw["rsi_oversold"] == 10

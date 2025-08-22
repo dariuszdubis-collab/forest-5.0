@@ -126,6 +126,13 @@ def _parse_int_list(spec: str | None) -> list[int]:
     return [int(x.strip()) for x in spec.split(",") if x.strip()]
 
 
+def _parse_float_list(spec: str | None) -> list[float]:
+    """Parse comma-separated floats into a list of floats."""
+    if not spec:
+        return []
+    return [float(x.strip()) for x in str(spec).split(",") if x.strip()]
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
@@ -190,13 +197,14 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
     fast_vals = list(_parse_span_or_list(args.fast_values))
     slow_vals = list(_parse_span_or_list(args.slow_values))
+    risk_vals = args.risk_values if args.risk_values else None
+    max_dd_vals = args.max_dd_values if args.max_dd_values else None
 
     if args.time_model and not os.path.exists(args.time_model):
         print(f"Plik modelu czasu nie istnieje: {args.time_model}")
         sys.exit(1)
 
-    out = run_grid(
-        df,
+    kwargs = dict(
         symbol=args.symbol or "SYMB",
         fast_values=fast_vals,
         slow_values=slow_vals,
@@ -217,6 +225,14 @@ def cmd_grid(args: argparse.Namespace) -> int:
         blocked_weekdays=args.blocked_weekdays or [],
         n_jobs=int(args.jobs),
     )
+    if args.strategy:
+        kwargs["strategy"] = args.strategy
+    if risk_vals:
+        kwargs["risk_values"] = risk_vals
+    if max_dd_vals:
+        kwargs["max_dd_values"] = max_dd_vals
+
+    out = run_grid(df, **kwargs)
 
     # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
     sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
@@ -317,6 +333,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--symbol", default="SYMB", help="Symbol (np. EURUSD)")
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
+    p_gr.add_argument("--strategy", default=None, help="Nazwa strategii")
+    p_gr.add_argument(
+        "--risk-values",
+        type=_parse_float_list,
+        default=None,
+        help="Lista wartości ryzyka, np. 0.01,0.02",
+    )
+    p_gr.add_argument(
+        "--max-dd-values",
+        type=_parse_float_list,
+        default=None,
+        help="Lista wartości max DD, np. 0.2,0.3",
+    )
     p_gr.add_argument("--capital", type=float, default=100_000.0)
     p_gr.add_argument("--risk", action=PercentAction, default=0.01)
     p_gr.add_argument("--max-dd", action=PercentAction, default=0.30, help="Dozwolone obsunięcie")
