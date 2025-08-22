@@ -13,9 +13,10 @@ from .config.loader import _norm_path
 
 @dataclass
 class StrategySettings:
-    name: Literal["ema_cross"] = "ema_cross"
+    name: Literal["ema_cross", "macd_cross"] = "ema_cross"
     fast: int = 12
     slow: int = 26
+    signal: int = 9
     use_rsi: bool = False
     rsi_period: int = 14
     rsi_overbought: int = 70
