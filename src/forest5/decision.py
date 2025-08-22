@@ -7,6 +7,7 @@ import pandas as pd
 from .ai_agent import SentimentAgent
 from .live.router import OrderRouter, PaperBroker
 from .time_only import TimeOnlyModel
+from .signals.fusion import _to_sign
 
 
 @dataclass
@@ -41,27 +42,23 @@ class DecisionAgent:
         symbol: str,
         context_text: str = "",
     ) -> tuple[str, dict[str, int], str]:
-        votes = {
-            "tech": 1 if tech_signal > 0 else (-1 if tech_signal < 0 else 0),
-            "time": 0,
-            "ai": 0,
-        }
-        pos = {"tech": 1 if votes["tech"] > 0 else 0, "time": 0, "ai": 0}
-        neg = {"tech": 1 if votes["tech"] < 0 else 0, "time": 0, "ai": 0}
+        votes = {"tech": _to_sign(tech_signal), "time": 0, "ai": 0}
+        pos = {"tech": int(votes["tech"] > 0), "time": 0, "ai": 0}
+        neg = {"tech": int(votes["tech"] < 0), "time": 0, "ai": 0}
 
         if self.config.time_model:
             tm_decision = self.config.time_model.decide(ts, value)
             if tm_decision == "WAIT":
                 return "WAIT", votes, "time_wait"
-            votes["time"] = 1 if tm_decision == "BUY" else -1
-            pos["time"] = 1 if votes["time"] > 0 else 0
-            neg["time"] = 1 if votes["time"] < 0 else 0
+            votes["time"] = _to_sign(1 if tm_decision == "BUY" else -1)
+            pos["time"] = int(votes["time"] > 0)
+            neg["time"] = int(votes["time"] < 0)
 
         if self.ai:
             s = self.ai.analyse(context_text, symbol).score
-            votes["ai"] = 1 if s > 0 else (-1 if s < 0 else 0)
-            pos["ai"] = 1 if votes["ai"] > 0 else 0
-            neg["ai"] = 1 if votes["ai"] < 0 else 0
+            votes["ai"] = _to_sign(s)
+            pos["ai"] = int(votes["ai"] > 0)
+            neg["ai"] = int(votes["ai"] < 0)
 
         pos_total = sum(pos.values())
         neg_total = sum(neg.values())
