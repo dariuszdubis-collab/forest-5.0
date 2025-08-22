@@ -18,9 +18,7 @@ def setup_logger(level: str = "INFO"):
         Configured logger instance.
     """
 
-    logging.basicConfig(
-        format="%(message)s", level=getattr(logging, level.upper(), logging.INFO)
-    )
+    logging.basicConfig(format="%(message)s", level=getattr(logging, level.upper(), logging.INFO))
     processors = [
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.add_log_level,
