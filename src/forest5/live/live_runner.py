@@ -17,6 +17,7 @@ from ..signals.combine import confirm_with_candles
 from ..utils.timeframes import _TF_MINUTES
 from ..utils.log import log
 from .router import OrderRouter
+from .risk_guard import should_halt_for_drawdown
 
 
 def _read_context(path: str | Path, max_bytes: int = 16_384) -> str:
@@ -218,15 +219,12 @@ def run_live(
                         last_candle_ts = time.time()
 
                         cur_eq = broker.equity()
-                        if (
-                            cur_eq is not None
-                            and start_equity > 0
-                            and settings.risk.max_drawdown > 0
+                        if cur_eq is not None and should_halt_for_drawdown(
+                            start_equity, cur_eq, settings.risk.max_drawdown
                         ):
                             dd = (start_equity - cur_eq) / start_equity
-                            if dd >= settings.risk.max_drawdown:
-                                log.error("max_drawdown_reached", drawdown_pct=dd * 100)
-                                break
+                            log.error("max_drawdown_reached", drawdown_pct=dd * 100)
+                            break
 
                         if (
                             idx.weekday() in settings.time.blocked_weekdays
