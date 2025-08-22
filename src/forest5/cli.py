@@ -176,6 +176,19 @@ def cmd_grid(args: argparse.Namespace) -> int:
         slow_values=slow_vals,
         capital=float(args.capital),
         risk=float(args.risk),
+        max_dd=float(args.max_dd),
+        fee=float(args.fee),
+        slippage=float(args.slippage),
+        atr_period=int(args.atr_period),
+        atr_multiple=float(args.atr_multiple),
+        use_rsi=bool(args.use_rsi),
+        rsi_period=int(args.rsi_period),
+        rsi_oversold=int(args.rsi_oversold),
+        rsi_overbought=int(args.rsi_overbought),
+        time_model=args.time_model,
+        min_confluence=int(args.min_confluence),
+        blocked_hours=args.blocked_hours or [],
+        blocked_weekdays=args.blocked_weekdays or [],
         n_jobs=int(args.jobs),
     )
 
@@ -280,6 +293,33 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
     p_gr.add_argument("--capital", type=float, default=100_000.0)
     p_gr.add_argument("--risk", action=PercentAction, default=0.01)
+    p_gr.add_argument("--max-dd", action=PercentAction, default=0.30, help="Dozwolone obsunięcie")
+    p_gr.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
+    p_gr.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
+
+    p_gr.add_argument("--atr-period", type=int, default=14)
+    p_gr.add_argument("--atr-multiple", type=float, default=2.0)
+
+    p_gr.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
+    p_gr.add_argument("--rsi-period", type=int, default=14)
+    p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
+    p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
+
+    p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
+    p_gr.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
+    p_gr.add_argument(
+        "--blocked-hours",
+        type=_parse_int_list,
+        default=None,
+        help="Zablokowane godziny (0-23), np. 0,1,2",
+    )
+    p_gr.add_argument(
+        "--blocked-weekdays",
+        type=_parse_int_list,
+        default=None,
+        help="Zablokowane dni tygodnia 0=Mon..6=Sun",
+    )
+
     p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
