@@ -14,7 +14,7 @@ def test_grid_small():
         risk=0.01,
         n_jobs=1,
     )
-    assert {"fast", "slow", "equity_end", "max_dd", "cagr", "rar"}.issubset(res.columns)
+    assert {"fast", "slow", "equity_end", "dd", "cagr", "rar", "max_dd"}.issubset(res.columns)
     assert len(res) == 1
     assert res["equity_end"].iloc[0] > 0
 
@@ -51,3 +51,19 @@ def test_grid_multiple_parameters():
     assert len(res) == 16  # 2*2*2*2 combinations
     assert set(res["risk"]) == {0.01, 0.02}
     assert set(res["rsi_period"]) == {14, 21}
+
+
+def test_grid_max_dd_values():
+    df = generate_ohlc(periods=40, start_price=100.0, freq="D")
+    res = run_grid(
+        df,
+        symbol="SYMB",
+        fast_values=[6],
+        slow_values=[12],
+        max_dd_values=[0.1, 0.2],
+        capital=10_000.0,
+        risk=0.01,
+        n_jobs=1,
+    )
+    assert len(res) == 2
+    assert set(res["max_dd"]) == {0.1, 0.2}

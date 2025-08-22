@@ -52,8 +52,9 @@ class GridResult:
     slow: int
     risk: float
     rsi_period: int
-    equity_end: float
     max_dd: float
+    equity_end: float
+    dd: float
     cagr: float
 
 
@@ -64,6 +65,7 @@ def run_grid(
     slow_values: list[int],
     risk_values: list[float] | None = None,
     rsi_period_values: list[int] | None = None,
+    max_dd_values: list[float] | None = None,
     capital: float = 100_000.0,
     risk: float = 0.01,
     max_dd: float = 0.30,
@@ -94,6 +96,8 @@ def run_grid(
         param_lists["risk"] = risk_values
     if rsi_period_values is not None:
         param_lists["rsi_period"] = rsi_period_values
+    if max_dd_values is not None:
+        param_lists["max_dd"] = max_dd_values
 
     combos = [c for c in param_grid(param_lists) if c["fast"] < c["slow"]]
 
@@ -105,7 +109,13 @@ def run_grid(
     indicators.ema = mem.cache(indicators.ema)
 
     @mem.cache
-    def _single_run(fast: int, slow: int, risk_value: float, rsi_period_value: int) -> GridResult:
+    def _single_run(
+        fast: int,
+        slow: int,
+        risk_value: float,
+        rsi_period_value: int,
+        max_dd_value: float,
+    ) -> GridResult:
         settings = BacktestSettings(
             symbol=symbol,
             timeframe="1h",
@@ -121,7 +131,7 @@ def run_grid(
             risk=dict(
                 initial_capital=capital,
                 risk_per_trade=risk_value,
-                max_drawdown=max_dd,
+                max_drawdown=max_dd_value,
                 fee_perc=fee,
                 slippage_perc=slippage,
             ),
@@ -140,8 +150,9 @@ def run_grid(
             slow=slow,
             risk=risk_value,
             rsi_period=rsi_period_value,
+            max_dd=max_dd_value,
             equity_end=end,
-            max_dd=mdd,
+            dd=mdd,
             cagr=cagr,
         )
 
@@ -153,6 +164,7 @@ def run_grid(
                     c["slow"],
                     c.get("risk", risk),
                     c.get("rsi_period", rsi_period),
+                    c.get("max_dd", max_dd),
                 )
                 for c in combos
             ]
@@ -163,6 +175,7 @@ def run_grid(
                     c["slow"],
                     c.get("risk", risk),
                     c.get("rsi_period", rsi_period),
+                    c.get("max_dd", max_dd),
                 )
                 for c in combos
             )
@@ -171,6 +184,6 @@ def run_grid(
         indicators.ema = ema_orig
 
     out = pd.DataFrame([r.__dict__ for r in results])
-    out["rar"] = out["cagr"] / out["max_dd"].replace(0, np.nan)
+    out["rar"] = out["cagr"] / out["dd"].replace(0, np.nan)
     out["rar"] = out["rar"].fillna(0.0)
     return out
