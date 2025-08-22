@@ -1,30 +1,13 @@
 from __future__ import annotations
 
 import copy
-import numpy as np
 import pandas as pd
 
-from ..core.indicators import ema, rsi
+from ..core.indicators import rsi
 from .candles import candles_signal
 from .combine import apply_rsi_filter, confirm_with_candles
+from .ema import ema_cross_signal
 from .macd import macd_cross_signal
-
-
-def _ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
-    """
-    Generuje impuls BUY/SELL tylko na realnej zmianie kierunku (cross),
-    nigdy na pierwszym barze.
-    """
-    f = ema(close, fast)
-    s = ema(close, slow)
-    direction = pd.Series(np.where(f > s, 1, -1), index=close.index, dtype=int)
-
-    # Zmiana tylko gdy mamy poprzednią wartość (brak sygnału na barze 0)
-    changed = direction.ne(direction.shift(1)) & direction.shift(1).notna()
-
-    out = pd.Series(0, index=close.index, dtype=int)
-    out.loc[changed] = direction.loc[changed]
-    return out
 
 
 def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
@@ -37,7 +20,7 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
         name = "ema_cross"
 
     if name == "ema_cross":
-        base = _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
+        base = ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
         if getattr(strategy, "use_rsi", False):
             rsi_series = rsi(df[price_col], strategy.rsi_period)
             base = apply_rsi_filter(
