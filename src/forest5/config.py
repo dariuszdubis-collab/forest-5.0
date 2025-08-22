@@ -6,6 +6,7 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
+from .backtest.errors import BacktestConfigError
 from .utils.timeframes import normalize_timeframe
 
 
@@ -71,7 +72,7 @@ class BacktestTimeSettings(BaseModel):
     def _check_quantiles(cls, v: float, info):
         q_low = info.data.get("q_low")
         if not (0.0 <= q_low < v <= 1.0):
-            raise ValueError("0.0 <= q_low < q_high <= 1.0")
+            raise BacktestConfigError("0.0 <= q_low < q_high <= 1.0")
         return v
 
     @field_validator("blocked_weekdays")
@@ -79,7 +80,7 @@ class BacktestTimeSettings(BaseModel):
     def _check_weekdays(cls, v: list[int]) -> list[int]:
         invalid = [d for d in v if d < 0 or d > 6]
         if invalid:
-            raise ValueError(f"blocked_weekdays must be in range 0-6: {invalid}")
+            raise BacktestConfigError(f"blocked_weekdays must be in range 0-6: {invalid}")
         return v
 
     @field_validator("blocked_hours")
@@ -87,7 +88,7 @@ class BacktestTimeSettings(BaseModel):
     def _check_hours(cls, v: list[int]) -> list[int]:
         invalid = [h for h in v if h < 0 or h > 23]
         if invalid:
-            raise ValueError(f"blocked_hours must be in range 0-23: {invalid}")
+            raise BacktestConfigError(f"blocked_hours must be in range 0-23: {invalid}")
         return v
 
 
@@ -117,5 +118,5 @@ class BacktestSettings(BaseModel):
 
             data = json.loads(p.read_text(encoding="utf-8"))
         else:
-            raise ValueError("Supported: .yaml/.yml/.json")
+            raise BacktestConfigError("Supported: .yaml/.yml/.json")
         return cls(**data)
