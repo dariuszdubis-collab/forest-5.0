@@ -25,18 +25,30 @@ class TimeOnlyModel:
     q_low: float
     q_high: float
 
-    def decide(self, ts: datetime, value: float) -> Literal["BUY", "SELL", "WAIT"]:
-        """Return BUY/SELL/WAIT decision based on quantile gates."""
+    def decide(
+        self, ts: datetime, value: float | None = None
+    ) -> dict[str, float | str] | Literal["BUY", "SELL", "WAIT"]:
+        """Return BUY/SELL/WAIT decision based on quantile gates.
+
+        When ``value`` is provided the legacy string-based API is used.
+        For the new timestamp-only API a mapping with ``decision`` and
+        ``confidence`` keys is returned.
+        """
         hour = ts.hour
         gates = self.quantile_gates.get(hour)
-        if gates is None:
-            return "WAIT"
-        low, high = gates
-        if value <= low:
-            return "SELL"
-        if value >= high:
-            return "BUY"
-        return "WAIT"
+        if gates is None or value is None:
+            res = "WAIT"
+        else:
+            low, high = gates
+            if value <= low:
+                res = "SELL"
+            elif value >= high:
+                res = "BUY"
+            else:
+                res = "WAIT"
+        if value is None:
+            return {"decision": res, "confidence": 1.0}
+        return res
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(self.to_json())
