@@ -132,9 +132,10 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     settings = BacktestSettings(
         symbol=args.symbol or "SYMBOL",
         strategy={
-            "name": "ema_cross",
+            "name": args.strategy,
             "fast": args.fast,
             "slow": args.slow,
+            "signal": args.signal,
             "use_rsi": bool(args.use_rsi),
             "rsi_period": args.rsi_period,
             "rsi_oversold": args.rsi_oversold,
@@ -211,6 +212,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         rsi_period=int(args.rsi_period),
         rsi_oversold=int(args.rsi_oversold),
         rsi_overbought=int(args.rsi_overbought),
+        strategy_name=args.strategy,
+        signal=int(args.signal),
         time_model=args.time_model,
         min_confluence=int(args.min_confluence),
         blocked_hours=args.blocked_hours or [],
@@ -270,6 +273,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--symbol", default="SYMBOL", help="Symbol (np. EURUSD)")
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
     p_bt.add_argument("--slow", type=int, default=26, help="Wolna EMA")
+    p_bt.add_argument(
+        "--strategy",
+        choices=["ema_cross", "macd_cross"],
+        default="ema_cross",
+        help="Wybór strategii",
+    )
+    p_bt.add_argument("--signal", type=int, default=9, help="Okres sygnału MACD")
 
     p_bt.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
     p_bt.add_argument("--rsi-period", type=int, default=14)
@@ -317,6 +327,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--symbol", default="SYMB", help="Symbol (np. EURUSD)")
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
+    p_gr.add_argument(
+        "--strategy",
+        choices=["ema_cross", "macd_cross"],
+        default="ema_cross",
+        help="Wybór strategii",
+    )
+    p_gr.add_argument("--signal", type=int, default=9, help="Okres sygnału MACD")
     p_gr.add_argument("--capital", type=float, default=100_000.0)
     p_gr.add_argument("--risk", action=PercentAction, default=0.01)
     p_gr.add_argument("--max-dd", action=PercentAction, default=0.30, help="Dozwolone obsunięcie")

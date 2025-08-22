@@ -39,6 +39,45 @@ def test_cli_backtest(tmp_path, monkeypatch):
     assert rc == 0
 
 
+def test_cli_backtest_macd(tmp_path, monkeypatch):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    monkeypatch.chdir(tmp_path)
+
+    captured = {}
+
+    def fake_run_backtest(df, settings, **kwargs):
+        captured["settings"] = settings
+        class R:
+            equity_curve = pd.Series([100.0])
+            max_dd = 0.0
+            trades = type("T", (), {"trades": []})()
+        return R()
+
+    monkeypatch.setattr("forest5.cli.run_backtest", fake_run_backtest)
+
+    rc = main(
+        [
+            "backtest",
+            "--csv",
+            str(csv_path),
+            "--fast",
+            "2",
+            "--slow",
+            "3",
+            "--strategy",
+            "macd_cross",
+            "--signal",
+            "5",
+            "--atr-period",
+            "1",
+        ]
+    )
+    assert rc == 0
+    s = captured["settings"].strategy
+    assert s.name == "macd_cross"
+    assert s.signal == 5
+
+
 def test_cli_grid(tmp_path, monkeypatch):
     csv_path = _write_csv(tmp_path / "data.csv")
     monkeypatch.chdir(tmp_path)
@@ -58,6 +97,45 @@ def test_cli_grid(tmp_path, monkeypatch):
         ]
     )
     assert rc == 0
+
+
+def test_cli_grid_macd(tmp_path, monkeypatch):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    monkeypatch.chdir(tmp_path)
+
+    captured = {}
+
+    def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
+        captured["kwargs"] = kwargs
+        return pd.DataFrame(
+            [{"fast": 2, "slow": 3, "equity_end": 1.0, "max_dd": 0.0, "cagr": 0.0, "rar": 0.0}]
+        )
+
+    monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
+
+    rc = main(
+        [
+            "grid",
+            "--csv",
+            str(csv_path),
+            "--fast-values",
+            "2",
+            "--slow-values",
+            "3",
+            "--jobs",
+            "1",
+            "--top",
+            "1",
+            "--strategy",
+            "macd_cross",
+            "--signal",
+            "5",
+        ]
+    )
+    assert rc == 0
+    kw = captured["kwargs"]
+    assert kw["strategy_name"] == "macd_cross"
+    assert kw["signal"] == 5
 
 
 def test_cli_missing_file():

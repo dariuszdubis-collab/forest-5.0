@@ -35,6 +35,10 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "2",
             "--slow-values",
             "5",
+            "--strategy",
+            "macd_cross",
+            "--signal",
+            "5",
             "--use-rsi",
             "--rsi-period",
             "7",
@@ -80,6 +84,8 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     cmd_grid(args)
 
     kw = captured["kwargs"]
+    assert kw["strategy_name"] == "macd_cross"
+    assert kw["signal"] == 5
     assert kw["use_rsi"] is True
     assert kw["rsi_period"] == 7
     assert kw["rsi_oversold"] == 10
