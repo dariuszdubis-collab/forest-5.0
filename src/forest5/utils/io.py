@@ -80,12 +80,14 @@ def read_ohlc_csv(
 
     df.index = idx
 
-    # map OHLC aliases to canonical names
+    # map OHLCV aliases to canonical names
     synonyms: dict[str, list[str]] = {
         "open": ["open", "o", "op", "open_price"],
         "high": ["high", "h", "hi"],
         "low": ["low", "l", "lo"],
         "close": ["close", "c", "cl", "close_price"],
+        # volume is optional but we try to capture common aliases
+        "volume": ["volume", "vol", "v"],
     }
 
     rename: dict[str, str] = {}
@@ -102,4 +104,7 @@ def read_ohlc_csv(
     if missing:
         raise ValueError(f"CSV missing required columns: {missing}")
 
-    return df[need].sort_index()
+    cols = need + (["volume"] if "volume" in df.columns else [])
+    df = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
+
+    return df.sort_index()

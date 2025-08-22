@@ -18,3 +18,23 @@ def test_read_ohlc_csv_normalizes_ohlc_columns(tmp_path):
     assert list(out.columns) == ["open", "high", "low", "close"]
     assert isinstance(out.index, pd.DatetimeIndex)
     assert out.index.name == "time"
+
+
+def test_read_ohlc_csv_handles_volume(tmp_path):
+    df = pd.DataFrame(
+        {
+            "time": ["2020-01-01 00:00", "2020-01-01 01:00"],
+            "Open": [1, 2],
+            "High": [1, 2],
+            "Low": [1, 2],
+            "Close": [1, 2],
+            "V": [1, "bad"],
+        }
+    )
+    csv_path = tmp_path / "sample_vol.csv"
+    df.to_csv(csv_path, index=False)
+    out = read_ohlc_csv(csv_path)
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    # The second row has an invalid volume and should be dropped
+    assert len(out) == 1
+    assert out["volume"].iloc[0] == 1
