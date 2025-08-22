@@ -13,6 +13,8 @@ from .signals.fusion import _to_sign
 @dataclass
 class DecisionConfig:
     use_ai: bool = False
+    ai_model: str = "gpt-4o-mini"
+    ai_max_tokens: int = 256
     time_model: TimeOnlyModel | None = None
     min_confluence: int = 1  # min sygnałów (techniczny zawsze = 1)
 
@@ -32,7 +34,13 @@ class DecisionAgent:
     ) -> None:
         self.router = router or PaperBroker()
         self.config = config or DecisionConfig()
-        self.ai = SentimentAgent() if self.config.use_ai else None
+        self.ai = (
+            SentimentAgent(
+                model=self.config.ai_model, max_tokens=self.config.ai_max_tokens
+            )
+            if self.config.use_ai
+            else None
+        )
 
     def decide(
         self,
