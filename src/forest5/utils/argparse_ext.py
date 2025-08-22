@@ -15,7 +15,12 @@ class PercentAction(argparse.Action):
 
     def __call__(self, parser, namespace, value, option_string=None):
         try:
+            is_percent = isinstance(value, str) and "%" in value
+            if isinstance(value, str):
+                value = value.replace("%", "").replace(",", ".")
             val = float(value)
+            if is_percent:
+                val /= 100.0
         except ValueError:
             parser.error(f"{option_string} expects a number")
         if not (self.min_value <= val <= self.max_value):
