@@ -6,11 +6,12 @@ from forest5.decision import DecisionAgent, DecisionConfig
 
 
 class FakeTimeModel:
-    def __init__(self, decision: str) -> None:
+    def __init__(self, decision: str, weight: float = 0.5) -> None:
         self.decision = decision
+        self.weight = weight
 
-    def decide(self, ts, value) -> str:  # pragma: no cover - simple fake
-        return self.decision
+    def decide(self, ts, value):  # pragma: no cover - simple fake
+        return self.decision, self.weight
 
 
 @pytest.mark.timeonly
@@ -20,12 +21,14 @@ class FakeTimeModel:
         ("WAIT", 1, "WAIT"),
         ("BUY", 1, "BUY"),
         ("SELL", -1, "SELL"),
-        ("BUY", -1, "WAIT"),
+        ("BUY", -1, "SELL"),  # tech signal stronger
     ],
 )
 def test_timeonly_decision_agent(time_sig: str, tech_sig: int, expected: str) -> None:
     ts = datetime(2024, 1, 1)
     fake = FakeTimeModel(time_sig)
-    agent = DecisionAgent(config=DecisionConfig(min_confluence=2, time_model=fake))
-    decision, *_ = agent.decide(ts, tech_signal=tech_sig, value=100.0, symbol="EURUSD")
-    assert decision == expected
+    agent = DecisionAgent(config=DecisionConfig(min_confluence=1.0, time_model=fake))
+    res = agent.decide(ts, tech_signal=tech_sig, value=100.0, symbol="EURUSD")
+    assert res.decision == expected
+    exp_weight = 0.0 if expected == "WAIT" else (0.5 if time_sig == expected else 1.0)
+    assert res.weight == pytest.approx(exp_weight)

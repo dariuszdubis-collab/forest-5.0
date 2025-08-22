@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from forest5.decision import DecisionAgent, DecisionResult
 from forest5.live.live_runner import run_live
 from forest5.live.settings import LiveSettings, BrokerSettings, DecisionSettings, TimeSettings
-from forest5.config_live import LiveTimeModelSettings
 
 
 def _write_min_bridge(tmp_path: Path) -> Path:
@@ -27,19 +27,18 @@ def _write_min_bridge(tmp_path: Path) -> Path:
 
 @pytest.mark.timeonly
 @pytest.mark.e2e
-def test_live_timeonly_paper_smoke(tmp_path: Path, caplog) -> None:
+def test_live_timeonly_paper_smoke(tmp_path: Path, monkeypatch, capfd) -> None:
     bridge = _write_min_bridge(tmp_path)
 
-    model = tmp_path / "time_model.json"
-    model.write_text(
-        json.dumps({"quantile_gates": {"0": [0.5, 1.5]}, "q_low": 0.25, "q_high": 0.75}),
-        encoding="utf-8",
-    )
+    def fake_decide(self, *args, **kwargs):  # pragma: no cover - simple stub
+        return DecisionResult("BUY", 0.5, {"tech": 1}, "")
+
+    monkeypatch.setattr(DecisionAgent, "decide", fake_decide)
 
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=2),
-        time=TimeSettings(model=LiveTimeModelSettings(enabled=True, path=str(model))),
+        decision=DecisionSettings(min_confluence=1.0),
+        time=TimeSettings(),
     )
 
     tick_file = bridge / "ticks" / "tick.json"
@@ -47,15 +46,18 @@ def test_live_timeonly_paper_smoke(tmp_path: Path, caplog) -> None:
     def runner() -> None:
         run_live(settings, max_steps=1)
 
-    caplog.set_level("INFO")
-    t = threading.Thread(target=runner)
-    t.start()
-    time.sleep(0.5)
-    tick_file.write_text(
-        json.dumps({"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 61}),
-        encoding="utf-8",
-    )
-    t.join(timeout=5)
-    assert not t.is_alive()
+    def feeder() -> None:
+        time.sleep(1.1)
+        tick_file.write_text(
+            json.dumps({"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 61}),
+            encoding="utf-8",
+        )
 
-    assert all("order result" not in rec.message for rec in caplog.records)
+    feeder_thread = threading.Thread(target=feeder)
+    feeder_thread.start()
+    run_live(settings, max_steps=1)
+    feeder_thread.join()
+
+    out = capfd.readouterr().out
+    assert '"order_result"' in out
+    assert '"qty": 0.005' in out

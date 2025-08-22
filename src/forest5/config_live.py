@@ -42,7 +42,7 @@ class BrokerSettings(BaseModel):
 
 
 class DecisionSettings(BaseModel):
-    min_confluence: int = 1
+    min_confluence: float = 1.0
 
 
 class LiveTimeModelSettings(BaseModel):

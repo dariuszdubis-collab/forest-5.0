@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 
 from ..config_live import LiveSettings
-from ..decision import DecisionAgent, DecisionConfig
+from ..decision import DecisionAgent, DecisionConfig, DecisionResult
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..signals.candles import candles_signal
@@ -241,24 +241,32 @@ def run_live(
                             log.error("max_drawdown_reached", drawdown_pct=dd * 100)
                             break
 
-                        decision, votes, reason = agent.decide(
+                        dec: DecisionResult = agent.decide(
                             idx,
                             sig,
                             current_bar["close"],
                             settings.broker.symbol,
                             context_text,
                         )
+                        decision = dec.decision
+                        weight = dec.weight
+                        votes = dec.votes
+                        reason = dec.reason
                         log.info(
                             "decision",
                             timestamp=time.time(),
                             symbol=settings.broker.symbol,
                             action="decision",
                             side=decision,
-                            qty=(settings.broker.volume if decision in ("BUY", "SELL") else 0),
+                            qty=(
+                                settings.broker.volume * weight
+                                if decision in ("BUY", "SELL")
+                                else 0
+                            ),
                             price=current_bar["close"],
                             latency_ms=0.0,
                             error=None,
-                            context={"votes": votes, "reason": reason},
+                            context={"votes": votes, "reason": reason, "weight": weight},
                         )
                         if debug:
                             debug.log(
@@ -267,10 +275,15 @@ def run_live(
                                 decision=decision,
                                 votes=votes,
                                 reason=reason,
+                                weight=float(weight),
                             )
-                        if decision in ("BUY", "SELL"):
+                        if decision in ("BUY", "SELL") and weight > 0:
                             start_ts = time.time()
-                            res = broker.market_order(decision, settings.broker.volume, price)
+                            res = broker.market_order(
+                                decision,
+                                settings.broker.volume * weight,
+                                price,
+                            )
                             latency = (time.time() - start_ts) * 1000.0
                             log.info(
                                 "order_result",

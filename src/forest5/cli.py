@@ -161,7 +161,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
     settings.time.model.enabled = bool(args.time_model)
     settings.time.model.path = args.time_model
-    settings.time.fusion_min_confluence = int(args.min_confluence)
+    settings.time.fusion_min_confluence = float(args.min_confluence)
 
     res = run_backtest(
         df,
@@ -219,7 +219,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         rsi_oversold=int(args.rsi_oversold),
         rsi_overbought=int(args.rsi_overbought),
         time_model=args.time_model,
-        min_confluence=int(args.min_confluence),
+        min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
     )
     if args.strategy:
@@ -304,7 +304,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--atr-multiple", type=float, default=2.0)
 
     p_bt.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
-    p_bt.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
+    p_bt.add_argument(
+        "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
+    )
 
     p_bt.add_argument("--export-equity", default=None, help="Zapisz equity do CSV")
     p_bt.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
@@ -352,7 +354,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
     p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
-    p_gr.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
+    p_gr.add_argument(
+        "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
+    )
 
     p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")

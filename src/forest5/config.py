@@ -61,7 +61,7 @@ class BacktestTimeSettings(BaseModel):
     model: BacktestTimeModelSettings = Field(default_factory=BacktestTimeModelSettings)
     q_low: float = 0.1
     q_high: float = 0.9
-    fusion_min_confluence: int = 1
+    fusion_min_confluence: float = 1.0
 
     @field_validator("q_high")
     @classmethod
