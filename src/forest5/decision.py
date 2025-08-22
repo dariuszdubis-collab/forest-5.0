@@ -80,14 +80,18 @@ class DecisionAgent:
         }
 
         if self.config.time_model:
-            tm_res = self.config.time_model.decide(ts, value)
-            if isinstance(tm_res, tuple):
-                tm_decision, tm_weight = tm_res
-            else:  # backward compatibility
-                tm_decision, tm_weight = tm_res, 1.0
+            tm_res = self.config.time_model.decide(ts)
+            tm_decision = tm_res["decision"]
+            tm_weight = float(tm_res.get("weight", 1.0))
             if tm_decision == "WAIT":
                 return DecisionResult("WAIT", 0.0, {k: v[0] for k, v in votes.items()}, "time_wait")
-            votes["time"] = (_to_sign(1 if tm_decision == "BUY" else -1), float(tm_weight))
+            if tm_decision == "BUY":
+                tm_vote = 1
+            elif tm_decision == "SELL":
+                tm_vote = -1
+            else:  # HOLD or any other
+                tm_vote = 0
+            votes["time"] = (tm_vote, tm_weight if tm_vote else 0.0)
 
         if self.ai:
             s = self.ai.analyse(context_text, symbol).score
