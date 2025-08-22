@@ -118,3 +118,6 @@ class SentimentAgent:
         except OpenAIError as e:
             logger.error("OpenAI API error: %s", e)
             return Sentiment(0, f"AI error -> neutral: {e}")
+        except Exception as e:
+            logger.error("Unexpected error during AI analysis: %s", e)
+            return Sentiment(0, f"AI unexpected error -> neutral: {e}")
