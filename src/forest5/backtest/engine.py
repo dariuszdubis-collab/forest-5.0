@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import BacktestSettings
+from ..utils.debugger import DebugLogger
 from ..core.indicators import atr, ema, rsi
 from ..utils.log import log
 from ..utils.validate import ensure_backtest_ready
@@ -77,8 +78,15 @@ def _fuse_with_time(
     time_model: TimeOnlyModel | None,
     min_conf: int,
     ai_decision: int | None = None,
-) -> int:
-    """Fuse technical, time and optional AI signals into one decision."""
+    *,
+    return_reason: bool = False,
+) -> int | tuple[int, str | None]:
+    """Fuse technical, time and optional AI signals into one decision.
+
+    When ``return_reason`` is True, a tuple of ``(decision, reason)`` is
+    returned where ``reason`` is ``None`` unless the decision is to skip
+    due to lack of confluence or a WAIT from the time model.
+    """
 
     votes = {"tech": _to_sign(tech_signal), "time": 0, "ai": 0}
     pos = {"tech": int(votes["tech"] > 0), "time": 0, "ai": 0}
@@ -87,7 +95,8 @@ def _fuse_with_time(
     if time_model:
         tm_decision = time_model.decide(ts, price)
         if tm_decision == "WAIT":
-            return 0
+            res = (0, "time_model_wait") if return_reason else 0
+            return res
         votes["time"] = _to_sign(1 if tm_decision == "BUY" else -1)
         pos["time"] = int(votes["time"] > 0)
         neg["time"] = int(votes["time"] < 0)
@@ -100,12 +109,17 @@ def _fuse_with_time(
     pos_total = sum(pos.values())
     neg_total = sum(neg.values())
     if max(pos_total, neg_total) < max(min_conf, 1):
-        return 0
+        res = (0, "not_enough_confluence") if return_reason else 0
+        return res
     if pos_total > neg_total:
-        return 1
-    if neg_total > pos_total:
-        return -1
-    return 0
+        res_dec = 1
+    elif neg_total > pos_total:
+        res_dec = -1
+    else:
+        res_dec = 0
+    if return_reason:
+        return res_dec, None
+    return res_dec
 
 
 def _trading_loop(
@@ -117,6 +131,7 @@ def _trading_loop(
     price_col: str,
     atr_multiple: float,
     settings: BacktestSettings,
+    debug: DebugLogger | None = None,
 ) -> float:
     """Główna pętla tradingowa z mark-to-market."""
     prices = df[price_col].to_numpy(dtype=float)
@@ -134,6 +149,8 @@ def _trading_loop(
         this_sig = int(this_sig)
 
         if t.weekday() in blocked_weekdays or t.hour in blocked_hours:
+            if debug:
+                debug.log("skip_candle", time=str(t), reason="time_block")
             equity_mtm = rm.equity + position * price
             rm.record_mark_to_market(equity_mtm)
             if rm.exceeded_max_dd():
@@ -141,19 +158,26 @@ def _trading_loop(
                 break
             continue
 
-        fused = _fuse_with_time(
+        fused, fuse_reason = _fuse_with_time(
             this_sig,
             t,
             float(price),
             time_model,
             settings.time.fusion_min_confluence,
             None,
+            return_reason=True,
         )
         this_sig = fused
+        if fuse_reason == "time_model_wait" and debug:
+            debug.log("skip_candle", time=str(t), reason="time_model_wait")
+        if fuse_reason == "not_enough_confluence" and debug:
+            debug.log("signal_rejected", time=str(t), reason="no_confluence")
 
         if this_sig < 0 and position > 0.0:
             rm.sell(price, position)
             tb.add(t, price, position, "SELL")
+            if debug:
+                debug.log("position_close", time=str(t), price=float(price), qty=float(position))
             position = 0.0
 
         if this_sig > 0 and position <= 0.0:
@@ -161,7 +185,17 @@ def _trading_loop(
             if qty > 0.0:
                 rm.buy(price, qty)
                 tb.add(t, price, qty, "BUY")
+                if debug:
+                    debug.log("position_open", time=str(t), price=float(price), qty=float(qty))
                 position = qty
+            elif debug:
+                debug.log(
+                    "signal_rejected",
+                    time=str(t),
+                    reason="qty_zero",
+                    price=float(price),
+                    atr=float(atr_val),
+                )
 
         equity_mtm = rm.equity + position * price
         rm.record_mark_to_market(equity_mtm)
@@ -209,7 +243,22 @@ def run_backtest(
     position = bootstrap_position(df, sig, rm, tb, settings, price_col, am)
 
     # 6) główna pętla handlowa
-    position = _trading_loop(df, sig, rm, tb, position, price_col, am, settings)
+    debug = DebugLogger(settings.debug_dir) if settings.debug_dir else None
+    try:
+        position = _trading_loop(
+            df,
+            sig,
+            rm,
+            tb,
+            position,
+            price_col,
+            am,
+            settings,
+            debug,
+        )
+    finally:
+        if debug:
+            debug.close()
 
     # 7) metryki
     eq, max_dd = _compute_metrics(rm.equity_curve)
