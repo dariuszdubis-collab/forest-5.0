@@ -15,10 +15,13 @@ from ..signals.factory import compute_signal
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import log
+from ..utils.log import setup_logger
 from ..utils.debugger import DebugLogger
 from .router import OrderRouter
 from .risk_guard import should_halt_for_drawdown
+
+
+log = setup_logger()
 
 
 def _read_context(path: str | Path, max_bytes: int = 16_384) -> str:

@@ -16,6 +16,7 @@ from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv
 from forest5.utils.argparse_ext import PercentAction
+from forest5.utils.log import setup_logger
 
 
 class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -399,6 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    setup_logger()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not hasattr(args, "func"):

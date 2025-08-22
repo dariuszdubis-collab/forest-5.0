@@ -9,13 +9,16 @@ import pandas as pd
 from ..config import BacktestSettings
 from ..utils.debugger import DebugLogger
 from ..core.indicators import atr, ema, rsi
-from ..utils.log import log
+from ..utils.log import setup_logger
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
 from ..signals.fusion import _to_sign
+
+
+log = setup_logger()
 
 
 @dataclass
