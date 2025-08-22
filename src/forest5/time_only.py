@@ -24,6 +24,7 @@ class TimeOnlyModel:
     quantile_gates: Dict[int, Tuple[float, float]]
     q_low: float
     q_high: float
+    win_rates: Dict[int, float] | None = None
 
     def decide(
         self, ts: datetime, value: float | None = None
@@ -47,7 +48,10 @@ class TimeOnlyModel:
             else:
                 res = "WAIT"
         if value is None:
-            return {"decision": res, "confidence": 1.0}
+            conf = 1.0
+            if self.win_rates is not None:
+                conf = self.win_rates.get(hour, 0.0)
+            return {"decision": res, "confidence": conf}
         return res
 
     def save(self, path: str | Path) -> None:
@@ -58,6 +62,7 @@ class TimeOnlyModel:
             "quantile_gates": {str(k): v for k, v in self.quantile_gates.items()},
             "q_low": self.q_low,
             "q_high": self.q_high,
+            "win_rates": self.win_rates or {},
         }
         return json.dumps(data)
 
@@ -65,14 +70,44 @@ class TimeOnlyModel:
     def load(cls, path: str | Path) -> "TimeOnlyModel":
         data = json.loads(Path(path).read_text())
         gates = {int(k): tuple(v) for k, v in data["quantile_gates"].items()}
-        return cls(quantile_gates=gates, q_low=data["q_low"], q_high=data["q_high"])
+        win_rates = {int(k): float(v) for k, v in data.get("win_rates", {}).items()}
+        return cls(
+            quantile_gates=gates,
+            q_low=data["q_low"],
+            q_high=data["q_high"],
+            win_rates=win_rates,
+        )
 
 
-def train(df: pd.DataFrame, q_low: float = 0.1, q_high: float = 0.9) -> TimeOnlyModel:
+def _cumulative_counts(df: pd.DataFrame, h: int) -> pd.DataFrame:
+    """Calculate cumulative win/total counts shifted by ``h + 1`` hours.
+
+    The dataframe must already contain the ``hour`` column.
+    ``y`` values greater than zero are considered wins.
+    """
+
+    df = df.copy()
+    df["win"] = (df["y"] > 0).astype(int)
+    df["cum_wins"] = df.groupby("hour")["win"].cumsum()
+    df["cum_total"] = df.groupby("hour").cumcount() + 1
+    df["wins"] = df["cum_wins"].shift(h + 1)
+    df["total"] = df["cum_total"].shift(h + 1)
+    return df
+
+
+def train(
+    df: pd.DataFrame,
+    q_low: float = 0.1,
+    q_high: float = 0.9,
+    h: int = 0,
+) -> TimeOnlyModel:
     """Train quantile gates on the provided dataframe.
 
     The dataframe must contain `time` (datetime-like) and `y` columns where `y`
-    is the target variable used for the decision.
+    is the target variable used for the decision.  When ``h`` is positive the
+    returned model also includes historical win rates per hour where the counts
+    are shifted by ``h + 1`` bars ensuring predictions at time ``t`` use only
+    data up to ``t - h - 1``.
     """
 
     df = df.copy()
@@ -80,10 +115,27 @@ def train(df: pd.DataFrame, q_low: float = 0.1, q_high: float = 0.9) -> TimeOnly
         df["time"] = pd.to_datetime(df["time"])
     df["time"] = df["time"].dt.tz_localize(None)
     df["hour"] = df["time"].dt.hour
+
+    stats = _cumulative_counts(df, h)
+    win_rates: Dict[int, float] = {}
+    for hour, sub in stats.groupby("hour"):
+        last = sub[["wins", "total"]].iloc[-1]
+        wins = last["wins"]
+        total = last["total"]
+        if pd.notna(wins) and pd.notna(total) and total > 0:
+            win_rates[int(hour)] = float(wins / total)
+        else:
+            win_rates[int(hour)] = 0.0
+
     gates: Dict[int, Tuple[float, float]] = {}
     for hour, series in df.groupby("hour")["y"]:
         gates[int(hour)] = (float(series.quantile(q_low)), float(series.quantile(q_high)))
-    return TimeOnlyModel(quantile_gates=gates, q_low=q_low, q_high=q_high)
+    return TimeOnlyModel(
+        quantile_gates=gates,
+        q_low=q_low,
+        q_high=q_high,
+        win_rates=win_rates,
+    )
 
 
 def self_test() -> bool:
