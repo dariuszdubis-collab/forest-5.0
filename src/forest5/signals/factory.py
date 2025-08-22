@@ -4,9 +4,9 @@ import copy
 import numpy as np
 import pandas as pd
 
-from ..core.indicators import ema
+from ..core.indicators import ema, rsi
 from .candles import candles_signal
-from .combine import confirm_with_candles
+from .combine import apply_rsi_filter, confirm_with_candles
 from .macd import macd_cross_signal
 
 
@@ -38,6 +38,14 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
 
     if name == "ema_cross":
         base = _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
+        if getattr(strategy, "use_rsi", False):
+            rsi_series = rsi(df[price_col], strategy.rsi_period)
+            base = apply_rsi_filter(
+                base,
+                rsi_series,
+                strategy.rsi_overbought,
+                strategy.rsi_oversold,
+            )
         candles = candles_signal(df)
         return confirm_with_candles(base, candles)
     if name == "macd_cross":
@@ -47,6 +55,14 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
             strategy.slow,
             getattr(strategy, "signal", 9),
         )
+        if getattr(strategy, "use_rsi", False):
+            rsi_series = rsi(df[price_col], strategy.rsi_period)
+            base = apply_rsi_filter(
+                base,
+                rsi_series,
+                strategy.rsi_overbought,
+                strategy.rsi_oversold,
+            )
         candles = candles_signal(df)
         return confirm_with_candles(base, candles)
     raise ValueError(f"Unknown strategy: {name}")
