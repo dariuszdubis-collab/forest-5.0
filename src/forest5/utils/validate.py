@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from ..backtest.errors import DataValidationError
+
 
 def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.DataFrame:
     """
@@ -13,7 +15,7 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
     df = df.copy()
     required = {"open", "high", "low", "close"}
     if not required.issubset(set(df.columns)):
-        raise ValueError(f"CSV must contain columns: {sorted(required)}")
+        raise DataValidationError(f"CSV must contain columns: {sorted(required)}")
 
     # Ustaw indeks czasu jeżeli nie jest datetimem
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -23,7 +25,7 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
                 time_col = alias
                 break
         if time_col is None:
-            raise ValueError(
+            raise DataValidationError(
                 "DataFrame must have DatetimeIndex or one of: 'time', 'date', 'datetime', 'timestamp'."
             )
         df[time_col] = pd.to_datetime(df[time_col], utc=False, errors="coerce")
