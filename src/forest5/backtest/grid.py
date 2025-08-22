@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
+from pathlib import Path
 from typing import Iterable
 
 import numpy as np
@@ -48,11 +49,24 @@ def run_grid(
     capital: float = 100_000.0,
     risk: float = 0.01,
     max_dd: float = 0.30,
+    fee: float = 0.0005,
+    slippage: float = 0.0,
     atr_period: int = 14,
     atr_multiple: float = 2.0,
+    use_rsi: bool = False,
+    rsi_period: int = 14,
+    rsi_oversold: int = 30,
+    rsi_overbought: int = 70,
+    time_model: Path | None = None,
+    min_confluence: int = 1,
+    blocked_hours: list[int] | None = None,
+    blocked_weekdays: list[int] | None = None,
     n_jobs: int = 1,
     cache_dir: str = ".cache/forest5-grid",
 ) -> pd.DataFrame:
+    blocked_hours = blocked_hours or []
+    blocked_weekdays = blocked_weekdays or []
+
     mem = Memory(cache_dir, verbose=0)
     combos = param_grid(fast_values, slow_values)
 
@@ -68,11 +82,30 @@ def run_grid(
         settings = BacktestSettings(
             symbol=symbol,
             timeframe="1h",
-            strategy=dict(name="ema_cross", fast=fast, slow=slow),
-            risk=dict(initial_capital=capital, risk_per_trade=risk, max_drawdown=max_dd),
+            strategy=dict(
+                name="ema_cross",
+                fast=fast,
+                slow=slow,
+                use_rsi=use_rsi,
+                rsi_period=rsi_period,
+                rsi_overbought=rsi_overbought,
+                rsi_oversold=rsi_oversold,
+            ),
+            risk=dict(
+                initial_capital=capital,
+                risk_per_trade=risk,
+                max_drawdown=max_dd,
+                fee_perc=fee,
+                slippage_perc=slippage,
+            ),
             atr_period=atr_period,
             atr_multiple=atr_multiple,
         )
+        settings.time.model.enabled = bool(time_model)
+        settings.time.model.path = time_model
+        settings.time.fusion_min_confluence = int(min_confluence)
+        settings.time.blocked_hours = list(blocked_hours)
+        settings.time.blocked_weekdays = list(blocked_weekdays)
         res = run_backtest(df, settings)
         end, mdd, cagr = _compute_metrics(res.equity_curve)
         return GridResult(fast=fast, slow=slow, equity_end=end, max_dd=mdd, cagr=cagr)
