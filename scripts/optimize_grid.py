@@ -14,6 +14,7 @@ import pandas as pd
 
 from forest5.config import BacktestSettings, RiskSettings, StrategySettings
 from forest5.backtest.engine import run_backtest
+from forest5.time_only import TimeOnlyModel
 from forest5.utils.validate import ensure_backtest_ready
 from forest5.utils.argparse_ext import PercentAction
 
@@ -228,6 +229,10 @@ def main() -> None:
     parser.add_argument("--export", type=str, default=None, help="Zapisz wyniki do CSV.")
 
     args = parser.parse_args()
+
+    # Validate time model early
+    if args.time_model:
+        TimeOnlyModel.load(args.time_model)
 
     # Logging
     logging.basicConfig(

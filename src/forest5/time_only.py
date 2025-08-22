@@ -15,16 +15,54 @@ from pandas.api.types import is_datetime64_any_dtype
 
 @dataclass
 class TimeOnlyModel:
-    """Simple time-of-day quantile gates.
+    """Simple time-of-day model based on quantile gates.
 
-    For each hour of day we store low/high quantile thresholds of the target
-    variable. The decision uses only the timestamp and the observed value.
+    Historically the model used ``quantile_gates`` along with ``q_low`` and
+    ``q_high`` fields.  The new API exposes the same information via
+    ``prob_tables`` and ``quantiles`` while keeping backwards compatibility with
+    the previous names.  ``prob_tables`` maps an hour of day to a pair of
+    quantile thresholds and ``quantiles`` stores the low/high quantile values
+    used during training.
     """
 
-    quantile_gates: Dict[int, Tuple[float, float]]
-    q_low: float
-    q_high: float
+    prob_tables: Dict[int, Tuple[float, float]]
+    quantiles: Tuple[float, float]
     win_rates: Dict[int, float] | None = None
+
+    def __init__(
+        self,
+        prob_tables: Dict[int, Tuple[float, float]] | None = None,
+        quantiles: Tuple[float, float] | None = None,
+        *,
+        quantile_gates: Dict[int, Tuple[float, float]] | None = None,
+        q_low: float | None = None,
+        q_high: float | None = None,
+        win_rates: Dict[int, float] | None = None,
+    ) -> None:
+        if prob_tables is None and quantile_gates is not None:
+            prob_tables = quantile_gates
+        if quantiles is None and q_low is not None and q_high is not None:
+            quantiles = (q_low, q_high)
+        if prob_tables is None or quantiles is None:
+            raise TypeError("prob_tables and quantiles must be provided")
+        self.prob_tables = {int(k): tuple(v) for k, v in prob_tables.items()}
+        self.quantiles = (float(quantiles[0]), float(quantiles[1]))
+        self.win_rates = win_rates or {}
+
+    # ------------------------------------------------------------------
+    # Backwards-compatible attribute aliases
+    # ------------------------------------------------------------------
+    @property
+    def quantile_gates(self) -> Dict[int, Tuple[float, float]]:
+        return self.prob_tables
+
+    @property
+    def q_low(self) -> float:
+        return self.quantiles[0]
+
+    @property
+    def q_high(self) -> float:
+        return self.quantiles[1]
 
     def decide(
         self, ts: datetime, value: float | None = None
@@ -59,9 +97,8 @@ class TimeOnlyModel:
 
     def to_json(self) -> str:
         data = {
-            "quantile_gates": {str(k): v for k, v in self.quantile_gates.items()},
-            "q_low": self.q_low,
-            "q_high": self.q_high,
+            "prob_tables": {str(k): v for k, v in self.prob_tables.items()},
+            "quantiles": list(self.quantiles),
             "win_rates": self.win_rates or {},
         }
         return json.dumps(data)
@@ -69,14 +106,14 @@ class TimeOnlyModel:
     @classmethod
     def load(cls, path: str | Path) -> "TimeOnlyModel":
         data = json.loads(Path(path).read_text())
-        gates = {int(k): tuple(v) for k, v in data["quantile_gates"].items()}
+        if "prob_tables" in data:
+            tables = {int(k): tuple(v) for k, v in data["prob_tables"].items()}
+            quantiles = tuple(data.get("quantiles", [0.0, 1.0]))  # type: ignore[assignment]
+        else:  # legacy format
+            tables = {int(k): tuple(v) for k, v in data["quantile_gates"].items()}
+            quantiles = (data["q_low"], data["q_high"])
         win_rates = {int(k): float(v) for k, v in data.get("win_rates", {}).items()}
-        return cls(
-            quantile_gates=gates,
-            q_low=data["q_low"],
-            q_high=data["q_high"],
-            win_rates=win_rates,
-        )
+        return cls(prob_tables=tables, quantiles=quantiles, win_rates=win_rates)
 
 
 def _cumulative_counts(df: pd.DataFrame, h: int) -> pd.DataFrame:
@@ -131,9 +168,8 @@ def train(
     for hour, series in df.groupby("hour")["y"]:
         gates[int(hour)] = (float(series.quantile(q_low)), float(series.quantile(q_high)))
     return TimeOnlyModel(
-        quantile_gates=gates,
-        q_low=q_low,
-        q_high=q_high,
+        prob_tables=gates,
+        quantiles=(q_low, q_high),
         win_rates=win_rates,
     )
 
