@@ -11,6 +11,7 @@ from ..core.indicators import atr, ema, rsi
 from ..utils.log import log
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
+from ..signals.fusion import fuse_signals
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
@@ -79,36 +80,15 @@ def _fuse_with_time(
 ) -> int:
     """Fuse technical, time and optional AI signals into one decision."""
 
-    votes = {
-        "tech": 1 if tech_signal > 0 else (-1 if tech_signal < 0 else 0),
-        "time": 0,
-        "ai": 0,
-    }
-    pos = {"tech": 1 if votes["tech"] > 0 else 0, "time": 0, "ai": 0}
-    neg = {"tech": 1 if votes["tech"] < 0 else 0, "time": 0, "ai": 0}
-
-    if time_model:
-        tm_decision = time_model.decide(ts, price)
-        if tm_decision == "WAIT":
-            return 0
-        votes["time"] = 1 if tm_decision == "BUY" else -1
-        pos["time"] = 1 if votes["time"] > 0 else 0
-        neg["time"] = 1 if votes["time"] < 0 else 0
-
-    if ai_decision is not None:
-        votes["ai"] = 1 if ai_decision > 0 else (-1 if ai_decision < 0 else 0)
-        pos["ai"] = 1 if votes["ai"] > 0 else 0
-        neg["ai"] = 1 if votes["ai"] < 0 else 0
-
-    pos_total = sum(pos.values())
-    neg_total = sum(neg.values())
-    if max(pos_total, neg_total) < max(min_conf, 1):
-        return 0
-    if pos_total > neg_total:
-        return 1
-    if neg_total > pos_total:
-        return -1
-    return 0
+    decision, _, _ = fuse_signals(
+        tech_signal,
+        ts,
+        price,
+        time_model,
+        min_conf,
+        ai_decision,
+    )
+    return decision
 
 
 def _trading_loop(
