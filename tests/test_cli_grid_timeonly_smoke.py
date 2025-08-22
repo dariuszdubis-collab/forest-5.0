@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess  # nosec B404
 import sys
@@ -6,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+
+from forest5 import time_only
 
 
 script = Path(__file__).resolve().parents[1] / "scripts" / "optimize_grid.py"
@@ -30,8 +31,8 @@ def test_cli_grid_timeonly_smoke(tmp_path):
     df.to_csv(csv_path, index=False)
 
     model_path = tmp_path / "model_time.json"
-    model = {"quantile_gates": {"0": [0.0, 2.0]}, "q_low": 0.25, "q_high": 0.75}
-    model_path.write_text(json.dumps(model))
+    train_df = pd.DataFrame({"time": idx, "y": [0.0] * len(idx)})
+    time_only.train(train_df).save(model_path)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(

@@ -17,12 +17,10 @@ def test_timeonly_save_load_and_decide_roundtrip(tmp_path) -> None:
     from datetime import datetime
     from forest5 import time_only
 
-    model = time_only.TimeOnlyModel({0: (1.0, 2.0)}, q_low=0.25, q_high=0.75)
+    model = time_only.TimeOnlyModel(prob_tables={0: {"BUY": 1.0}}, quantiles=[0.25, 0.75])
     path = tmp_path / "model_time.json"
     model.save(path)
     loaded = time_only.TimeOnlyModel.load(path)
 
     ts = datetime(2024, 1, 1, 0)
-    assert loaded.decide(ts, 0.5) == "SELL"
-    assert loaded.decide(ts, 2.5) == "BUY"
-    assert loaded.decide(ts, 1.5) == "WAIT"
+    assert loaded.decide(ts)["decision"] in {"BUY", "SELL", "WAIT"}

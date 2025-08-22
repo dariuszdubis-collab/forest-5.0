@@ -5,7 +5,7 @@ from forest5.time_only import TimeOnlyModel
 
 
 def test_decision_agent_waits_when_time_model_waits() -> None:
-    time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
+    time_model = TimeOnlyModel(prob_tables={0: {"WAIT": 1.0}}, quantiles=[-1.0, 1.0])
     agent = DecisionAgent(config=DecisionConfig(time_model=time_model))
 
     ts = datetime(2024, 1, 1)  # 00:00
@@ -16,7 +16,7 @@ def test_decision_agent_waits_when_time_model_waits() -> None:
 
 
 def test_decision_agent_majority_and_tie() -> None:
-    time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
+    time_model = TimeOnlyModel(prob_tables={0: {"SELL": 1.0, "BUY": 1.0}}, quantiles=[-1.0, 1.0])
     agent = DecisionAgent(config=DecisionConfig(time_model=time_model))
     ts = datetime(2024, 1, 1)
 
@@ -51,7 +51,7 @@ def test_decision_agent_respects_confluence_threshold() -> None:
         "no_consensus",
     )
 
-    time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
+    time_model = TimeOnlyModel(prob_tables={0: {"SELL": 1.0, "BUY": 1.0}}, quantiles=[-1.0, 1.0])
     agent2 = DecisionAgent(config=DecisionConfig(time_model=time_model, min_confluence=2))
     decision, votes, reason = agent2.decide(ts, tech_signal=1, value=2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
