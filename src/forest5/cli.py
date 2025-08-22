@@ -13,7 +13,7 @@ from forest5.config import BacktestSettings, load_live_settings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
-from forest5.utils.io import read_ohlc_csv
+from forest5.utils.io import read_ohlc_csv, load_symbol_csv
 from forest5.utils.argparse_ext import PercentAction
 from forest5.utils.log import setup_logger
 
@@ -134,7 +134,10 @@ def _parse_float_list(spec: str | None) -> list[float]:
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
-    df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+    if args.csv:
+        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+    else:
+        df = load_symbol_csv(args.symbol)
 
     settings = BacktestSettings(
         symbol=args.symbol or "SYMBOL",
@@ -192,7 +195,10 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
-    df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+    if args.csv:
+        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+    else:
+        df = load_symbol_csv(args.symbol)
 
     fast_vals = list(_parse_span_or_list(args.fast_values))
     slow_vals = list(_parse_span_or_list(args.slow_values))
