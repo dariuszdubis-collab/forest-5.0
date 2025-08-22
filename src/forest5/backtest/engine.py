@@ -99,16 +99,20 @@ def _fuse_with_time(
     }
 
     if time_model:
-        tm_res = time_model.decide(ts, price)
-        if isinstance(tm_res, tuple):
+        tm_res = time_model.decide(ts)
+        if isinstance(tm_res, dict):
+            tm_decision = tm_res.get("decision")
+            tm_weight = tm_res.get("confidence", 1.0)
+        elif isinstance(tm_res, tuple):  # backward compatibility
             tm_decision, tm_weight = tm_res
-        else:  # backward compatibility
+        else:  # pragma: no cover - simple fallback
             tm_decision, tm_weight = tm_res, 1.0
-        if tm_decision == "WAIT":
+        if tm_decision in {"WAIT", "HOLD"}:
+            reason = "time_model_hold" if tm_decision == "HOLD" else "time_model_wait"
             if return_reason and return_weight:
-                return 0, 0.0, "time_model_wait"
+                return 0, 0.0, reason
             if return_reason:
-                return 0, "time_model_wait"
+                return 0, reason
             if return_weight:
                 return 0, 0.0
             return 0
@@ -187,8 +191,8 @@ def _trading_loop(
             return_weight=True,
         )
         this_sig = fused
-        if fuse_reason == "time_model_wait" and debug:
-            debug.log("skip_candle", time=str(t), reason="time_model_wait")
+        if fuse_reason in {"time_model_hold", "time_model_wait"} and debug:
+            debug.log("skip_candle", time=str(t), reason=fuse_reason)
         if fuse_reason == "not_enough_confluence" and debug:
             debug.log("signal_rejected", time=str(t), reason="no_confluence")
 

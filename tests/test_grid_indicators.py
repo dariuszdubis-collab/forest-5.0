@@ -1,15 +1,19 @@
-import json
-
-
 from forest5.backtest.grid import run_grid
 from forest5.examples.synthetic import generate_ohlc
+from forest5.time_only import TimeOnlyModel
 
 
-def test_grid_with_rsi_and_time_model(tmp_path):
+class StubModel:
+    def decide(self, ts):  # pragma: no cover - simple stub
+        return {"decision": "BUY", "confidence": 1.0}
+
+
+def test_grid_with_rsi_and_time_model(tmp_path, monkeypatch):
     df = generate_ohlc(periods=40, start_price=100.0, freq="h")
     model_path = tmp_path / "model_time.json"
-    model = {"quantile_gates": {"0": [0.0, 2.0]}, "q_low": 0.25, "q_high": 0.75}
-    model_path.write_text(json.dumps(model))
+    model_path.write_text("{}")
+
+    monkeypatch.setattr(TimeOnlyModel, "load", lambda p: StubModel())
 
     res = run_grid(
         df,
