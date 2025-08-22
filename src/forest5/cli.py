@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import re
 import argparse
+import os
+import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -188,6 +190,10 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
     fast_vals = list(_parse_span_or_list(args.fast_values))
     slow_vals = list(_parse_span_or_list(args.slow_values))
+
+    if args.time_model and not os.path.exists(args.time_model):
+        print(f"Plik modelu czasu nie istnieje: {args.time_model}")
+        sys.exit(1)
 
     out = run_grid(
         df,
