@@ -31,10 +31,19 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
     tick_event = threading.Event()
     tick_file = bridge / "ticks" / "tick.json"
 
-    def fake_compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
-        return pd.Series([1] * len(df), index=df.index)
+    def fake_append_bar_and_signal(df, bar, settings):
+        idx = pd.to_datetime(bar["start"], unit="s")
+        df.loc[idx, ["open", "high", "low", "close"]] = [
+            bar["open"],
+            bar["high"],
+            bar["low"],
+            bar["close"],
+        ]
+        return pd.Series([1], index=df.index)
 
-    monkeypatch.setattr("forest5.live.live_runner.compute_signal", fake_compute_signal)
+    monkeypatch.setattr(
+        "forest5.live.live_runner._append_bar_and_signal", fake_append_bar_and_signal
+    )
 
     orig_log = run_live.__globals__["log"].info
 
