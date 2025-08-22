@@ -39,7 +39,7 @@ def _read_context(path: str | Path, max_bytes: int = 16_384) -> str:
         return ""
 
 
-def _append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) -> int:
+def append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) -> int:
     """Append ``bar`` to ``df`` and return only the latest signal.
 
     This updates EMA values incrementally so indicator calculations scale
@@ -92,6 +92,10 @@ def _append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) 
         candle_ser = pd.Series([candle], index=[idx])
         sig = int(confirm_with_candles(idx_ser, candle_ser).iloc[-1])
     return sig
+
+
+# Backward compatibility
+_append_bar_and_signal = append_bar_and_signal
 
 
 def run_live(
@@ -225,7 +229,7 @@ def run_live(
                         current_bar["close"] = price
                     else:
                         idx = pd.to_datetime(current_bar["start"], unit="s")
-                        sig = _append_bar_and_signal(df, current_bar, settings)
+                        sig = append_bar_and_signal(df, current_bar, settings)
                         log.info("candle_closed", **current_bar)
                         last_candle_ts = time.time()
 
