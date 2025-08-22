@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -50,7 +49,6 @@ def test_live_timeonly_paper_smoke(tmp_path: Path, caplog) -> None:
     caplog.set_level("INFO")
     t = threading.Thread(target=runner)
     t.start()
-    time.sleep(0.5)
     tick_file.write_text(
         json.dumps({"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 61}),
         encoding="utf-8",

@@ -96,15 +96,14 @@ class MT4Broker(OrderRouter):
 
     def _wait_for_result(self, uid: str, qty: float) -> OrderResult:
         res_path = self._result_path(uid)
+        from ..utils.fs_watcher import wait_for_file
+
         deadline = time.time() + self.timeout
         attempt = 0
         delay = 0.1
         while time.time() < deadline:
-            if res_path.exists():
+            if res_path.exists() and res_path.stat().st_size > 0:
                 try:
-                    if res_path.stat().st_size == 0:
-                        time.sleep(min(delay, max(0, deadline - time.time())))
-                        continue
                     data = json.loads(res_path.read_text(encoding="utf-8"))
                     status = data.get("status", "rejected")
                     price = float(data.get("price", data.get("avg_price", 0.0)))
@@ -117,14 +116,15 @@ class MT4Broker(OrderRouter):
                 except json.JSONDecodeError:
                     attempt += 1
                     log.warning("invalid_json_result", path=str(res_path), attempt=attempt)
-                    time.sleep(min(delay, max(0, deadline - time.time())))
+                    wait_for_file(res_path, min(delay, max(0, deadline - time.time())))
                     delay = min(delay * 2, 1.0)
                     continue
                 except (OSError, ValueError, TypeError) as exc:  # pragma: no cover - defensive
                     log.exception("invalid_result", path=str(res_path), error=str(exc))
-                    time.sleep(min(delay, max(0, deadline - time.time())))
+                    wait_for_file(res_path, min(delay, max(0, deadline - time.time())))
                     continue
-            time.sleep(min(delay, max(0, deadline - time.time())))
+            wait_for_file(res_path, min(delay, max(0, deadline - time.time())))
+            delay = min(delay * 2, 1.0)
         log.error("timeout_waiting_for_result", order_id=uid)
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 

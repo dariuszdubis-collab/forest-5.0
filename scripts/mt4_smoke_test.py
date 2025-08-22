@@ -12,8 +12,10 @@ import json
 import os
 import pathlib
 import sys
-import time
 import uuid
+import time
+
+from forest5.utils.fs_watcher import wait_for_file
 
 
 BRIDGE = pathlib.Path(os.environ.get("FOREST_MT4_BRIDGE_DIR", "")).expanduser()
@@ -48,12 +50,9 @@ with cmd_path.open("w") as f:
     )
 
 print("Sent:", cmd_path)
-deadline = time.time() + 10
-while time.time() < deadline:
-    if res_path.exists():
-        print("Result:", res_path.read_text())
-        sys.exit(0)
-    time.sleep(0.2)
+if wait_for_file(res_path, 10):
+    print("Result:", res_path.read_text())
+    sys.exit(0)
 
 print("No EA response. Check MT4 -> Experts/Journal.", file=sys.stderr)
 sys.exit(1)

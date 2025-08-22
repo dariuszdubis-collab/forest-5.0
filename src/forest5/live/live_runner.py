@@ -19,6 +19,7 @@ from ..utils.log import setup_logger
 from ..utils.debugger import DebugLogger
 from .router import OrderRouter
 from .risk_guard import should_halt_for_drawdown
+from ..utils.fs_watcher import wait_for_mtime
 
 
 log = setup_logger()
@@ -188,129 +189,128 @@ def run_live(
 
     try:
         while True:
-            if time.time() - last_candle_ts > timeout:
+            remaining = timeout - (time.time() - last_candle_ts)
+            if remaining <= 0:
                 log.info("idle_timeout_reached")
                 break
 
-            if tick_file.exists():
-                mtime = tick_file.stat().st_mtime
-                if mtime != last_mtime:
-                    last_mtime = mtime
-                    try:
-                        tick = json.loads(_read_context(tick_file, 4096))
-                    except json.JSONDecodeError:  # pragma: no cover - defensive
-                        log.exception("invalid tick data")
-                        time.sleep(0.25)
-                        continue
+            mtime = wait_for_mtime(tick_file, last_mtime, remaining)
+            if mtime is None:
+                continue
+            last_mtime = mtime
+            try:
+                tick = json.loads(_read_context(tick_file, 4096))
+            except json.JSONDecodeError:  # pragma: no cover - defensive
+                log.exception("invalid tick data")
+                continue
 
-                    ts = float(tick.get("time", time.time()))
-                    price = float(tick.get("bid") or tick.get("price") or tick.get("ask"))
-                    last_price = price
-                    log.info("tick", **tick)
+            ts = float(tick.get("time", time.time()))
+            price = float(tick.get("bid") or tick.get("price") or tick.get("ask"))
+            last_price = price
+            log.info("tick", **tick)
 
-                    bar_start = int(ts // bar_sec) * bar_sec
-                    if current_bar is None:
-                        current_bar = {
-                            "start": bar_start,
-                            "open": price,
-                            "high": price,
-                            "low": price,
-                            "close": price,
-                        }
-                        continue
+            bar_start = int(ts // bar_sec) * bar_sec
+            if current_bar is None:
+                current_bar = {
+                    "start": bar_start,
+                    "open": price,
+                    "high": price,
+                    "low": price,
+                    "close": price,
+                }
+                continue
 
-                    if bar_start == current_bar["start"]:
-                        current_bar["high"] = max(current_bar["high"], price)
-                        current_bar["low"] = min(current_bar["low"], price)
-                        current_bar["close"] = price
-                    else:
-                        idx = pd.to_datetime(current_bar["start"], unit="s")
-                        sig = _append_bar_and_signal(df, current_bar, settings)
-                        log.info("candle_closed", **current_bar)
-                        last_candle_ts = time.time()
+            if bar_start == current_bar["start"]:
+                current_bar["high"] = max(current_bar["high"], price)
+                current_bar["low"] = min(current_bar["low"], price)
+                current_bar["close"] = price
+            else:
+                idx = pd.to_datetime(current_bar["start"], unit="s")
+                sig = _append_bar_and_signal(df, current_bar, settings)
+                log.info("candle_closed", **current_bar)
+                last_candle_ts = time.time()
 
-                        cur_eq = broker.equity()
-                        if cur_eq is not None and should_halt_for_drawdown(
-                            start_equity, cur_eq, settings.risk.max_drawdown
-                        ):
-                            dd = (start_equity - cur_eq) / start_equity
-                            log.error("max_drawdown_reached", drawdown_pct=dd * 100)
-                            break
+                cur_eq = broker.equity()
+                if cur_eq is not None and should_halt_for_drawdown(
+                    start_equity, cur_eq, settings.risk.max_drawdown
+                ):
+                    dd = (start_equity - cur_eq) / start_equity
+                    log.error("max_drawdown_reached", drawdown_pct=dd * 100)
+                    break
 
-                        if (
-                            idx.weekday() in settings.time.blocked_weekdays
-                            or idx.hour in settings.time.blocked_hours
-                        ):
-                            log.info("time_blocked", time=str(idx))
-                            if debug:
-                                debug.log("skip_candle", time=str(idx), reason="time_block")
-                        else:
-                            decision, votes, reason = agent.decide(
-                                idx,
-                                sig,
-                                current_bar["close"],
-                                settings.broker.symbol,
-                                context_text,
-                            )
-                            log.info(
-                                "decision",
-                                timestamp=time.time(),
-                                symbol=settings.broker.symbol,
-                                action="decision",
+                if (
+                    idx.weekday() in settings.time.blocked_weekdays
+                    or idx.hour in settings.time.blocked_hours
+                ):
+                    log.info("time_blocked", time=str(idx))
+                    if debug:
+                        debug.log("skip_candle", time=str(idx), reason="time_block")
+                else:
+                    decision, votes, reason = agent.decide(
+                        idx,
+                        sig,
+                        current_bar["close"],
+                        settings.broker.symbol,
+                        context_text,
+                    )
+                    log.info(
+                        "decision",
+                        timestamp=time.time(),
+                        symbol=settings.broker.symbol,
+                        action="decision",
+                        side=decision,
+                        qty=(settings.broker.volume if decision in ("BUY", "SELL") else 0),
+                        price=current_bar["close"],
+                        latency_ms=0.0,
+                        error=None,
+                        context={"votes": votes, "reason": reason},
+                    )
+                    if debug:
+                        debug.log(
+                            "decision",
+                            time=str(idx),
+                            decision=decision,
+                            votes=votes,
+                            reason=reason,
+                        )
+                    if decision in ("BUY", "SELL"):
+                        start_ts = time.time()
+                        res = broker.market_order(decision, settings.broker.volume, price)
+                        latency = (time.time() - start_ts) * 1000.0
+                        log.info(
+                            "order_result",
+                            timestamp=time.time(),
+                            symbol=settings.broker.symbol,
+                            action="market_order",
+                            side=decision,
+                            qty=res.filled_qty,
+                            price=res.avg_price,
+                            latency_ms=latency,
+                            error=res.error,
+                            context={"status": res.status, "id": res.id},
+                        )
+                        if debug:
+                            debug.log(
+                                "order",
+                                time=str(idx),
                                 side=decision,
-                                qty=(settings.broker.volume if decision in ("BUY", "SELL") else 0),
-                                price=current_bar["close"],
-                                latency_ms=0.0,
-                                error=None,
-                                context={"votes": votes, "reason": reason},
+                                qty=res.filled_qty,
+                                price=res.avg_price,
+                                status=res.status,
+                                latency_ms=latency,
                             )
-                            if debug:
-                                debug.log(
-                                    "decision",
-                                    time=str(idx),
-                                    decision=decision,
-                                    votes=votes,
-                                    reason=reason,
-                                )
-                            if decision in ("BUY", "SELL"):
-                                start_ts = time.time()
-                                res = broker.market_order(decision, settings.broker.volume, price)
-                                latency = (time.time() - start_ts) * 1000.0
-                                log.info(
-                                    "order_result",
-                                    timestamp=time.time(),
-                                    symbol=settings.broker.symbol,
-                                    action="market_order",
-                                    side=decision,
-                                    qty=res.filled_qty,
-                                    price=res.avg_price,
-                                    latency_ms=latency,
-                                    error=res.error,
-                                    context={"status": res.status, "id": res.id},
-                                )
-                                if debug:
-                                    debug.log(
-                                        "order",
-                                        time=str(idx),
-                                        side=decision,
-                                        qty=res.filled_qty,
-                                        price=res.avg_price,
-                                        status=res.status,
-                                        latency_ms=latency,
-                                    )
 
-                        current_bar = {
-                            "start": bar_start,
-                            "open": price,
-                            "high": price,
-                            "low": price,
-                            "close": price,
-                        }
+                current_bar = {
+                    "start": bar_start,
+                    "open": price,
+                    "high": price,
+                    "low": price,
+                    "close": price,
+                }
 
-                        steps += 1
-                        if max_steps is not None and steps >= max_steps:
-                            break
-            time.sleep(0.25)
+                steps += 1
+                if max_steps is not None and steps >= max_steps:
+                    break
     except KeyboardInterrupt:
         log.info("keyboard_interrupt")
     finally:

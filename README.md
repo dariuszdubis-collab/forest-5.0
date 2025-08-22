@@ -46,11 +46,18 @@ np. `--sep ';'`.
    ```
    W celu testów bez realnych zleceń dopisz `--paper`.
 
+Podsystem mostu plikowego wykorzystuje powiadomienia o zmianie plików
+(`watchdog`/`inotify`) i w razie ich braku adaptacyjnie wydłuża przerwy między
+odczytami.
+
 ## Tryb PAPER (smoke test bez MT4)
 
 Do szybkiego testu bez uruchamiania MetaTradera można zasymulować most
 plikowy. Utwórz katalog `bridge/` z podkatalogami `ticks`, `state`,
 `commands` i `results` oraz minimalnymi plikami JSON:
+
+Mechanizm nasłuchuje zmian plików, a gdy biblioteka watchdog jest
+niedostępna, stosuje adaptacyjne oczekiwanie.
 
 ```bash
 mkdir -p bridge/{ticks,state,commands,results}
