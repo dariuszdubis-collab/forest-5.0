@@ -39,8 +39,13 @@ def test_run_live_soft_wait(tmp_path: Path, monkeypatch) -> None:
             bar["low"],
             bar["close"],
         ]
-        return pd.Series([1], index=df.index)
+        return 1
 
+    monkeypatch.setattr(
+        "forest5.live.live_runner.append_bar_and_signal",
+        fake_append_bar_and_signal,
+        raising=False,
+    )
     monkeypatch.setattr(
         "forest5.live.live_runner._append_bar_and_signal", fake_append_bar_and_signal
     )
