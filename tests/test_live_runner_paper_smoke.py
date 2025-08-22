@@ -35,7 +35,7 @@ def test_run_live_paper(tmp_path: Path, capfd):
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=1),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
-        time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),
+        time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
     )
     run_live(s, max_steps=2)
@@ -48,7 +48,7 @@ def test_incremental_signal_perf():
         broker=BrokerSettings(type="paper", bridge_dir=".", symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=1),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
-        time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),
+        time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
     )
     N = 200

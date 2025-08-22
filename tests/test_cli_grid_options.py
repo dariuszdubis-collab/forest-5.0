@@ -62,10 +62,6 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             str(model_path),
             "--min-confluence",
             "2",
-            "--blocked-hours",
-            "1,2",
-            "--blocked-weekdays",
-            "0,6",
             "--jobs",
             "1",
             "--top",
@@ -100,5 +96,3 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     assert kw["atr_multiple"] == 3
     assert kw["time_model"] == model_path
     assert kw["min_confluence"] == 2
-    assert kw["blocked_hours"] == [1, 2]
-    assert kw["blocked_weekdays"] == [0, 6]

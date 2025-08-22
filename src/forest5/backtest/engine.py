@@ -145,21 +145,8 @@ def _trading_loop(
     if settings.time.model.enabled and settings.time.model.path:
         time_model = TimeOnlyModel.load(settings.time.model.path)
 
-    blocked_hours = set(settings.time.blocked_hours)
-    blocked_weekdays = set(settings.time.blocked_weekdays)
-
     for t, price, atr_val, this_sig in zip(df.index, prices, atr_vals, sig_vals):
         this_sig = int(this_sig)
-
-        if t.weekday() in blocked_weekdays or t.hour in blocked_hours:
-            if debug:
-                debug.log("skip_candle", time=str(t), reason="time_block")
-            equity_mtm = rm.equity + position * price
-            rm.record_mark_to_market(equity_mtm)
-            if rm.exceeded_max_dd():
-                log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
-                break
-            continue
 
         fused, fuse_reason = _fuse_with_time(
             this_sig,

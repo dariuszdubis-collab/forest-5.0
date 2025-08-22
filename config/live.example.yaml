@@ -21,12 +21,8 @@ decision:
   min_confluence: 2  # number of indicators that must agree; lower values may create false signals
 
 time:
-  enabled: true
-  blocked_hours: [22,23]
-  blocked_weekdays: [5,6]
   model:
     enabled: false  # true when using a trained time filter model
     path: "${FOREST_TIME_MODEL_PATH}"  # e.g., /models/time_model.pkl
     q_low: 0.1
     q_high: 0.9
-

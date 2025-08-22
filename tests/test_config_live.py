@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from forest5.config.loader import load_live_settings
-from forest5.config_live import LiveTimeModelSettings, LiveTimeSettings
+from forest5.config_live import LiveTimeModelSettings
 
 
 def test_live_settings_from_yaml(tmp_path: Path):
@@ -23,8 +23,9 @@ def test_live_settings_from_yaml(tmp_path: Path):
         "ai:\n"
         "  enabled: true\n"
         "time:\n"
-        "  blocked_weekdays: [5, 6]\n"
-        "  blocked_hours: [0]\n",
+        "  model:\n"
+        "    enabled: true\n"
+        "    path: model.onnx\n",
         encoding="utf-8",
     )
     s = load_live_settings(p)
@@ -32,7 +33,8 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.broker.volume == 1.5  # nosec B101
     assert s.strategy.fast == 10  # nosec B101
     assert s.strategy.timeframe == "1m"  # nosec B101
-    assert s.time.blocked_weekdays == [5, 6]  # nosec B101
+    assert s.time.model.enabled is True  # nosec B101
+    assert s.time.model.path == p.parent / "model.onnx"  # nosec B101
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
 
 
@@ -70,13 +72,3 @@ def test_live_time_model_quantile_valid():
 def test_live_time_model_quantile_invalid(q_low: float, q_high: float):
     with pytest.raises(ValidationError, match="0.0 <= q_low < q_high <= 1.0"):
         LiveTimeModelSettings(q_low=q_low, q_high=q_high)
-
-
-def test_live_time_settings_invalid_weekday():
-    with pytest.raises(ValidationError, match="blocked_weekdays"):
-        LiveTimeSettings(blocked_weekdays=[-1, 7])
-
-
-def test_live_time_settings_invalid_hour():
-    with pytest.raises(ValidationError, match="blocked_hours"):
-        LiveTimeSettings(blocked_hours=[-1, 24])

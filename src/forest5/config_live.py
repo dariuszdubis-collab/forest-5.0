@@ -66,25 +66,7 @@ class LiveTimeModelSettings(BaseModel):
 
 
 class LiveTimeSettings(BaseModel):
-    blocked_weekdays: list[int] = Field(default_factory=list)
-    blocked_hours: list[int] = Field(default_factory=list)
     model: LiveTimeModelSettings = Field(default_factory=LiveTimeModelSettings)
-
-    @field_validator("blocked_weekdays")
-    @classmethod
-    def _check_weekdays(cls, v: list[int]) -> list[int]:
-        invalid = [d for d in v if d < 0 or d > 6]
-        if invalid:
-            raise ValueError(f"blocked_weekdays must be in range 0-6: {invalid}")
-        return v
-
-    @field_validator("blocked_hours")
-    @classmethod
-    def _check_hours(cls, v: list[int]) -> list[int]:
-        invalid = [h for h in v if h < 0 or h > 23]
-        if invalid:
-            raise ValueError(f"blocked_hours must be in range 0-23: {invalid}")
-        return v
 
 
 class LiveSettings(BaseModel):
