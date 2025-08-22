@@ -129,6 +129,10 @@ def _parse_int_list(spec: str | None) -> list[int]:
 def cmd_backtest(args: argparse.Namespace) -> int:
     df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
 
+    if args.time_model and not os.path.exists(args.time_model):
+        print(f"Plik modelu czasu nie istnieje: {args.time_model}")
+        sys.exit(1)
+
     settings = BacktestSettings(
         symbol=args.symbol or "SYMBOL",
         strategy={

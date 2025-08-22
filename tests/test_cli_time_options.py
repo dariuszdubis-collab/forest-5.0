@@ -1,5 +1,6 @@
 import pandas as pd
 from types import SimpleNamespace
+import pytest
 
 from forest5.cli import build_parser, cmd_backtest
 
@@ -58,3 +59,20 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
     assert settings.time.model.path == model_path
     assert settings.time.blocked_hours == [1, 2]
     assert settings.time.blocked_weekdays == [0, 6]
+
+
+def test_cli_time_model_missing(tmp_path, capsys):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    model_path = tmp_path / "missing.onnx"
+
+    parser = build_parser()
+    args = parser.parse_args(
+        ["backtest", "--csv", str(csv_path), "--time-model", str(model_path)]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cmd_backtest(args)
+    assert exc.value.code == 1
+
+    out = capsys.readouterr().out
+    assert f"Plik modelu czasu nie istnieje: {model_path}" in out
