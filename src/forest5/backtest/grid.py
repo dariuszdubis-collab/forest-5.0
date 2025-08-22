@@ -83,6 +83,7 @@ def run_grid(
     blocked_weekdays: list[int] | None = None,
     n_jobs: int = 1,
     cache_dir: str = ".cache/forest5-grid",
+    debug_dir: Path | None = None,
 ) -> pd.DataFrame:
     blocked_hours = blocked_hours or []
     blocked_weekdays = blocked_weekdays or []
@@ -108,6 +109,8 @@ def run_grid(
     indicators.atr = mem.cache(indicators.atr)
     indicators.ema = mem.cache(indicators.ema)
 
+    base_debug_dir = Path(debug_dir) if debug_dir else None
+
     @mem.cache
     def _single_run(
         fast: int,
@@ -116,6 +119,13 @@ def run_grid(
         rsi_period_value: int,
         max_dd_value: float,
     ) -> GridResult:
+        run_debug = None
+        if base_debug_dir:
+            name = (
+                f"fast{fast}_slow{slow}_risk{risk_value}_"
+                f"rsi{rsi_period_value}_maxdd{max_dd_value}"
+            )
+            run_debug = base_debug_dir / name
         settings = BacktestSettings(
             symbol=symbol,
             timeframe="1h",
@@ -137,6 +147,7 @@ def run_grid(
             ),
             atr_period=atr_period,
             atr_multiple=atr_multiple,
+            debug_dir=run_debug,
         )
         settings.time.model.enabled = bool(time_model)
         settings.time.model.path = time_model

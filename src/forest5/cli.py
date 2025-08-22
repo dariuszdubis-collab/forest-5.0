@@ -156,6 +156,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         },
         atr_period=args.atr_period,
         atr_multiple=args.atr_multiple,
+        debug_dir=args.debug_dir,
     )
 
     settings.time.model.enabled = bool(args.time_model)
@@ -231,6 +232,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         kwargs["risk_values"] = risk_vals
     if max_dd_vals:
         kwargs["max_dd_values"] = max_dd_vals
+    if args.debug_dir:
+        kwargs["debug_dir"] = args.debug_dir
 
     out = run_grid(df, **kwargs)
 
@@ -257,7 +260,10 @@ def cmd_live(args: argparse.Namespace) -> int:
     settings = LiveSettings.from_file(args.config)
     if args.paper:
         settings.broker.type = "paper"
-    run_live(settings)
+    kwargs = {}
+    if args.debug_dir:
+        kwargs["debug_dir"] = args.debug_dir
+    run_live(settings, **kwargs)
     return 0
 
 
@@ -317,6 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_bt.add_argument("--export-equity", default=None, help="Zapisz equity do CSV")
+    p_bt.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_bt.set_defaults(func=cmd_backtest)
 
     # grid
@@ -378,12 +385,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
+    p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_gr.set_defaults(func=cmd_grid)
 
     # live
     p_lv = sub.add_parser("live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter)
     p_lv.add_argument("--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami")
     p_lv.add_argument("--paper", action="store_true", help="Wymuś paper trading (broker.type)")
+    p_lv.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_lv.set_defaults(func=cmd_live)
 
     return p
