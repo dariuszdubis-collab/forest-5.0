@@ -3,8 +3,10 @@ from pathlib import Path
 import timeit
 
 import pandas as pd
+import pytest
 
-from forest5.live.live_runner import run_live, _append_bar_and_signal
+from forest5.live.live_runner import run_live
+from forest5.signals import append_bar_and_signal
 from forest5.signals.factory import compute_signal
 from forest5.live.settings import (
     LiveSettings,
@@ -43,7 +45,8 @@ def test_run_live_paper(tmp_path: Path, capfd):
     assert "idle_timeout_reached" in out
 
 
-def test_incremental_signal_perf():
+@pytest.mark.parametrize("strategy", ["ema_cross", "macd_cross"])
+def test_incremental_signal_perf(strategy):
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=".", symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=1),
@@ -51,6 +54,11 @@ def test_incremental_signal_perf():
         time=TimeSettings(blocked_hours=[], blocked_weekdays=[]),
         risk=RiskSettings(max_drawdown=0.5),
     )
+    settings.strategy.name = strategy
+    if strategy == "macd_cross":
+        settings.strategy.fast = 3
+        settings.strategy.slow = 6
+        settings.strategy.signal = 3
     N = 200
 
     def naive() -> None:
@@ -69,7 +77,7 @@ def test_incremental_signal_perf():
         for i in range(N):
             bar["start"] = i
             bar["open"] = bar["high"] = bar["low"] = bar["close"] = 1 + 0.0001 * i
-            _append_bar_and_signal(df, bar, settings)
+            append_bar_and_signal(df, bar, settings)
 
     t_naive = timeit.timeit(naive, number=3)
     t_inc = timeit.timeit(incremental, number=3)
