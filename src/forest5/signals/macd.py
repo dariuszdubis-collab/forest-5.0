@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from forest5.core.indicators import ema
@@ -15,7 +16,7 @@ def macd_cross_signal(
     macd = ema(close, fast) - ema(close, slow)
     sigl = ema(macd, signal)
     spread = macd - sigl
-    sgn = spread.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    sgn = np.sign(spread.fillna(0)).astype("int8")
     cross = sgn.diff().fillna(0)
 
     out = pd.Series(0, index=close.index, dtype="int8")
