@@ -34,3 +34,25 @@ def test_grid_parallel_same_result():
         res1.sort_values(["fast", "slow"]).reset_index(drop=True),
         res2.sort_values(["fast", "slow"]).reset_index(drop=True),
     )
+
+
+def test_grid_three_params():
+    df = generate_ohlc(periods=40, start_price=100.0, freq="D")
+    res = run_grid(
+        df,
+        symbol="SYMB",
+        fast_values=[6, 8],
+        slow_values=[12, 20],
+        risk_values=[0.01, 0.02],
+        capital=10_000.0,
+        n_jobs=1,
+    )
+    combos = {
+        (f, s, r)
+        for f in [6, 8]
+        for s in [12, 20]
+        for r in [0.01, 0.02]
+        if f < s
+    }
+    assert len(res) == len(combos)
+    assert set(zip(res["fast"], res["slow"], res["risk"])) == combos
