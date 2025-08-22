@@ -29,11 +29,9 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
 
     strategy = copy.deepcopy(settings.strategy)
     name = getattr(strategy, "name", "ema_cross")
-    use_rsi = getattr(strategy, "use_rsi", False)
 
     if name in {"ema_rsi", "ema-cross+rsi"}:
         name = "ema_cross"
-        use_rsi = True
 
     if name == "ema_cross":
         return _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
