@@ -8,6 +8,7 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
     - Upewnia się, że mamy kolumny OHLC
     - Ustawia indeks czasu (tz-naive) z aliasów: time/date/datetime/timestamp
     - Sortuje, usuwa duplikaty, nazywa indeks 'time'
+    - Zachowuje dodatkowe kolumny, w tym opcjonalny 'volume'
     """
     df = df.copy()
     required = {"open", "high", "low", "close"}
@@ -39,5 +40,10 @@ def ensure_backtest_ready(df: pd.DataFrame, price_col: str = "close") -> pd.Data
     for col in ("open", "high", "low", "close"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["open", "high", "low", "close"])
+
+    # Opcjonalny wolumen: konwersja i czyszczenie braków
+    if "volume" in df.columns:
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
+        df = df.dropna(subset=["volume"])
 
     return df
