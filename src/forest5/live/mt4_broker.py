@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Optional
 
 from .router import OrderRouter, OrderResult
-from ..utils.log import log
+from ..utils.log import setup_logger
+
+
+log = setup_logger()
 
 
 class MT4Broker(OrderRouter):
