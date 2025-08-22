@@ -86,7 +86,4 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
                 model["path"] = ""
             time["model"] = model
         data["time"] = time
-
-    if hasattr(LiveSettings, "from_dict"):
-        return LiveSettings.from_dict(data)
     return _pydantic_validate(LiveSettings, data)
