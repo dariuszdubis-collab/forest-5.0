@@ -90,6 +90,18 @@ def test_percentage_out_of_range_error(capfd):
     assert "between 0.0 and 1.0" in err
 
 
+def test_percentage_with_percent_sign():
+    parser = build_parser()
+    args = parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "1%"])
+    assert args.risk == pytest.approx(0.01)
+
+
+def test_percentage_with_comma_and_percent():
+    parser = build_parser()
+    args = parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "0,5%"])
+    assert args.risk == pytest.approx(0.005)
+
+
 def test_cli_live(tmp_path, monkeypatch):
     cfg = tmp_path / "config.yaml"
     cfg.write_text("broker:\n  type: mt4\n  symbol: EURUSD\n", encoding="utf-8")
