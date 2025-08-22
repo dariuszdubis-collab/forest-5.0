@@ -23,3 +23,11 @@ def test_artifact_round_trip(tmp_path: Path) -> None:
     assert model.quantile_gates == loaded.quantile_gates
     # exercise a decision to ensure load works
     loaded.decide(idx[0], df["y"].iloc[0])
+
+
+def test_train_handles_timezone() -> None:
+    rng = np.random.default_rng(0)
+    idx = pd.date_range("2024-01-01", periods=24, freq="h", tz="UTC")
+    df = pd.DataFrame({"time": idx, "y": rng.normal(size=len(idx))})
+    model = time_only.train(df)
+    assert set(model.quantile_gates.keys()) == set(range(24))

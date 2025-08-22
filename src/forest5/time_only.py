@@ -10,6 +10,7 @@ from typing import Dict, Tuple, Literal
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_datetime64_any_dtype
 
 
 @dataclass
@@ -63,8 +64,9 @@ def train(df: pd.DataFrame, q_low: float = 0.1, q_high: float = 0.9) -> TimeOnly
     """
 
     df = df.copy()
-    if not np.issubdtype(df["time"].dtype, np.datetime64):
+    if not is_datetime64_any_dtype(df["time"]):
         df["time"] = pd.to_datetime(df["time"])
+    df["time"] = df["time"].dt.tz_localize(None)
     df["hour"] = df["time"].dt.hour
     gates: Dict[int, Tuple[float, float]] = {}
     for hour, series in df.groupby("hour")["y"]:
