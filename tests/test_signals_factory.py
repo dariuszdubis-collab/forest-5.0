@@ -19,7 +19,7 @@ def test_compute_signal_ema_cross_basic():
 
 
 @pytest.mark.parametrize("alias", ["ema_rsi", "ema-cross+rsi"])
-def test_compute_signal_normalizes_rsi_alias(alias):
+def test_compute_signal_does_not_mutate_settings(alias):
     df = generate_ohlc(periods=60, start_price=100.0)
     s = BacktestSettings()
     s.strategy.name = alias
@@ -27,8 +27,8 @@ def test_compute_signal_normalizes_rsi_alias(alias):
 
     sig = compute_signal(df, s)
 
-    assert s.strategy.name == "ema_cross"  # nosec B101
-    assert s.strategy.use_rsi is True  # nosec B101
+    assert s.strategy.name == alias  # nosec B101
+    assert s.strategy.use_rsi is False  # nosec B101
     assert list(sig.index) == list(df.index)  # nosec B101
     assert set(sig.unique()).issubset({-1, 0, 1})  # nosec B101
     assert (sig != 0).any()  # nosec B101

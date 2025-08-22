@@ -30,8 +30,13 @@ def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
 
 def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: str) -> pd.Series:
     """Generuje serię sygnałów tradingowych."""
+    name = getattr(settings.strategy, "name", "ema_cross")
+    use_rsi = getattr(settings.strategy, "use_rsi", False)
+    if name in {"ema_rsi", "ema-cross+rsi"}:
+        use_rsi = True
+
     sig = compute_signal(df, settings, price_col=price_col).astype(int)
-    if settings.strategy.use_rsi:
+    if use_rsi:
         rr = rsi(df[price_col], settings.strategy.rsi_period)
         sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
         sig = sig.where(~rr.le(settings.strategy.rsi_oversold), other=1)
