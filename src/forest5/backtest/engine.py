@@ -79,47 +79,75 @@ def _fuse_with_time(
     ts: pd.Timestamp,
     price: float,
     time_model: TimeOnlyModel | None,
-    min_conf: int,
-    ai_decision: int | None = None,
+    min_conf: float,
+    ai_decision: int | tuple[int, float] | None = None,
     *,
     return_reason: bool = False,
-) -> int | tuple[int, str | None]:
+    return_weight: bool = False,
+) -> int | tuple:
     """Fuse technical, time and optional AI signals into one decision.
 
-    When ``return_reason`` is True, a tuple of ``(decision, reason)`` is
-    returned where ``reason`` is ``None`` unless the decision is to skip
-    due to lack of confluence or a WAIT from the time model.
+    By default only the final decision ``-1/0/1`` is returned to preserve
+    backwards compatibility. When ``return_weight`` is True, the confidence
+    weight (0–1) is also returned. ``return_reason`` adds a textual reason.
     """
 
-    votes = {"tech": _to_sign(tech_signal), "time": 0, "ai": 0}
-    pos = {"tech": int(votes["tech"] > 0), "time": 0, "ai": 0}
-    neg = {"tech": int(votes["tech"] < 0), "time": 0, "ai": 0}
+    votes: dict[str, tuple[int, float]] = {
+        "tech": (_to_sign(tech_signal), 1.0),
+        "time": (0, 0.0),
+        "ai": (0, 0.0),
+    }
 
     if time_model:
-        tm_decision = time_model.decide(ts, price)
+        tm_res = time_model.decide(ts, price)
+        if isinstance(tm_res, tuple):
+            tm_decision, tm_weight = tm_res
+        else:  # backward compatibility
+            tm_decision, tm_weight = tm_res, 1.0
         if tm_decision == "WAIT":
-            res = (0, "time_model_wait") if return_reason else 0
-            return res
-        votes["time"] = _to_sign(1 if tm_decision == "BUY" else -1)
-        pos["time"] = int(votes["time"] > 0)
-        neg["time"] = int(votes["time"] < 0)
+            if return_reason and return_weight:
+                return 0, 0.0, "time_model_wait"
+            if return_reason:
+                return 0, "time_model_wait"
+            if return_weight:
+                return 0, 0.0
+            return 0
+        votes["time"] = (_to_sign(1 if tm_decision == "BUY" else -1), float(tm_weight))
 
     if ai_decision is not None:
-        votes["ai"] = _to_sign(ai_decision)
-        pos["ai"] = int(votes["ai"] > 0)
-        neg["ai"] = int(votes["ai"] < 0)
+        if isinstance(ai_decision, tuple):
+            ai_sig, ai_weight = ai_decision
+        else:
+            ai_sig, ai_weight = ai_decision, 1.0
+        votes["ai"] = (_to_sign(ai_sig), float(ai_weight))
 
-    pos_total = sum(pos.values())
-    neg_total = sum(neg.values())
-    if max(pos_total, neg_total) < max(min_conf, 1):
-        res = (0, "not_enough_confluence") if return_reason else 0
-        return res
+    pos_total = sum(w for s, w in votes.values() if s > 0)
+    neg_total = sum(w for s, w in votes.values() if s < 0)
+    if max(pos_total, neg_total) < max(min_conf, 1.0):
+        if return_reason and return_weight:
+            return 0, 0.0, "not_enough_confluence"
+        if return_reason:
+            return 0, "not_enough_confluence"
+        if return_weight:
+            return 0, 0.0
+        return 0
+
     if pos_total > neg_total:
         res_dec = 1
+        weights = [w for s, w in votes.values() if s > 0]
     elif neg_total > pos_total:
         res_dec = -1
+        weights = [w for s, w in votes.values() if s < 0]
     else:
         res_dec = 0
+        weights = []
+
+    final_weight = min(weights) if weights else 0.0
+
+    if return_reason and return_weight:
+        return res_dec, final_weight, None
+    if return_weight:
+        return res_dec, final_weight
     if return_reason:
         return res_dec, None
     return res_dec
@@ -148,7 +176,7 @@ def _trading_loop(
     for t, price, atr_val, this_sig in zip(df.index, prices, atr_vals, sig_vals):
         this_sig = int(this_sig)
 
-        fused, fuse_reason = _fuse_with_time(
+        fused, weight, fuse_reason = _fuse_with_time(
             this_sig,
             t,
             float(price),
@@ -156,6 +184,7 @@ def _trading_loop(
             settings.time.fusion_min_confluence,
             None,
             return_reason=True,
+            return_weight=True,
         )
         this_sig = fused
         if fuse_reason == "time_model_wait" and debug:
@@ -172,11 +201,18 @@ def _trading_loop(
 
         if this_sig > 0 and position <= 0.0:
             qty = rm.position_size(price=price, atr=float(atr_val), atr_multiple=atr_multiple)
+            qty *= float(weight)
             if qty > 0.0:
                 rm.buy(price, qty)
                 tb.add(t, price, qty, "BUY")
                 if debug:
-                    debug.log("position_open", time=str(t), price=float(price), qty=float(qty))
+                    debug.log(
+                        "position_open",
+                        time=str(t),
+                        price=float(price),
+                        qty=float(qty),
+                        weight=float(weight),
+                    )
                 position = qty
             elif debug:
                 debug.log(

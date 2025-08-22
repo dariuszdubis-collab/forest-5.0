@@ -28,8 +28,10 @@ def main() -> None:
 
     model = train(df, q_low=args.q_low, q_high=args.q_high)
     Path(args.output).write_text(model.to_json())
-    # ensure model can be loaded back
-    TimeOnlyModel.load(args.output)
+    # ensure model can be loaded back and exposes the decision API
+    loaded = TimeOnlyModel.load(args.output)
+    # exercise the API (decision + weight) on a single sample
+    _ = loaded.decide(df["time"].iloc[0], float(df["y"].iloc[0]))
     print(f"Saved model to {args.output}")
 
 

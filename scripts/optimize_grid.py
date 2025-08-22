@@ -214,7 +214,9 @@ def main() -> None:
     parser.add_argument("--atr-multiple", type=float, default=2.0)
 
     parser.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu.")
-    parser.add_argument("--min-confluence", type=int, default=1, help="Minimalna konfluencja fuzji")
+    parser.add_argument(
+        "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
+    )
 
     parser.add_argument("--start", type=str, default=None, help="Początek zakresu (YYYY-MM-DD).")
     parser.add_argument("--end", type=str, default=None, help="Koniec zakresu (YYYY-MM-DD).")
@@ -254,7 +256,7 @@ def main() -> None:
 
     base.time.model.enabled = bool(args.time_model)
     base.time.model.path = args.time_model
-    base.time.fusion_min_confluence = int(args.min_confluence)
+    base.time.fusion_min_confluence = float(args.min_confluence)
 
     fast_vals = parse_range(args.fast)
     slow_vals = parse_range(args.slow)

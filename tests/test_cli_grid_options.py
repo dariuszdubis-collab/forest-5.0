@@ -95,4 +95,4 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     assert kw["atr_period"] == 5
     assert kw["atr_multiple"] == 3
     assert kw["time_model"] == model_path
-    assert kw["min_confluence"] == 2
+    assert kw["min_confluence"] == pytest.approx(2.0)

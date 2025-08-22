@@ -3,40 +3,80 @@ import pandas as pd
 import pytest
 
 from forest5.backtest.engine import run_backtest
+from forest5.backtest.grid import run_grid
 from forest5.config import BacktestSettings
 from forest5.time_only import TimeOnlyModel
 
 
+class StubModel:
+    def __init__(self, decision: str, weight: float) -> None:
+        self.decision = decision
+        self.weight = weight
+
+    def decide(self, ts, value):  # pragma: no cover - simple stub
+        return self.decision, self.weight
+
+
+def _make_df() -> pd.DataFrame:
+    idx = pd.date_range("2024-01-01", periods=100, freq="1min")
+    prices = np.linspace(100, 101, len(idx))
+    df = pd.DataFrame(
+        {
+            "open": prices,
+            "high": prices + 0.1,
+            "low": prices - 0.1,
+            "close": prices,
+        },
+        index=idx,
+    )
+    return df
+
+
 @pytest.mark.timeonly
-def test_backtest_timeonly_ab(tmp_path) -> None:
-    # Generate 250 minute bars with slight trending variation
-    idx = pd.date_range("2024-01-01", periods=250, freq="1min")
-    close_up = np.linspace(100, 101, 125)
-    close_down = np.linspace(101, 99, 125)
-    close = np.concatenate([close_up, close_down])
-    close += np.sin(np.linspace(0, 20, 250)) * 0.05
-    open_ = close - 0.05
-    high = np.maximum(open_, close) + 0.05
-    low = np.minimum(open_, close) - 0.05
-    df = pd.DataFrame({"open": open_, "high": high, "low": low, "close": close}, index=idx)
+def test_backtest_respects_weights(monkeypatch) -> None:
+    df = _make_df()
 
-    # Baseline
-    settings_base = BacktestSettings()
-    settings_base.time.model.enabled = False
-    settings_base.time.fusion_min_confluence = 1
-    res_base = run_backtest(df, settings_base)
-    trades_base = len(res_base.trades)
+    settings = BacktestSettings()
+    settings.time.model.enabled = True
+    settings.time.model.path = "dummy.json"
+    settings.time.fusion_min_confluence = 1.0
 
-    # TimeOnly variant
-    gates = {h: (30.0, 90.0) for h in range(24)}
-    model = TimeOnlyModel(gates, q_low=0.0, q_high=1.0)
-    model_path = tmp_path / "time_only.json"
-    model.save(model_path)
-    settings_time = BacktestSettings()
-    settings_time.time.model.enabled = True
-    settings_time.time.model.path = model_path
-    settings_time.time.fusion_min_confluence = 2
-    res_time = run_backtest(df, settings_time)
-    trades_time = len(res_time.trades)
+    monkeypatch.setattr(TimeOnlyModel, "load", lambda p: StubModel("BUY", 1.0))
+    res_full = run_backtest(df, settings)
+    qty_full = res_full.trades.trades[0].qty
 
-    assert trades_time <= trades_base
+    monkeypatch.setattr(TimeOnlyModel, "load", lambda p: StubModel("BUY", 0.5))
+    res_half = run_backtest(df, settings)
+    qty_half = res_half.trades.trades[0].qty
+
+    assert qty_half / qty_full == pytest.approx(0.5, rel=0.05)
+
+
+@pytest.mark.timeonly
+def test_grid_respects_weights(monkeypatch, tmp_path) -> None:
+    df = _make_df()
+    tm_path = tmp_path / "tm.json"
+
+    monkeypatch.setattr(TimeOnlyModel, "load", lambda p: StubModel("BUY", 1.0))
+    res_full = run_grid(
+        df,
+        "SYM",
+        [5],
+        [20],
+        time_model=tm_path,
+        cache_dir=str(tmp_path / "c1"),
+    )
+    eq_full = float(res_full.iloc[0].equity_end)
+
+    monkeypatch.setattr(TimeOnlyModel, "load", lambda p: StubModel("BUY", 0.5))
+    res_half = run_grid(
+        df,
+        "SYM",
+        [5],
+        [20],
+        time_model=tm_path,
+        cache_dir=str(tmp_path / "c2"),
+    )
+    eq_half = float(res_half.iloc[0].equity_end)
+
+    assert eq_half < eq_full

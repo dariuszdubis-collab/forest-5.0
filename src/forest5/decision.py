@@ -11,12 +11,37 @@ from .signals.fusion import _to_sign
 
 
 @dataclass
+class DecisionResult:
+    """Result of a decision fusion.
+
+    ``decision`` is one of ``"BUY"``, ``"SELL"`` or ``"WAIT"``. ``weight``
+    denotes the confidence in the decision (0–1). ``votes`` keep the raw sign
+    of each component (technical/time/AI) for backwards compatibility.
+
+    The class implements ``__iter__`` so existing code expecting a 3-tuple
+    ``(decision, votes, reason)`` continues to work.
+    """
+
+    decision: str
+    weight: float
+    votes: dict[str, int]
+    reason: str
+
+    def __iter__(self):  # pragma: no cover - tiny helper
+        yield self.decision
+        yield self.votes
+        yield self.reason
+
+
+@dataclass
 class DecisionConfig:
     use_ai: bool = False
     ai_model: str = "gpt-4o-mini"
     ai_max_tokens: int = 256
     time_model: TimeOnlyModel | None = None
-    min_confluence: int = 1  # min sygnałów (techniczny zawsze = 1)
+    # Threshold of combined weights required to take a trade.
+    # Technical signal always contributes at least 1.
+    min_confluence: float = 1.0
 
 
 class DecisionAgent:
@@ -47,32 +72,51 @@ class DecisionAgent:
         value: float,
         symbol: str,
         context_text: str = "",
-    ) -> tuple[str, dict[str, int], str]:
-        votes = {"tech": _to_sign(tech_signal), "time": 0, "ai": 0}
-        pos = {"tech": int(votes["tech"] > 0), "time": 0, "ai": 0}
-        neg = {"tech": int(votes["tech"] < 0), "time": 0, "ai": 0}
+    ) -> DecisionResult:
+        votes: dict[str, tuple[int, float]] = {
+            "tech": (_to_sign(tech_signal), 1.0),
+            "time": (0, 0.0),
+            "ai": (0, 0.0),
+        }
 
         if self.config.time_model:
-            tm_decision = self.config.time_model.decide(ts, value)
+            tm_res = self.config.time_model.decide(ts, value)
+            if isinstance(tm_res, tuple):
+                tm_decision, tm_weight = tm_res
+            else:  # backward compatibility
+                tm_decision, tm_weight = tm_res, 1.0
             if tm_decision == "WAIT":
-                return "WAIT", votes, "time_wait"
-            votes["time"] = _to_sign(1 if tm_decision == "BUY" else -1)
-            pos["time"] = int(votes["time"] > 0)
-            neg["time"] = int(votes["time"] < 0)
+                return DecisionResult("WAIT", 0.0, {k: v[0] for k, v in votes.items()}, "time_wait")
+            votes["time"] = (_to_sign(1 if tm_decision == "BUY" else -1), float(tm_weight))
 
         if self.ai:
             s = self.ai.analyse(context_text, symbol).score
-            votes["ai"] = _to_sign(s)
-            pos["ai"] = int(votes["ai"] > 0)
-            neg["ai"] = int(votes["ai"] < 0)
+            votes["ai"] = (_to_sign(s), abs(float(s)))
 
-        pos_total = sum(pos.values())
-        neg_total = sum(neg.values())
-        if max(pos_total, neg_total) < (self.config.min_confluence or 1):
-            return "WAIT", votes, "no_consensus"
+        pos_total = sum(w for s, w in votes.values() if s > 0)
+        neg_total = sum(w for s, w in votes.values() if s < 0)
+        if max(pos_total, neg_total) < max(self.config.min_confluence, 1.0):
+            return DecisionResult(
+                "WAIT",
+                0.0,
+                {k: v[0] for k, v in votes.items()},
+                "no_consensus",
+            )
 
         if pos_total > neg_total:
-            return "BUY", votes, "buy_majority"
-        if neg_total > pos_total:
-            return "SELL", votes, "sell_majority"
-        return "WAIT", votes, "no_consensus"
+            dec = "BUY"
+            weights = [w for s, w in votes.values() if s > 0]
+        elif neg_total > pos_total:
+            dec = "SELL"
+            weights = [w for s, w in votes.values() if s < 0]
+        else:
+            return DecisionResult(
+                "WAIT",
+                0.0,
+                {k: v[0] for k, v in votes.items()},
+                "no_consensus",
+            )
+
+        final_weight = min(weights) if weights else 0.0
+        reason = "buy_majority" if dec == "BUY" else "sell_majority"
+        return DecisionResult(dec, final_weight, {k: v[0] for k, v in votes.items()}, reason)
