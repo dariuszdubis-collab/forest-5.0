@@ -53,7 +53,21 @@ def doji(df: pd.DataFrame, threshold: float = 0.1) -> pd.Series:
     Zwraca serię 0/1.
     """
     o, hi, lo, c = df["open"], df["high"], df["low"], df["close"]
-    rng = (hi - lo).replace(0, np.nan)  # unikamy dzielenia przez zero
+    rng = (hi - lo).where((hi - lo) != 0, np.nan)  # unikamy dzielenia przez zero
     body = _body(o, c)
     res = ((body / rng) <= threshold).astype(int).fillna(0)
     return res
+
+
+def candles_signal(df: pd.DataFrame) -> pd.Series:
+    """Połącz sygnały świecowe w jedną serię +1/0/-1.
+
+    +1 – bycze objęcie, -1 – niedźwiedzie objęcie, 0 – doji lub brak wzorca.
+    """
+    bull = bullish_engulfing(df)
+    bear = bearish_engulfing(df)
+    dj = doji(df).astype(bool)
+
+    out = bull - bear
+    out = out.where(~dj, 0)
+    return out.astype("int8")
