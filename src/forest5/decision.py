@@ -35,9 +35,7 @@ class DecisionAgent:
         self.router = router or PaperBroker()
         self.config = config or DecisionConfig()
         self.ai = (
-            SentimentAgent(
-                model=self.config.ai_model, max_tokens=self.config.ai_max_tokens
-            )
+            SentimentAgent(model=self.config.ai_model, max_tokens=self.config.ai_max_tokens)
             if self.config.use_ai
             else None
         )
