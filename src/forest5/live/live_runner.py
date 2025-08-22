@@ -12,6 +12,8 @@ from ..config_live import LiveSettings
 from ..decision import DecisionAgent, DecisionConfig
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
+from ..signals.candles import candles_signal
+from ..signals.combine import confirm_with_candles
 from ..utils.timeframes import _TF_MINUTES
 from ..utils.log import log
 from .router import OrderRouter
@@ -78,6 +80,12 @@ def _append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) 
         direction = 1 if ema_fast > ema_slow else -1
         if direction != prev_dir:
             sig = direction
+
+    candle = candles_signal(df.iloc[-2:]).iloc[-1] if len(df) > 1 else 0
+    if sig != 0 or candle != 0:
+        idx_ser = pd.Series([sig], index=[idx])
+        candle_ser = pd.Series([candle], index=[idx])
+        sig = int(confirm_with_candles(idx_ser, candle_ser).iloc[-1])
     return sig
 
 

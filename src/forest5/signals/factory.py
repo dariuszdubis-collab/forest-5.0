@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 from ..core.indicators import ema
+from .candles import candles_signal
+from .combine import confirm_with_candles
 
 
 def _ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
@@ -34,5 +36,7 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
         name = "ema_cross"
 
     if name == "ema_cross":
-        return _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
+        base = _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
+        candles = candles_signal(df)
+        return confirm_with_candles(base, candles)
     raise ValueError(f"Unknown strategy: {name}")
