@@ -108,3 +108,35 @@ def read_ohlc_csv(
     df = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
 
     return df.sort_index()
+
+
+# Default directory for historical CSV data used by helper functions.
+DATA_DIR = Path("/home/daro/Fxdata")
+
+
+def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
+    """Load OHLC data for ``symbol`` from ``data_dir``.
+
+    Parameters
+    ----------
+    symbol:
+        Trading symbol, e.g. ``"EURUSD"``.
+    data_dir:
+        Directory containing ``<symbol>_H1.csv`` files. Defaults to
+        :data:`DATA_DIR`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Data loaded via :func:`read_ohlc_csv`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the expected CSV file does not exist.
+    """
+
+    path = data_dir / f"{symbol}_H1.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
+    return read_ohlc_csv(path)
