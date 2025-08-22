@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import numpy as np
 import pandas as pd
 
@@ -24,11 +25,16 @@ def _ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
 
 
 def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
-    name = getattr(settings.strategy, "name", "ema_cross")
+    """Generate trading signal without mutating the input settings."""
+
+    strategy = copy.deepcopy(settings.strategy)
+    name = getattr(strategy, "name", "ema_cross")
+    use_rsi = getattr(strategy, "use_rsi", False)
+
     if name in {"ema_rsi", "ema-cross+rsi"}:
-        settings.strategy.name = "ema_cross"
-        settings.strategy.use_rsi = True
         name = "ema_cross"
+        use_rsi = True
+
     if name == "ema_cross":
-        return _ema_cross_signal(df[price_col], settings.strategy.fast, settings.strategy.slow)
+        return _ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
     raise ValueError(f"Unknown strategy: {name}")
