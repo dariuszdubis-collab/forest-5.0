@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import tempfile
-from typing import Dict, Tuple, Literal
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -66,31 +66,41 @@ class TimeOnlyModel:
 
     def decide(
         self, ts: datetime, value: float | None = None
-    ) -> dict[str, float | str] | Literal["BUY", "SELL", "WAIT"]:
-        """Return BUY/SELL/WAIT decision based on quantile gates.
+    ) -> dict[str, float | str] | tuple[str, float]:
+        """Return decision and optional weight based on quantile gates.
 
-        When ``value`` is provided the legacy string-based API is used.
-        For the new timestamp-only API a mapping with ``decision`` and
-        ``confidence`` keys is returned.
+        When ``value`` is provided a ``(decision, weight)`` tuple is returned
+        where ``weight`` denotes the confidence of the signal (0–1).  For the
+        timestamp-only API a mapping with ``decision`` and ``confidence`` keys is
+        returned for backwards compatibility.
         """
+
         hour = ts.hour
         gates = self.quantile_gates.get(hour)
         if gates is None or value is None:
             res = "WAIT"
+            weight = 0.0
         else:
             low, high = gates
+            q_low, q_high = self.quantiles
             if value <= low:
+                denom = max(q_low, 1e-9)
+                weight = min(1.0, (low - value) / denom)
                 res = "SELL"
             elif value >= high:
+                denom = max(1 - q_high, 1e-9)
+                weight = min(1.0, (value - high) / denom)
                 res = "BUY"
             else:
                 res = "WAIT"
+                weight = 0.0
+
         if value is None:
             conf = 1.0
             if self.win_rates is not None:
                 conf = self.win_rates.get(hour, 0.0)
             return {"decision": res, "confidence": conf}
-        return res
+        return res, float(weight)
 
     def save(self, path: str | Path) -> None:
         Path(path).write_text(self.to_json())

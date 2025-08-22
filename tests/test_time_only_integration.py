@@ -19,13 +19,17 @@ def test_train_decide_and_serialize(tmp_path: Path) -> None:
     model = train(df, q_low=0.25, q_high=0.75)
 
     ts = df["time"].iloc[0]
-    assert model.decide(ts, 0.0) == "SELL"
-    assert model.decide(ts, 2.0) == "WAIT"
-    assert model.decide(ts, 3.0) == "BUY"
+    dec, _ = model.decide(ts, 0.0)
+    assert dec == "SELL"
+    dec, _ = model.decide(ts, 2.0)
+    assert dec == "WAIT"
+    dec, _ = model.decide(ts, 3.0)
+    assert dec == "BUY"
 
     artifact = tmp_path / "time_only.json"
     model.save(artifact)
     loaded = TimeOnlyModel.load(artifact)
 
     assert loaded.quantile_gates == model.quantile_gates
-    assert loaded.decide(ts, 3.0) == "BUY"
+    dec, _ = loaded.decide(ts, 3.0)
+    assert dec == "BUY"
