@@ -1,7 +1,7 @@
 import argparse
 import pytest
 
-from forest5.cli import _parse_span_or_list
+from forest5.utils.argparse_ext import _parse_span_or_list
 
 
 def test_parse_span_positive_range():
