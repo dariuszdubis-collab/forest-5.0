@@ -65,6 +65,12 @@ def test_cli_missing_file():
         main(["backtest", "--csv", "no_such_file.csv"])
 
 
+def test_new_case():
+    with pytest.raises(FileNotFoundError) as excinfo:
+        main(["backtest", "--symbol", "EURUSD"])
+    assert str(excinfo.value) == "/home/daro/Fxdata/EURUSD_H1.csv"
+
+
 def test_cli_missing_time_column(tmp_path):
     bad_csv = tmp_path / "bad_time.csv"
     bad_csv.write_text(
