@@ -139,7 +139,8 @@ SUPPORTED_SYMBOLS = [
     "NZDUSD",
     "USDCAD",
     "USDCHF",
-    "XAUUSD",
+    "EURJPY",
+    "EURGBP",
 ]
 
 # Default directory for historical CSV data used by helper functions.
