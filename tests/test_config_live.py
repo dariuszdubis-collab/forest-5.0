@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from forest5.config.loader import load_live_settings
 from forest5.config_live import LiveTimeModelSettings
+from forest5.config.strategy import BaseStrategySettings
 
 
 def test_live_settings_from_yaml(tmp_path: Path):
@@ -33,6 +34,7 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.broker.volume == 1.5  # nosec B101
     assert s.strategy.fast == 10  # nosec B101
     assert s.strategy.timeframe == "1m"  # nosec B101
+    assert isinstance(s.strategy, BaseStrategySettings)
     assert s.time.model.enabled is True  # nosec B101
     assert s.time.model.path == p.parent / "model.onnx"  # nosec B101
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
