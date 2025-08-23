@@ -45,7 +45,9 @@ def test_compute_signal_with_rsi_filter_matches_manual():
     sig = compute_signal(df, s)
 
     base = ema_cross_signal(df["close"], s.strategy.fast, s.strategy.slow)
-    rsi_series = rsi(df["close"], s.strategy.rsi_period)
+    rsi_series = pd.Series(
+        rsi(df["close"].to_numpy(), s.strategy.rsi_period), index=df.index
+    )
     candles = candles_signal(df)
     expected = confirm_with_candles(
         apply_rsi_filter(

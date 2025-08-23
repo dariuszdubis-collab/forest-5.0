@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from unittest.mock import patch
 
@@ -29,7 +30,7 @@ def test_atr_period_override_changes_atr():
     )
     settings = BacktestSettings()
 
-    storage: dict[int, pd.Series] = {}
+    storage: dict[int, np.ndarray] = {}
     with patch("forest5.backtest.engine.atr", side_effect=_capture_atr(storage)):
         run_backtest(df, settings)
     default_atr = storage[settings.atr_period]
@@ -39,4 +40,4 @@ def test_atr_period_override_changes_atr():
         run_backtest(df, settings, atr_period=1)
     override_atr = storage[1]
 
-    assert not override_atr.equals(default_atr)
+    assert not np.array_equal(override_atr, default_atr)

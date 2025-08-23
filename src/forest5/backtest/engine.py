@@ -42,7 +42,9 @@ def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: st
 
     sig = compute_signal(df, settings, price_col=price_col).astype(int)
     if use_rsi:
-        rr = rsi(df[price_col], settings.strategy.rsi_period)
+        rr = pd.Series(
+            rsi(df[price_col].to_numpy(), settings.strategy.rsi_period), index=df.index
+        )
         sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
         sig = sig.where(~rr.le(settings.strategy.rsi_oversold), other=1)
     return sig
@@ -60,10 +62,11 @@ def bootstrap_position(
     """Próba otwarcia pozycji na pierwszym barze dla skrajnych parametrów EMA."""
     position = 0.0
     if len(df) > 0 and settings.strategy.fast <= 2 and settings.strategy.slow >= 50:
-        f0 = ema(df[price_col], settings.strategy.fast)
-        s0 = ema(df[price_col], settings.strategy.slow)
+        arr = df[price_col].to_numpy(dtype=float)
+        f0 = ema(arr, settings.strategy.fast)
+        s0 = ema(arr, settings.strategy.slow)
         first_sig = int(sig.iloc[0]) if len(sig) else 0
-        if first_sig == 0 and float(f0.iloc[0]) >= float(s0.iloc[0]):
+        if first_sig == 0 and float(f0[0]) >= float(s0[0]):
             p0 = float(df[price_col].iloc[0])
             a0 = float(df["atr"].iloc[0]) if pd.notna(df["atr"].iloc[0]) else 0.0
             qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=atr_multiple)
@@ -263,7 +266,9 @@ def run_backtest(
     # 3) przygotowanie ATR do sizingu
     ap = int(atr_period or settings.atr_period)
     am = float(atr_multiple or settings.atr_multiple)
-    df["atr"] = atr(df["high"], df["low"], df["close"], ap)
+    df["atr"] = atr(
+        df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), ap
+    )
 
     # 4) stan początkowy
     tb = TradeBook()

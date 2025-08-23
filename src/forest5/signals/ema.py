@@ -7,10 +7,13 @@ from forest5.core.indicators import ema
 
 
 def ema_cross_signal(close: pd.Series, fast: int, slow: int) -> pd.Series:
-    """Generuje impuls BUY/SELL na realnej zmianie kierunku krzyżowania EMA."""
-    fast_ = ema(close, fast)
-    slow_ = ema(close, slow)
-    direction = pd.Series(np.where(fast_ > slow_, 1, -1), index=close.index, dtype=int)
+    """Generates a BUY/SELL impulse on genuine EMA crossovers."""
+    arr = close.to_numpy(dtype=float)
+    fast_arr = ema(arr, fast)
+    slow_arr = ema(arr, slow)
+    direction = pd.Series(
+        np.where(fast_arr > slow_arr, 1, -1), index=close.index, dtype=int
+    )
 
     # Brak sygnału na pierwszym barze — wymagamy poprzedniej wartości
     changed = direction.ne(direction.shift(1)) & direction.shift(1).notna()

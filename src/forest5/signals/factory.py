@@ -22,7 +22,9 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
     if name == "ema_cross":
         base = ema_cross_signal(df[price_col], strategy.fast, strategy.slow)
         if getattr(strategy, "use_rsi", False):
-            rsi_series = rsi(df[price_col], strategy.rsi_period)
+            rsi_series = pd.Series(
+                rsi(df[price_col].to_numpy(), strategy.rsi_period), index=df.index
+            )
             base = apply_rsi_filter(
                 base,
                 rsi_series,
@@ -39,7 +41,9 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
             getattr(strategy, "signal", 9),
         )
         if getattr(strategy, "use_rsi", False):
-            rsi_series = rsi(df[price_col], strategy.rsi_period)
+            rsi_series = pd.Series(
+                rsi(df[price_col].to_numpy(), strategy.rsi_period), index=df.index
+            )
             base = apply_rsi_filter(
                 base,
                 rsi_series,

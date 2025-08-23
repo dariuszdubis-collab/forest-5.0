@@ -36,7 +36,9 @@ def test_trading_loop_marks_once_per_bar():
 
     df = _validate_data(df, price_col="close")
     sig = _generate_signal(df, settings, price_col="close")
-    df["atr"] = atr(df["high"], df["low"], df["close"], settings.atr_period)
+    df["atr"] = atr(
+        df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), settings.atr_period
+    )
 
     tb = TradeBook()
     rm = RiskManager(**settings.risk.model_dump())
