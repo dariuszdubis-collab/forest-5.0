@@ -26,6 +26,8 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
 ```
 
+Przykładowy wynik krzywej kapitału (`equity`) znajdziesz w pliku [`docs/equity.csv`](docs/equity.csv).
+
 Plik CSV musi zawierać kolumny: `time, open, high, low, close` (opcjonalnie `volume`).
 
 CLI automatycznie wykrywa separator CSV przy użyciu `csv.Sniffer` i szybkiego
