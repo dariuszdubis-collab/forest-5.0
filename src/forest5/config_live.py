@@ -18,7 +18,7 @@ class StrategySettings(BaseModel):
     rsi_period: int = 14
     rsi_overbought: int = 70
     rsi_oversold: int = 30
-    timeframe: str = "1m"
+    timeframe: str = "1h"  # default timeframe is hourly
 
     @field_validator("timeframe")
     @classmethod
@@ -31,7 +31,7 @@ class BrokerSettings(BaseModel):
     bridge_dir: Path | None = None
     symbol: str = "SYMBOL"
     volume: float = 1.0
-    timeframe: str = "1m"
+    timeframe: str = "1h"  # default timeframe is hourly
 
     @field_validator("bridge_dir", mode="before")
     @classmethod
