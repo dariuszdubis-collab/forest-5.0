@@ -139,12 +139,16 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     else:
         # Default dataset path when CSV is not explicitly provided
         csv_path = Path(f"/home/daro/Fxdata/{args.symbol}_H1.csv")
-        if not csv_path.exists():
-            raise FileNotFoundError(csv_path)
+
+    if not csv_path.exists():
+        print(f"CSV file not found: {csv_path}", file=sys.stderr)
+        return 1
+
     df = load_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
 
     settings = BacktestSettings(
         symbol=args.symbol,
+        timeframe="1h",
         strategy={
             "name": "ema_cross",
             "fast": args.fast,
