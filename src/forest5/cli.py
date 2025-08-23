@@ -13,7 +13,7 @@ from forest5.config import BacktestSettings, load_live_settings
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
-from forest5.utils.io import read_ohlc_csv, load_symbol_csv
+from forest5.utils.io import read_ohlc_csv
 from forest5.utils.argparse_ext import PercentAction
 from forest5.utils.log import setup_logger
 
@@ -135,9 +135,12 @@ def _parse_float_list(spec: str | None) -> list[float]:
 
 def cmd_backtest(args: argparse.Namespace) -> int:
     if args.csv:
-        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+        csv_path = Path(args.csv)
     else:
-        df = load_symbol_csv(args.symbol)
+        csv_path = Path(f"/home/daro/Fxdata/{args.symbol}_H1.csv")
+        if not csv_path.exists():
+            raise FileNotFoundError(csv_path)
+    df = load_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
 
     settings = BacktestSettings(
         symbol=args.symbol or "SYMBOL",
@@ -284,7 +287,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt = sub.add_parser(
         "backtest", help="Uruchom pojedynczy backtest", formatter_class=SafeHelpFormatter
     )
-    p_bt.add_argument("--csv", required=True, help="Ścieżka do pliku CSV z danymi OHLC")
+    p_bt.add_argument(
+        "--csv",
+        required=False,
+        default=None,
+        help="Ścieżka do pliku CSV z danymi OHLC",
+    )
     p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
     p_bt.add_argument(
         "--sep",
