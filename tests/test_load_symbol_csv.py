@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from forest5.utils.io import load_symbol_csv
 
 
@@ -25,3 +26,8 @@ def test_load_symbol_csv_no_header(tmp_path):
     assert isinstance(df.index, pd.DatetimeIndex)
     assert df.index.equals(expected)
     assert len(df) == 2
+
+
+def test_load_symbol_csv_rejects_unknown_symbol(tmp_path):
+    with pytest.raises(ValueError):
+        load_symbol_csv("FOOBAR", data_dir=tmp_path)
