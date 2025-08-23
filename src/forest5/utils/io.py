@@ -8,6 +8,20 @@ from ..config import get_data_dir
 
 DATA_DIR = get_data_dir()
 
+# Commonly traded forex symbols supported by the library. The check in
+# ``load_symbol_csv`` ensures that we only load data for known symbols.
+ALLOWED_SYMBOLS = {
+    "AUDUSD",
+    "EURUSD",
+    "EURJPY",
+    "GBPJPY",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY",
+}
+
 
 def read_ohlc_csv(
     path: str | Path,
@@ -159,6 +173,8 @@ def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataF
     """
 
     symbol = symbol.upper()
+    if symbol not in ALLOWED_SYMBOLS:
+        raise ValueError(f"Unknown symbol '{symbol}'")
     data_dir_path = get_data_dir(data_dir)
     path = data_dir_path / f"{symbol}_H1.csv"
     if not path.exists():
