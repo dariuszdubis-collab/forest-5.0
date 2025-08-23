@@ -8,6 +8,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from .backtest.errors import BacktestConfigError
 from .utils.timeframes import normalize_timeframe
+from .config.strategy import BaseStrategySettings
 
 # Default directory with historical CSV data. The path can be overridden via
 # the ``FOREST5_DATA_DIR`` environment variable or an explicit configuration
@@ -47,15 +48,10 @@ def get_data_dir(override: str | Path | None = None) -> Path:
     return DEFAULT_DATA_DIR
 
 
-class StrategySettings(BaseModel):
-    name: Literal["ema_cross", "macd_cross"] = "ema_cross"
-    fast: int = 12
-    slow: int = 26
-    signal: int = 9
-    use_rsi: bool = False
-    rsi_period: int = 14
-    rsi_overbought: int = 70
-    rsi_oversold: int = 30
+class StrategySettings(BaseStrategySettings):
+    """Backtest strategy configuration."""
+
+    pass
 
 
 class OnDrawdownSettings(BaseModel):

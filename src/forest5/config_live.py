@@ -1,23 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .config import RiskSettings, AISettings
+from .config.strategy import BaseStrategySettings
 from .utils.timeframes import normalize_timeframe
 
 
-class StrategySettings(BaseModel):
-    name: Literal["ema_cross", "macd_cross"] = "ema_cross"
-    fast: int = 12
-    slow: int = 26
-    signal: int = 9
-    use_rsi: bool = False
-    rsi_period: int = 14
-    rsi_overbought: int = 70
-    rsi_oversold: int = 30
+class StrategySettings(BaseStrategySettings):
     timeframe: str = "1m"
 
     @field_validator("timeframe")

@@ -1,5 +1,6 @@
 from pathlib import Path
 from forest5.config import BacktestSettings
+from forest5.config.strategy import BaseStrategySettings
 
 
 def test_config_from_yaml(tmp_path: Path):
@@ -20,5 +21,6 @@ def test_config_from_yaml(tmp_path: Path):
     assert s.symbol == "EURUSD"
     assert s.timeframe == "1h"
     assert s.strategy.fast == 10
+    assert isinstance(s.strategy, BaseStrategySettings)
     assert s.risk.initial_capital == 50_000.0
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
