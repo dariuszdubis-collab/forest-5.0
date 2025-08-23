@@ -1,7 +1,7 @@
+"""Unit tests for EMA and ATR indicators."""
+
 import pandas as pd
 from forest5.core.indicators import ema, atr
-
-"""Unit tests for EMA and ATR indicators."""
 
 
 def test_ema_simple():
