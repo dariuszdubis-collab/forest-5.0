@@ -206,6 +206,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.csv:
         df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
     else:
+        # fall back to the default symbol CSV which already points to H1 data
         df = load_symbol_csv(args.symbol)
 
     fast_vals = list(_parse_span_or_list(args.fast_values))

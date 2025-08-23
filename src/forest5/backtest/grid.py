@@ -124,7 +124,7 @@ def run_grid(
             run_debug = base_debug_dir / name
         settings = BacktestSettings(
             symbol=symbol,
-            timeframe="1h",
+            timeframe="1h",  # grid backtests operate on hourly data
             strategy=dict(
                 name="ema_cross",
                 fast=fast,
