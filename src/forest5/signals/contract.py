@@ -27,4 +27,3 @@ class TechnicalSignal:
 
 
 __all__ = ["Action", "TechnicalSignal"]
-
