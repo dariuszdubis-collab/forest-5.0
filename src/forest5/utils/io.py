@@ -10,6 +10,7 @@ def read_ohlc_csv(
     time_col: str | None = None,
     tz: str | None = None,
     sep: str | None = None,
+    has_header: bool = True,
 ) -> pd.DataFrame:
     """Load OHLC CSV used by Forest5 backtests.
 
@@ -31,6 +32,10 @@ def read_ohlc_csv(
         tz-naive (wall-clock) to avoid tz-aware/naive mix-ups downstream.
     sep:
         Optional CSV separator. When ``None`` it will be auto-detected.
+    has_header:
+        Set to ``False`` for files without a header row. The columns are then
+        assumed to be ``time,open,high,low,close,volume`` and the first column
+        is used as the index.
 
     Returns
     -------
@@ -49,23 +54,37 @@ def read_ohlc_csv(
         except csv.Error:
             sep = ","
 
-    df = pd.read_csv(path, sep=sep)
-    # normalise headers
-    df.columns = df.columns.str.strip().str.lower()
+    if has_header:
+        df = pd.read_csv(path, sep=sep)
+        # normalise headers
+        df.columns = df.columns.str.strip().str.lower()
+    else:
+        df = pd.read_csv(
+            path,
+            sep=sep,
+            header=None,
+            names=["time", "open", "high", "low", "close", "volume"],
+            index_col=0,
+        )
+        df.index = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
+        df.index.name = "time"
 
     # normalise time column argument and discover aliases when absent
-    time_col = time_col.lower() if time_col is not None else None
-    if time_col is None:
-        for alias in ("time", "timestamp", "date", "datetime", "dt"):
-            if alias in df.columns:
-                time_col = alias
-                break
+    if has_header:
+        time_col = time_col.lower() if time_col is not None else None
+        if time_col is None:
+            for alias in ("time", "timestamp", "date", "datetime", "dt"):
+                if alias in df.columns:
+                    time_col = alias
+                    break
 
-    if time_col and time_col in df.columns:
-        idx = pd.to_datetime(df[time_col], errors="coerce", utc=False, format="mixed")
-        df = df.drop(columns=[time_col])
+        if time_col and time_col in df.columns:
+            idx = pd.to_datetime(df[time_col], errors="coerce", utc=False, format="mixed")
+            df = df.drop(columns=[time_col])
+        else:
+            idx = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
     else:
-        idx = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
+        idx = df.index
 
     if idx.isna().any():
         bad = int(idx.isna().sum())
@@ -120,10 +139,13 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     Parameters
     ----------
     symbol:
-        Trading symbol, e.g. ``"EURUSD"``.
+        Trading symbol, e.g. ``"EURUSD"``. The input is upper-cased to match
+        common naming conventions.
     data_dir:
         Directory containing ``<symbol>_H1.csv`` files. Defaults to
         :data:`DATA_DIR`.
+        The file is inspected for a header row and the result forwarded to
+        :func:`read_ohlc_csv`.
 
     Returns
     -------
@@ -136,7 +158,17 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
         If the expected CSV file does not exist.
     """
 
+    symbol = symbol.upper()
     path = data_dir / f"{symbol}_H1.csv"
     if not path.exists():
         raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
-    return read_ohlc_csv(path)
+
+    has_header = True
+    try:
+        with open(path, "r", newline="") as f:
+            sample = f.read(4096)
+            has_header = csv.Sniffer().has_header(sample)
+    except csv.Error:
+        pass
+
+    return read_ohlc_csv(path, has_header=has_header)

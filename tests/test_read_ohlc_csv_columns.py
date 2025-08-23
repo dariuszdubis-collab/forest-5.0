@@ -38,3 +38,20 @@ def test_read_ohlc_csv_handles_volume(tmp_path):
     # The second row has an invalid volume and should be dropped
     assert len(out) == 1
     assert out["volume"].iloc[0] == 1
+
+
+def test_read_ohlc_csv_without_header(tmp_path):
+    csv_path = tmp_path / "EURUSD_H1.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "2020-01-01 00:00,1,2,0,1,100",
+                "2020-01-01 01:00,1,2,0,1,200",
+            ]
+        )
+    )
+
+    out = read_ohlc_csv(csv_path, has_header=False)
+    assert list(out.columns) == ["open", "high", "low", "close", "volume"]
+    assert isinstance(out.index, pd.DatetimeIndex)
+    assert len(out) == 2
