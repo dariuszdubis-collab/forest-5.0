@@ -15,6 +15,13 @@ def test_load_symbol_csv_no_header(tmp_path):
     )
 
     df = load_symbol_csv("eurusd", data_dir=data_dir)
+    expected = pd.to_datetime(
+        [
+            "2020-01-01 00:00",
+            "2020-01-01 01:00",
+        ]
+    )
     assert list(df.columns) == ["open", "high", "low", "close", "volume"]
     assert isinstance(df.index, pd.DatetimeIndex)
+    assert df.index.equals(expected)
     assert len(df) == 2
