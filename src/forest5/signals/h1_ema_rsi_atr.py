@@ -149,4 +149,3 @@ def h1_ema_rsi_atr(df: pd.DataFrame, params: Any | None = None) -> TechnicalSign
 
 
 __all__ = ["h1_ema_rsi_atr"]
-
