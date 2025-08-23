@@ -3,8 +3,7 @@
 import pandas as pd
 from forest5.core.indicators import ema, atr
 
-
-def test_ema_simple():
+def test_ema_simple():  # fmt: skip
     s = pd.Series([1, 2, 3, 4, 5])
     e = ema(s, 2)
     assert e.isna().sum() == 0
