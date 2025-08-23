@@ -1,6 +1,8 @@
 import pandas as pd
 from forest5.core.indicators import ema, atr
 
+"""Unit tests for EMA and ATR indicators."""
+
 
 def test_ema_simple():
     s = pd.Series([1, 2, 3, 4, 5])
