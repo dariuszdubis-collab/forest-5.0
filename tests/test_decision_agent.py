@@ -2,6 +2,7 @@ from datetime import datetime
 
 from forest5.decision import DecisionAgent, DecisionConfig
 from forest5.time_only import TimeOnlyModel
+from forest5.signals.contract import TechnicalSignal
 
 
 def test_decision_agent_waits_when_time_model_waits() -> None:
@@ -58,4 +59,27 @@ def test_decision_agent_respects_confluence_threshold() -> None:
         "BUY",
         {"tech": 1, "time": 1, "ai": 0},
         "buy_majority",
+    )
+
+
+def test_decision_agent_accepts_mapping_and_dataclass() -> None:
+    ts = datetime(2024, 1, 1)
+    agent = DecisionAgent()
+
+    mapping_signal = {"action": 1, "technical_score": 1.0, "confidence_tech": 1.0}
+    res = agent.decide(ts, tech_signal=mapping_signal, value=0.0, symbol="EURUSD")
+    assert (res.decision, res.votes, res.reason, res.weight) == (
+        "BUY",
+        {"tech": 1, "time": 0, "ai": 0},
+        "buy_majority",
+        1.0,
+    )
+
+    sig = TechnicalSignal(action=-1, technical_score=-1.5, confidence_tech=1.0)
+    res2 = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
+    assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
+        "SELL",
+        {"tech": -1, "time": 0, "ai": 0},
+        "sell_majority",
+        1.5,
     )

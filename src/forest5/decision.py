@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
+from typing import Mapping
 
 import pandas as pd
 
@@ -68,16 +69,41 @@ class DecisionAgent:
     def decide(
         self,
         ts: pd.Timestamp,
-        tech_signal: int,
+        tech_signal: int | Mapping[str, object],
         value: float,
         symbol: str,
         context_text: str = "",
     ) -> DecisionResult:
-        votes: dict[str, tuple[int, float]] = {
-            "tech": (_to_sign(tech_signal), 1.0),
-            "time": (0, 0.0),
-            "ai": (0, 0.0),
-        }
+        if isinstance(tech_signal, Mapping) or is_dataclass(tech_signal):
+            action = (
+                tech_signal.get("action", 0)
+                if isinstance(tech_signal, Mapping)
+                else getattr(tech_signal, "action", 0)
+            )
+            tech_score = (
+                tech_signal.get("technical_score", action)
+                if isinstance(tech_signal, Mapping)
+                else getattr(tech_signal, "technical_score", action)
+            )
+            confidence = (
+                tech_signal.get("confidence_tech", 1.0)
+                if isinstance(tech_signal, Mapping)
+                else getattr(tech_signal, "confidence_tech", 1.0)
+            )
+            votes: dict[str, tuple[int, float]] = {
+                "tech": (
+                    _to_sign(action if action else tech_score),
+                    abs(float(tech_score)) * float(confidence),
+                ),
+                "time": (0, 0.0),
+                "ai": (0, 0.0),
+            }
+        else:
+            votes: dict[str, tuple[int, float]] = {
+                "tech": (_to_sign(int(tech_signal)), 1.0),
+                "time": (0, 0.0),
+                "ai": (0, 0.0),
+            }
 
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
