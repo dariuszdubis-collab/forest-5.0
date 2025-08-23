@@ -6,6 +6,8 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
+from .backtest.errors import BacktestConfigError
+from .utils.timeframes import normalize_timeframe
 
 # Default directory with historical CSV data. The path can be overridden via
 # the ``FOREST5_DATA_DIR`` environment variable or an explicit configuration
@@ -43,9 +45,6 @@ def get_data_dir(override: str | Path | None = None) -> Path:
         return Path(env)
 
     return DEFAULT_DATA_DIR
-
-from .backtest.errors import BacktestConfigError
-from .utils.timeframes import normalize_timeframe
 
 
 class StrategySettings(BaseModel):
