@@ -24,6 +24,7 @@ dist/
 # outputs
 out/
 *.csv
+!docs/equity.csv
 
 # caches
 __pycache__/
