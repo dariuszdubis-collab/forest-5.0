@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from types import SimpleNamespace
 
 from forest5.config import BacktestSettings
 
@@ -9,6 +10,8 @@ from forest5.signals.ema import ema_cross_signal
 from forest5.core.indicators import rsi
 from forest5.signals.candles import candles_signal
 from forest5.signals.combine import apply_rsi_filter, confirm_with_candles
+from forest5.signals.factory import compute_signal
+from forest5.signals.contract import TechnicalSignal
 
 
 def test_compute_signal_ema_cross_basic():
@@ -88,3 +91,27 @@ def test_compute_signal_unknown_strategy_raises():
 
     with pytest.raises(ValueError, match="Unknown strategy"):
         compute_signal_compat(df, s)
+
+
+def _h1_settings(**kwargs):
+    strat = SimpleNamespace(name="h1_ema_rsi_atr", params=None, compat_int=False)
+    for k, v in kwargs.items():
+        setattr(strat, k, v)
+    return SimpleNamespace(strategy=strat)
+
+
+def test_compute_signal_h1_returns_contract():
+    df = generate_ohlc(periods=100, start_price=100.0)
+    s = _h1_settings()
+    sig = compute_signal(df, s)
+    assert isinstance(sig, TechnicalSignal)
+
+
+def test_compute_signal_h1_compat_int():
+    df = generate_ohlc(periods=100, start_price=100.0)
+    s = _h1_settings(compat_int=True)
+    sig = compute_signal(df, s)
+    assert isinstance(sig, int) and sig in (-1, 0, 1)
+    series = compute_signal_compat(df, s)
+    assert list(series.index) == [df.index[-1]]  # nosec B101
+    assert set(series.unique()).issubset({-1, 0, 1})  # nosec B101
