@@ -26,6 +26,18 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
 ```
 
+## Pre-commit
+
+Do automatycznego sprawdzania stylu i bezpieczeństwa używamy narzędzia
+[pre-commit](https://pre-commit.com).
+
+```bash
+pip install pre-commit
+pre-commit install
+# uruchom wszystkie hooki na całym repozytorium
+pre-commit run --all-files
+```
+
 Przykładowy wynik krzywej kapitału (`equity`) znajdziesz w pliku [`docs/equity.csv`](docs/equity.csv).
 
 Plik CSV musi zawierać kolumny: `time, open, high, low, close` (opcjonalnie `volume`).
