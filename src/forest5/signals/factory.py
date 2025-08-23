@@ -8,9 +8,13 @@ from .candles import candles_signal
 from .combine import apply_rsi_filter, confirm_with_candles
 from .ema import ema_cross_signal
 from .macd import macd_cross_signal
+from .h1_ema_rsi_atr import h1_ema_rsi_atr
+from .contract import TechnicalSignal
 
 
-def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.Series:
+def compute_signal(
+    df: pd.DataFrame, settings, price_col: str = "close"
+) -> pd.Series | TechnicalSignal:
     """Generate trading signal without mutating the input settings."""
 
     strategy = copy.deepcopy(settings.strategy)
@@ -48,4 +52,6 @@ def compute_signal(df: pd.DataFrame, settings, price_col: str = "close") -> pd.S
             )
         candles = candles_signal(df)
         return confirm_with_candles(base, candles)
+    if name == "h1_ema_rsi_atr":
+        return h1_ema_rsi_atr(df, strategy)
     raise ValueError(f"Unknown strategy: {name}")
