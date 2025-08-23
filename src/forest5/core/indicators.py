@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 
 
+__all__ = ["ema", "atr", "rsi", "atr_offset"]
+
+
 def ema(x: pd.Series, period: int) -> pd.Series:
     return x.ewm(span=period, adjust=False, min_periods=1).mean()
 
@@ -31,3 +34,7 @@ def rsi(close: pd.Series, period: int) -> pd.Series:
     roll_down = down.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
     rs = roll_up / roll_down.replace(0.0, np.nan)
     return 100.0 - (100.0 / (1.0 + rs))
+
+
+def atr_offset(value: float, k: float) -> float:
+    return value * k
