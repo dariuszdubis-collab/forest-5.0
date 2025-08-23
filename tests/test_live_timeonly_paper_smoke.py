@@ -10,6 +10,7 @@ import pytest
 from forest5.decision import DecisionAgent, DecisionResult
 from forest5.live.live_runner import run_live
 from forest5.live.settings import LiveSettings, BrokerSettings, DecisionSettings, TimeSettings
+from forest5.config_live import StrategySettings
 
 
 def _write_min_bridge(tmp_path: Path) -> Path:
@@ -36,7 +37,14 @@ def test_live_timeonly_paper_smoke(tmp_path: Path, monkeypatch, capfd) -> None:
     monkeypatch.setattr(DecisionAgent, "decide", fake_decide)
 
     settings = LiveSettings(
-        broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
+        broker=BrokerSettings(
+            type="paper",
+            bridge_dir=str(bridge),
+            symbol="EURUSD",
+            volume=0.01,
+            timeframe="1m",
+        ),
+        strategy=StrategySettings(timeframe="1m"),
         decision=DecisionSettings(min_confluence=1.0),
         time=TimeSettings(),
     )
