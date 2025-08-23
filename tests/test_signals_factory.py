@@ -115,3 +115,24 @@ def test_compute_signal_h1_compat_int():
     series = compute_signal_compat(df, s)
     assert list(series.index) == [df.index[-1]]  # nosec B101
     assert set(series.unique()).issubset({-1, 0, 1})  # nosec B101
+
+
+def test_compute_signal_compat_handles_contract():
+    df = generate_ohlc(periods=100, start_price=100.0)
+    s = _h1_settings()
+    series = compute_signal_compat(df, s)
+    assert list(series.index) == list(df.index)  # nosec B101
+    assert set(series.unique()).issubset({-1, 0, 1})  # nosec B101
+
+
+def test_compute_signal_compat_accepts_mapping(monkeypatch):
+    df = generate_ohlc(periods=10, start_price=100.0)
+    s = BacktestSettings()
+
+    def fake_compute(df, settings, price_col="close"):
+        return {"action": "BUY"}
+
+    monkeypatch.setattr("forest5.signals.compat.compute_signal", fake_compute)
+    series = compute_signal_compat(df, s)
+    assert list(series.index) == list(df.index)  # nosec B101
+    assert series.iloc[-1] == 1  # nosec B101
