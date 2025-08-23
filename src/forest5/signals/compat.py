@@ -1,27 +1,44 @@
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 import pandas as pd
 
 from .factory import compute_signal
 from .contract import TechnicalSignal
 
 
-def contract_to_int(signal: TechnicalSignal) -> int:
-    """Convert a :class:`TechnicalSignal` to ``-1``, ``0`` or ``1``.
+def contract_to_int(signal: Any) -> int:
+    """Convert signal ``action`` to ``-1``, ``0`` or ``1``.
 
-    Any non-positive/negative action is clamped to the allowed range.
+    The mapping follows::
+
+        BUY  ->  1
+        SELL -> -1
+        other -> 0
+
+    ``signal`` may be a :class:`TechnicalSignal`, a mapping, or a plain action
+    value.
     """
-    action = getattr(signal, "action", 0)
+
+    action: Any
+    if isinstance(signal, TechnicalSignal):
+        action = signal.action
+    elif isinstance(signal, Mapping):
+        action = signal.get("action", 0)
+    else:
+        action = signal
+
     if isinstance(action, str):
-        action = action.upper()
-        if action == "BUY":
-            return 1
-        if action == "SELL":
-            return -1
+        return {"BUY": 1, "SELL": -1}.get(action.upper(), 0)
+
+    try:
+        val = float(action)
+    except Exception:
         return 0
-    if action > 0:
+    if val > 0:
         return 1
-    if action < 0:
+    if val < 0:
         return -1
     return 0
 
@@ -39,12 +56,13 @@ def compute_signal_compat(
     res = compute_signal(df, settings, price_col=price_col)
     if isinstance(res, pd.Series):
         return res.astype("int8")
-    if isinstance(res, TechnicalSignal):
-        import numpy as np
 
+    import numpy as np
+
+    if isinstance(res, (TechnicalSignal, Mapping)):
         arr = np.zeros(len(df), dtype=np.int8)
         if len(df):
             arr[-1] = contract_to_int(res)
         return pd.Series(arr, index=df.index, dtype="int8")
-    # Fallback for scalar values
-    return pd.Series([int(res)], index=df.index[-1:], dtype="int8")
+
+    return pd.Series([contract_to_int(res)], index=df.index[-1:], dtype="int8")
