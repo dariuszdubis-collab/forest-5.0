@@ -129,6 +129,19 @@ def read_ohlc_csv(
     return df.sort_index()
 
 
+# Supported trading symbols. The list is intentionally short and can be
+# expanded as the project grows.
+SUPPORTED_SYMBOLS = [
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "AUDUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "XAUUSD",
+]
+
 # Default directory for historical CSV data used by helper functions.
 DATA_DIR = Path("/home/daro/Fxdata")
 
@@ -159,6 +172,10 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """
 
     symbol = symbol.upper()
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise ValueError(
+            f"Unsupported symbol '{symbol}'. Supported symbols: {', '.join(SUPPORTED_SYMBOLS)}"
+        )
     path = data_dir / f"{symbol}_H1.csv"
     if not path.exists():
         raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
