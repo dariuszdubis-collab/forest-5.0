@@ -9,7 +9,13 @@ from typing import Optional
 
 import pandas as pd
 
-from forest5.config import BacktestSettings, load_live_settings
+from forest5.config import (
+    ALLOWED_SYMBOLS,
+    BacktestSettings,
+    DEFAULT_DATA_DIR,
+    get_data_dir,
+    load_live_settings,
+)
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
@@ -137,8 +143,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     if args.csv is not None:
         csv_path = Path(args.csv)
     else:
-        # Default dataset path when CSV is not explicitly provided
-        csv_path = Path(f"/home/daro/Fxdata/{args.symbol}_H1.csv")
+        data_dir = get_data_dir(args.data_dir)
+        csv_path = data_dir / f"{args.symbol}_H1.csv"
 
     if not csv_path.exists():
         print(f"CSV file not found: {csv_path}", file=sys.stderr)
@@ -206,7 +212,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.csv:
         df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
     else:
-        df = load_symbol_csv(args.symbol)
+        df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
 
     fast_vals = list(_parse_span_or_list(args.fast_values))
     slow_vals = list(_parse_span_or_list(args.slow_values))
@@ -298,7 +304,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Ścieżka do pliku CSV z danymi OHLC (jeśli brak, szuka automatycznie "
-            "w /home/daro/Fxdata/<SYMBOL>_H1.csv)"
+            f"w {DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv)"
+        ),
+    )
+    p_bt.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help=(
+            f"Katalog z danymi OHLC (domyślnie {DEFAULT_DATA_DIR}, można nadpisać "
+            "zmienną FOREST5_DATA_DIR)"
         ),
     )
     p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
@@ -310,9 +325,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument(
         "--symbol",
         required=True,
+        choices=ALLOWED_SYMBOLS,
         help=(
             "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
-            "/home/daro/Fxdata/<SYMBOL>_H1.csv"
+            f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
         ),
     )
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
@@ -351,7 +367,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Ścieżka do pliku CSV z danymi OHLC (jeśli brak, szuka automatycznie "
-            "w /home/daro/Fxdata/<SYMBOL>_H1.csv)"
+            f"w {DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv)"
+        ),
+    )
+    p_gr.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help=(
+            f"Katalog z danymi OHLC (domyślnie {DEFAULT_DATA_DIR}, można nadpisać "
+            "zmienną FOREST5_DATA_DIR)"
         ),
     )
     p_gr.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
@@ -363,9 +388,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument(
         "--symbol",
         required=True,
+        choices=ALLOWED_SYMBOLS,
         help=(
             "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
-            "/home/daro/Fxdata/<SYMBOL>_H1.csv"
+            f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
         ),
     )
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")

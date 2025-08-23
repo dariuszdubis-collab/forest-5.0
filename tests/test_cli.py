@@ -3,6 +3,7 @@ import pytest
 
 from forest5.cli import build_parser, main
 from forest5.config_live import LiveSettings
+from forest5.config import DEFAULT_DATA_DIR
 
 
 def _write_csv(path):
@@ -75,7 +76,8 @@ def test_new_case(capfd):
     rc = main(["backtest", "--symbol", "EURUSD"])
     assert rc == 1
     err = capfd.readouterr().err
-    assert "/home/daro/Fxdata/EURUSD_H1.csv" in err
+    expected = str(DEFAULT_DATA_DIR / "EURUSD_H1.csv")
+    assert expected in err
 
 
 def test_cli_missing_time_column(tmp_path):

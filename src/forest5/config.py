@@ -1,13 +1,50 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
-
 from .backtest.errors import BacktestConfigError
 from .utils.timeframes import normalize_timeframe
+
+# Default directory with historical CSV data. The path can be overridden via
+# the ``FOREST5_DATA_DIR`` environment variable or an explicit configuration
+# parameter passed to helper functions.
+DEFAULT_DATA_DIR = Path("/home/daro/Fxdata")
+
+# Commonly traded forex symbols. ``--symbol`` arguments in the CLI are
+# restricted to this list.
+ALLOWED_SYMBOLS = [
+    "AUDUSD",
+    "EURUSD",
+    "EURJPY",
+    "GBPJPY",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY",
+]
+
+
+def get_data_dir(override: str | Path | None = None) -> Path:
+    """Return directory with OHLC CSV data.
+
+    Priority order:
+    ``override`` argument > ``FOREST5_DATA_DIR`` environment variable >
+    :data:`DEFAULT_DATA_DIR`.
+    """
+
+    if override is not None:
+        return Path(override)
+
+    env = os.environ.get("FOREST5_DATA_DIR")
+    if env:
+        return Path(env)
+
+    return DEFAULT_DATA_DIR
 
 
 class StrategySettings(BaseModel):

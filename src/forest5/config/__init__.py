@@ -42,6 +42,10 @@ for _name in [
     _cls.__module__ = __name__
     globals()[_name] = _cls
 
+DEFAULT_DATA_DIR = _legacy.DEFAULT_DATA_DIR
+ALLOWED_SYMBOLS = _legacy.ALLOWED_SYMBOLS
+get_data_dir = _legacy.get_data_dir
+
 from .loader import load_live_settings  # noqa: E402
 
 __all__ = [
@@ -54,4 +58,7 @@ __all__ = [
     "BacktestTimeModelSettings",
     "BacktestTimeSettings",
     "BacktestSettings",
+    "DEFAULT_DATA_DIR",
+    "ALLOWED_SYMBOLS",
+    "get_data_dir",
 ]

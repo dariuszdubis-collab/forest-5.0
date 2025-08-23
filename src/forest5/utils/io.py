@@ -4,6 +4,10 @@ import csv
 from pathlib import Path
 import pandas as pd
 
+from ..config import get_data_dir
+
+DATA_DIR = get_data_dir()
+
 
 def read_ohlc_csv(
     path: str | Path,
@@ -129,11 +133,7 @@ def read_ohlc_csv(
     return df.sort_index()
 
 
-# Default directory for historical CSV data used by helper functions.
-DATA_DIR = Path("/home/daro/Fxdata")
-
-
-def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
+def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataFrame:
     """Load OHLC data for ``symbol`` from ``data_dir``.
 
     Parameters
@@ -142,8 +142,8 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
         Trading symbol, e.g. ``"EURUSD"``. The input is upper-cased to match
         common naming conventions.
     data_dir:
-        Directory containing ``<symbol>_H1.csv`` files. Defaults to
-        :data:`DATA_DIR`.
+        Directory containing ``<symbol>_H1.csv`` files. When ``None`` the
+        location is resolved via :func:`forest5.config.get_data_dir`.
         The file is inspected for a header row and the result forwarded to
         :func:`read_ohlc_csv`.
 
@@ -159,7 +159,8 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """
 
     symbol = symbol.upper()
-    path = data_dir / f"{symbol}_H1.csv"
+    data_dir_path = get_data_dir(data_dir)
+    path = data_dir_path / f"{symbol}_H1.csv"
     if not path.exists():
         raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
 
