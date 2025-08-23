@@ -134,9 +134,10 @@ def _parse_float_list(spec: str | None) -> list[float]:
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
-    if args.csv:
+    if args.csv is not None:
         csv_path = Path(args.csv)
     else:
+        # Default dataset path when CSV is not explicitly provided
         csv_path = Path(f"/home/daro/Fxdata/{args.symbol}_H1.csv")
         if not csv_path.exists():
             raise FileNotFoundError(csv_path)
