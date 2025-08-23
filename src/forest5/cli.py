@@ -286,6 +286,43 @@ def cmd_live(args: argparse.Namespace) -> int:
 # --------------------------------- Parser ------------------------------------
 
 
+def add_data_source_args(parser: argparse.ArgumentParser) -> None:
+    """Add common data source options to a parser."""
+    parser.add_argument(
+        "--csv",
+        required=False,
+        default=None,
+        help=(
+            "Ścieżka do pliku CSV z danymi OHLC (jeśli brak, szuka automatycznie "
+            f"w {DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv)"
+        ),
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help=(
+            f"Katalog z danymi OHLC (domyślnie {DEFAULT_DATA_DIR}, można nadpisać "
+            "zmienną FOREST5_DATA_DIR)"
+        ),
+    )
+    parser.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
+    parser.add_argument(
+        "--sep",
+        default=None,
+        help="Separator CSV (np. ';'). Brak = autodetekcja",
+    )
+    parser.add_argument(
+        "--symbol",
+        required=True,
+        choices=ALLOWED_SYMBOLS,
+        help=(
+            "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
+            f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forest5",
@@ -298,39 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt = sub.add_parser(
         "backtest", help="Uruchom pojedynczy backtest", formatter_class=SafeHelpFormatter
     )
-    p_bt.add_argument(
-        "--csv",
-        required=False,
-        default=None,
-        help=(
-            "Ścieżka do pliku CSV z danymi OHLC (jeśli brak, szuka automatycznie "
-            f"w {DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv)"
-        ),
-    )
-    p_bt.add_argument(
-        "--data-dir",
-        type=Path,
-        default=None,
-        help=(
-            f"Katalog z danymi OHLC (domyślnie {DEFAULT_DATA_DIR}, można nadpisać "
-            "zmienną FOREST5_DATA_DIR)"
-        ),
-    )
-    p_bt.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
-    p_bt.add_argument(
-        "--sep",
-        default=None,
-        help="Separator CSV (np. ';'). Brak = autodetekcja",
-    )
-    p_bt.add_argument(
-        "--symbol",
-        required=True,
-        choices=ALLOWED_SYMBOLS,
-        help=(
-            "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
-            f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
-        ),
-    )
+    add_data_source_args(p_bt)
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
     p_bt.add_argument("--slow", type=int, default=26, help="Wolna EMA")
 
@@ -361,39 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr = sub.add_parser(
         "grid", help="Przeszukiwanie parametrów", formatter_class=SafeHelpFormatter
     )
-    p_gr.add_argument(
-        "--csv",
-        required=False,
-        default=None,
-        help=(
-            "Ścieżka do pliku CSV z danymi OHLC (jeśli brak, szuka automatycznie "
-            f"w {DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv)"
-        ),
-    )
-    p_gr.add_argument(
-        "--data-dir",
-        type=Path,
-        default=None,
-        help=(
-            f"Katalog z danymi OHLC (domyślnie {DEFAULT_DATA_DIR}, można nadpisać "
-            "zmienną FOREST5_DATA_DIR)"
-        ),
-    )
-    p_gr.add_argument("--time-col", default=None, help="Nazwa kolumny czasu (opcjonalnie)")
-    p_gr.add_argument(
-        "--sep",
-        default=None,
-        help="Separator CSV (np. ';'). Brak = autodetekcja",
-    )
-    p_gr.add_argument(
-        "--symbol",
-        required=True,
-        choices=ALLOWED_SYMBOLS,
-        help=(
-            "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
-            f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
-        ),
-    )
+    add_data_source_args(p_gr)
     p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
     p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
     p_gr.add_argument("--strategy", default=None, help="Nazwa strategii")

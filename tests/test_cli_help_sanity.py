@@ -21,3 +21,21 @@ def test_backtest_help(capsys):
 
 def test_live_help(capsys):
     _run_and_capture(["live", "--help"], capsys)
+
+
+def _get_data_source_opts(help_text: str) -> list[str]:
+    target = ("--csv", "--data-dir", "--time-col", "--sep", "--symbol")
+    lines = []
+    for line in help_text.splitlines():
+        line = line.strip()
+        if line.startswith("usage:"):
+            continue
+        if any(t in line for t in target):
+            lines.append(" ".join(line.split()))
+    return lines
+
+
+def test_backtest_and_grid_data_source_options_identical(capsys):
+    bt = _run_and_capture(["backtest", "--help"], capsys)
+    gr = _run_and_capture(["grid", "--help"], capsys)
+    assert _get_data_source_opts(bt) == _get_data_source_opts(gr)
