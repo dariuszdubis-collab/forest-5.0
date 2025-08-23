@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Signal combining EMA trend gate, pullback and RSI trigger.
 
 This module exposes a helper returning a :class:`TechnicalSignal` describing a
@@ -21,6 +19,8 @@ levels are derived from the ATR (1× for SL and 2× for TP).  If conditions are
 not met a neutral ``TechnicalSignal`` is returned.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import pandas as pd
@@ -39,9 +39,7 @@ class Parameters:
     tp_mul: float = 2.0
 
 
-def h1_ema_rsi_atr(
-    df: pd.DataFrame, params: Parameters | None = None
-) -> TechnicalSignal:
+def h1_ema_rsi_atr(df: pd.DataFrame, params: Parameters | None = None) -> TechnicalSignal:
     """Generate a signal based on EMA trend gate, pullback and RSI trigger.
 
     Parameters
