@@ -4,7 +4,7 @@ import pytest
 from forest5.config import BacktestSettings
 
 from forest5.examples.synthetic import generate_ohlc
-from forest5.signals.factory import compute_signal
+from forest5.signals.compat import compute_signal_compat
 from forest5.signals.ema import ema_cross_signal
 from forest5.core.indicators import rsi
 from forest5.signals.candles import candles_signal
@@ -14,7 +14,7 @@ from forest5.signals.combine import apply_rsi_filter, confirm_with_candles
 def test_compute_signal_ema_cross_basic():
     df = generate_ohlc(periods=60, start_price=100.0)
     s = BacktestSettings()  # default ema_cross
-    sig = compute_signal(df, s)
+    sig = compute_signal_compat(df, s)
 
     assert list(sig.index) == list(df.index)  # nosec B101
     assert set(sig.unique()).issubset({-1, 0, 1})  # nosec B101
@@ -28,7 +28,7 @@ def test_compute_signal_does_not_mutate_settings(alias):
     s.strategy.name = alias
     s.strategy.use_rsi = False
 
-    sig = compute_signal(df, s)
+    sig = compute_signal_compat(df, s)
 
     assert s.strategy.name == alias  # nosec B101
     assert s.strategy.use_rsi is False  # nosec B101
@@ -42,7 +42,7 @@ def test_compute_signal_with_rsi_filter_matches_manual():
     s = BacktestSettings()
     s.strategy.use_rsi = True
 
-    sig = compute_signal(df, s)
+    sig = compute_signal_compat(df, s)
 
     base = ema_cross_signal(df["close"], s.strategy.fast, s.strategy.slow)
     rsi_series = rsi(df["close"], s.strategy.rsi_period)
@@ -73,7 +73,7 @@ def test_compute_signal_macd_cross_basic():
     s.strategy.slow = 6
     s.strategy.signal = 3
 
-    sig = compute_signal(df, s)
+    sig = compute_signal_compat(df, s)
 
     assert list(sig.index) == list(df.index)  # nosec B101
     assert set(sig.unique()).issubset({-1, 0, 1})  # nosec B101
@@ -87,4 +87,4 @@ def test_compute_signal_unknown_strategy_raises():
     s.strategy.name = "foobar"
 
     with pytest.raises(ValueError, match="Unknown strategy"):
-        compute_signal(df, s)
+        compute_signal_compat(df, s)

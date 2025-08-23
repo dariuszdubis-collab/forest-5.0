@@ -5,7 +5,7 @@ import timeit
 import pandas as pd
 
 from forest5.live.live_runner import run_live, _append_bar_and_signal
-from forest5.signals.factory import compute_signal
+from forest5.signals.compat import compute_signal_compat
 from forest5.live.settings import (
     LiveSettings,
     BrokerSettings,
@@ -61,7 +61,7 @@ def test_incremental_signal_perf():
             bar["open"] = bar["high"] = bar["low"] = bar["close"] = 1 + 0.0001 * i
             idx = pd.to_datetime(bar["start"], unit="s")
             df.loc[idx] = [bar["open"], bar["high"], bar["low"], bar["close"]]
-            compute_signal(df, settings, "close").iloc[-1]
+            compute_signal_compat(df, settings, "close").iloc[-1]
 
     def incremental() -> None:
         df = pd.DataFrame(columns=["open", "high", "low", "close"])
