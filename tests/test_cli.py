@@ -118,3 +118,9 @@ def test_cli_live(tmp_path, monkeypatch):
     assert isinstance(captured["settings"], LiveSettings)
     assert captured["settings"].broker.type == "paper"
     assert captured["settings"].broker.symbol == "EURUSD"
+
+
+def test_new_case():
+    with pytest.raises(FileNotFoundError, match="/home/daro/Fxdata/EURUSD_H1.csv"):
+        main(["backtest", "--symbol", "EURUSD"])
+
