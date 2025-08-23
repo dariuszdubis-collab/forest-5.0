@@ -56,7 +56,7 @@ def _to_params(params: Any | None) -> dict[str, Any]:
     return {**DEFAULT_PARAMS, **vars(params)}
 
 
-def h1_ema_rsi_atr(df: pd.DataFrame, params: Any | None = None) -> TechnicalSignal:
+def compute_primary_signal_h1(df: pd.DataFrame, params: Any | None = None) -> TechnicalSignal:
     """Compute H1 EMA/RSI/ATR signal.
 
     Parameters
@@ -148,4 +148,4 @@ def h1_ema_rsi_atr(df: pd.DataFrame, params: Any | None = None) -> TechnicalSign
     )
 
 
-__all__ = ["h1_ema_rsi_atr"]
+__all__ = ["compute_primary_signal_h1"]

@@ -8,7 +8,7 @@ from .candles import candles_signal
 from .combine import apply_rsi_filter, confirm_with_candles
 from .ema import ema_cross_signal
 from .macd import macd_cross_signal
-from .h1_ema_rsi_atr import h1_ema_rsi_atr
+from .h1_ema_rsi_atr import compute_primary_signal_h1
 from .contract import TechnicalSignal
 
 
@@ -53,5 +53,11 @@ def compute_signal(
         candles = candles_signal(df)
         return confirm_with_candles(base, candles)
     if name == "h1_ema_rsi_atr":
-        return h1_ema_rsi_atr(df, strategy)
+        params = getattr(strategy, "params", None)
+        res = compute_primary_signal_h1(df, params)
+        if getattr(strategy, "compat_int", False):
+            from .compat import contract_to_int
+
+            return contract_to_int(res)
+        return res
     raise ValueError(f"Unknown strategy: {name}")

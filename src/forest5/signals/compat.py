@@ -12,6 +12,13 @@ def contract_to_int(signal: TechnicalSignal) -> int:
     Any non-positive/negative action is clamped to the allowed range.
     """
     action = getattr(signal, "action", 0)
+    if isinstance(action, str):
+        action = action.upper()
+        if action == "BUY":
+            return 1
+        if action == "SELL":
+            return -1
+        return 0
     if action > 0:
         return 1
     if action < 0:
