@@ -1,4 +1,7 @@
 import pandas as pd
+import pytest
+
+from forest5.cli import load_ohlc_csv
 from forest5.utils.io import read_ohlc_csv
 
 
@@ -55,3 +58,20 @@ def test_read_ohlc_csv_without_header(tmp_path):
     assert list(out.columns) == ["open", "high", "low", "close", "volume"]
     assert isinstance(out.index, pd.DatetimeIndex)
     assert len(out) == 2
+
+
+def test_load_ohlc_csv_rejects_non_hourly_index(tmp_path):
+    df = pd.DataFrame(
+        {
+            "time": ["2020-01-01 00:00", "2020-01-01 00:30"],
+            "open": [1, 2],
+            "high": [1, 2],
+            "low": [1, 2],
+            "close": [1, 2],
+        }
+    )
+    csv_path = tmp_path / "bad_freq.csv"
+    df.to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="1H"):
+        load_ohlc_csv(csv_path)

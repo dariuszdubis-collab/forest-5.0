@@ -40,10 +40,45 @@ class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawText
 # ---------------------------- CSV loading helpers ----------------------------
 
 
+def assert_h1_ohlc(df: pd.DataFrame) -> None:
+    """Ensure ``df`` contains hourly OHLC data.
+
+    Parameters
+    ----------
+    df:
+        Data indexed by :class:`~pandas.DatetimeIndex`.
+
+    Raises
+    ------
+    ValueError
+        If the index step is not 1 hour or columns differ from the
+        expected ``open/high/low/close`` set with optional ``volume``.
+    """
+
+    expected = ["open", "high", "low", "close"]
+    allowed = expected + ["volume"]
+
+    cols = list(df.columns)
+    if cols not in (expected, allowed):
+        raise ValueError(
+            "Data must contain columns 'open', 'high', 'low', 'close'" " with optional 'volume'"
+        )
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("Index must be DatetimeIndex with 1H step")
+
+    if len(df.index) > 1:
+        deltas = df.index.to_series().diff().dropna()
+        if not (deltas == pd.Timedelta(hours=1)).all():
+            raise ValueError("Index must have 1H frequency")
+
+
 def load_ohlc_csv(
     path: str | Path, time_col: Optional[str] = None, sep: Optional[str] = None
 ) -> pd.DataFrame:
-    return read_ohlc_csv(path, time_col=time_col, sep=sep)
+    df = read_ohlc_csv(path, time_col=time_col, sep=sep)
+    assert_h1_ohlc(df)
+    return df
 
 
 # ------------------------------- CLI commands --------------------------------
@@ -213,6 +248,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
     else:
         df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
+
+    assert_h1_ohlc(df)
 
     fast_vals = list(_parse_span_or_list(args.fast_values))
     slow_vals = list(_parse_span_or_list(args.slow_values))
