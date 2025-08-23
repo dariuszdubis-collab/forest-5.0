@@ -64,15 +64,18 @@ def test_cli_grid(tmp_path, monkeypatch):
     assert rc == 0
 
 
-def test_cli_missing_file():
-    with pytest.raises(FileNotFoundError):
-        main(["backtest", "--csv", "no_such_file.csv", "--symbol", "EURUSD"])
+def test_cli_missing_file(capfd):
+    rc = main(["backtest", "--csv", "no_such_file.csv", "--symbol", "EURUSD"])
+    assert rc == 1
+    err = capfd.readouterr().err
+    assert "CSV file not found: no_such_file.csv" in err
 
 
-def test_new_case():
-    with pytest.raises(FileNotFoundError) as excinfo:
-        main(["backtest", "--symbol", "EURUSD"])
-    assert str(excinfo.value) == "/home/daro/Fxdata/EURUSD_H1.csv"
+def test_new_case(capfd):
+    rc = main(["backtest", "--symbol", "EURUSD"])
+    assert rc == 1
+    err = capfd.readouterr().err
+    assert "/home/daro/Fxdata/EURUSD_H1.csv" in err
 
 
 def test_cli_missing_time_column(tmp_path):
