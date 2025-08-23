@@ -107,8 +107,6 @@ def _parse_span_or_list(spec: str) -> list[int]:
             return [int(float(x.strip())) for x in spec.split(",") if x.strip()]
         except ValueError as ex:
             raise argparse.ArgumentTypeError(f"Invalid list: {spec}") from ex
-    import re
-
     # ``lo:hi:step`` form
     m = re.fullmatch(
         r"\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*",
