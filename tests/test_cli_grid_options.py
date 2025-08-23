@@ -31,6 +31,8 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "grid",
             "--csv",
             str(csv_path),
+            "--symbol",
+            "EURUSD",
             "--fast-values",
             "2",
             "--slow-values",

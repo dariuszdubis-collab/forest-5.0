@@ -28,6 +28,8 @@ def test_cli_backtest(tmp_path, monkeypatch):
             "backtest",
             "--csv",
             str(csv_path),
+            "--symbol",
+            "EURUSD",
             "--fast",
             "2",
             "--slow",
@@ -47,6 +49,8 @@ def test_cli_grid(tmp_path, monkeypatch):
             "grid",
             "--csv",
             str(csv_path),
+            "--symbol",
+            "EURUSD",
             "--fast-values",
             "2",
             "--slow-values",
@@ -62,7 +66,7 @@ def test_cli_grid(tmp_path, monkeypatch):
 
 def test_cli_missing_file():
     with pytest.raises(FileNotFoundError):
-        main(["backtest", "--csv", "no_such_file.csv"])
+        main(["backtest", "--csv", "no_such_file.csv", "--symbol", "EURUSD"])
 
 
 def test_new_case():
@@ -78,33 +82,37 @@ def test_cli_missing_time_column(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="Failed to parse"):
-        main(["backtest", "--csv", str(bad_csv), "--time-col", "time"])
+        main(["backtest", "--csv", str(bad_csv), "--symbol", "EURUSD", "--time-col", "time"])
 
 
 def test_cli_missing_ohlc_columns(tmp_path):
     bad_csv = tmp_path / "bad_ohlc.csv"
     bad_csv.write_text("time,open,high,low\n2020-01-01,1,1,1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="CSV missing required columns"):
-        main(["backtest", "--csv", str(bad_csv)])
+        main(["backtest", "--csv", str(bad_csv), "--symbol", "EURUSD"])
 
 
 def test_percentage_out_of_range_error(capfd):
     parser = build_parser()
     with pytest.raises(SystemExit):
-        parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "2"])
+        parser.parse_args(["backtest", "--csv", "dummy.csv", "--symbol", "EURUSD", "--risk", "2"])
     err = capfd.readouterr().err
     assert "between 0.0 and 1.0" in err
 
 
 def test_percentage_with_percent_sign():
     parser = build_parser()
-    args = parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "1%"])
+    args = parser.parse_args(
+        ["backtest", "--csv", "dummy.csv", "--symbol", "EURUSD", "--risk", "1%"]
+    )
     assert args.risk == pytest.approx(0.01)
 
 
 def test_percentage_with_comma_and_percent():
     parser = build_parser()
-    args = parser.parse_args(["backtest", "--csv", "dummy.csv", "--risk", "0,5%"])
+    args = parser.parse_args(
+        ["backtest", "--csv", "dummy.csv", "--symbol", "EURUSD", "--risk", "0,5%"]
+    )
     assert args.risk == pytest.approx(0.005)
 
 

@@ -30,6 +30,8 @@ def test_cli_time_only_options(tmp_path, monkeypatch):
             "backtest",
             "--csv",
             str(csv_path),
+            "--symbol",
+            "EURUSD",
             "--time-model",
             str(model_path),
         ]
