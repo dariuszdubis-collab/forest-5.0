@@ -163,6 +163,7 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"CSV for symbol '{symbol}' not found: {path}")
 
+    # try to detect presence of a header row
     has_header = True
     try:
         with open(path, "r", newline="") as f:
@@ -171,4 +172,12 @@ def load_symbol_csv(symbol: str, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     except csv.Error:
         pass
 
-    return read_ohlc_csv(path, has_header=has_header)
+    df = read_ohlc_csv(path, has_header=has_header)
+
+    # ensure canonical column order and presence
+    columns = ["open", "high", "low", "close", "volume"]
+    missing = [c for c in columns if c not in df.columns]
+    if missing:
+        raise ValueError(f"CSV missing required columns: {missing}")
+
+    return df[columns].sort_index()
