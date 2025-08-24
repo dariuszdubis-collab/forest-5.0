@@ -206,3 +206,32 @@ poetry run forest5 live --config config/live.yaml --paper
 ```
 
 Opcje `--q-low` i `--q-high` pozwalają dostroić kwantyle decyzyjne modelu.
+
+## DecisionAgent i `confidence_tech`
+
+`DecisionAgent` scala głosy z trzech źródeł: sygnału technicznego, modelu
+czasu oraz opcjonalnego agenta AI.  Każdy głos posiada kierunek (`BUY/SELL` lub
+`-1/0/1`) oraz wagę, która decyduje o ostatecznej konfluencji.  Waga głosu
+technicznego może być modulowana przez pole `confidence_tech` zwracane przez
+strategię.  Wartość jest przycinana do zakresu zdefiniowanego w
+`decision.tech.conf_floor` i `decision.tech.conf_cap`.  Jeśli strategia nie
+zwróci `confidence_tech`, użyta zostanie wartość
+`decision.tech.default_conf_int`.
+
+Globalne wagi dla poszczególnych źródeł ustawia się w sekcji
+`decision.weights`:
+
+```yaml
+decision:
+  weights:
+    tech: 1.0   # sygnał techniczny
+    ai: 1.0     # agent AI
+    time: 1.0   # model czasu
+  tech:
+    default_conf_int: 1.0
+    conf_floor: 0.0
+    conf_cap: 1.0
+```
+
+Zmniejszenie wag lub zawężenie przedziału `confidence_tech` pozwala
+kontrolować wpływ poszczególnych źródeł na końcową decyzję.

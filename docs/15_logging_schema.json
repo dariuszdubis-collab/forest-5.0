@@ -12,7 +12,27 @@
     "price": {"type": "number"},
     "latency_ms": {"type": "number"},
     "error": {"type": ["string", "null"]},
-    "context": {"type": ["object", "null"]}
+    "context": {"type": ["object", "null"]},
+    "decision": {
+      "type": ["object", "null"],
+      "properties": {
+        "votes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {"type": "string"},
+              "direction": {"type": ["string", "number"]},
+              "weight": {"type": "number"},
+              "score": {"type": "number"}
+            },
+            "required": ["source", "direction", "weight", "score"]
+          }
+        },
+        "weight_sum": {"type": "number"}
+      },
+      "required": ["votes", "weight_sum"]
+    }
   },
   "required": [
     "timestamp",
