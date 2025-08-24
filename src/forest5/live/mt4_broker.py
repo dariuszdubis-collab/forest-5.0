@@ -129,7 +129,15 @@ class MT4Broker(OrderRouter):
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 
     # ------------------------------------------------------------------
-    def market_order(self, side: str, qty: float, price: Optional[float] = None) -> OrderResult:
+    def market_order(
+        self,
+        side: str,
+        qty: float,
+        price: Optional[float] = None,
+        *,
+        sl: Optional[float] = None,
+        tp: Optional[float] = None,
+    ) -> OrderResult:
         if not self._connected:
             res = OrderResult(0, "rejected", 0.0, 0.0, "not connected")
             log.info(
@@ -153,11 +161,10 @@ class MT4Broker(OrderRouter):
             "action": side.upper(),
             "symbol": self.symbol,
             "volume": qty,
-            "sl": None,
-            "tp": None,
+            "price": price,
+            "sl": sl,
+            "tp": tp,
         }
-        if price is not None:
-            cmd["price"] = price
 
         cmd_path = self._command_path(uid)
         tmp_path = self.commands_dir / f"cmd_{uid}.json.tmp"
