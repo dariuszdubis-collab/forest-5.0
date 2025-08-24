@@ -17,6 +17,14 @@ def test_live_example_yaml_parses_and_has_fields():
     assert hasattr(tm, "path")  # nosec B101
     assert hasattr(tm, "q_low")  # nosec B101
     assert hasattr(tm, "q_high")  # nosec B101
+    ps = s.time.primary_signal if hasattr(s.time, "primary_signal") else None
+    assert ps is not None  # nosec B101
+    assert hasattr(ps, "strategy")  # nosec B101
+    assert getattr(ps.strategy, "compat_int", None) is not None  # nosec B101
+    pats = ps.patterns
+    assert hasattr(pats, "engulf") and pats.engulf.enabled is True  # nosec B101
+    assert hasattr(pats, "pinbar") and pats.pinbar.enabled is True  # nosec B101
+    assert hasattr(pats, "star") and pats.star.enabled is True  # nosec B101
     assert hasattr(s, "risk")  # nosec B101
     assert getattr(s.risk, "on_drawdown", None) is not None  # nosec B101
     assert s.risk.on_drawdown.action == "halt"  # nosec B101

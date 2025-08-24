@@ -39,6 +39,7 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "pullback_atr": 0.5,  # max distance from fast EMA for pullback
     "entry_buffer_atr": 0.1,  # breakout buffer
     "sl_atr": 1.0,  # stop-loss distance in ATR multiples
+    "sl_min_atr": 0.0,  # minimum stop-loss distance in ATR multiples
     "rr": 2.0,  # risk–reward ratio
     "timeframe": "H1",
     "horizon_minutes": 240,
@@ -137,7 +138,7 @@ def compute_primary_signal_h1(
 
     if trend and pullback and trigger:
         drivers = ["ema_trend", "pullback", "rsi_trigger"]
-        risk = p["sl_atr"] * atr_last
+        risk = max(p["sl_atr"], p.get("sl_min_atr", 0.0)) * atr_last
         if trend == 1:
             entry = high.iloc[-1] + p["entry_buffer_atr"] * atr_last
             sl = entry - risk

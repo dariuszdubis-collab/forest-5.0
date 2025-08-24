@@ -57,8 +57,24 @@ class LiveTimeModelSettings(BaseModel):
         return self
 
 
+class PatternToggle(BaseModel):
+    enabled: bool = True
+
+
+class PrimaryPatternsSettings(BaseModel):
+    engulf: PatternToggle = Field(default_factory=PatternToggle)
+    pinbar: PatternToggle = Field(default_factory=PatternToggle)
+    star: PatternToggle = Field(default_factory=PatternToggle)
+
+
+class PrimarySignalSettings(BaseModel):
+    strategy: BaseStrategySettings = Field(default_factory=BaseStrategySettings)
+    patterns: PrimaryPatternsSettings = Field(default_factory=PrimaryPatternsSettings)
+
+
 class LiveTimeSettings(BaseModel):
     model: LiveTimeModelSettings = Field(default_factory=LiveTimeModelSettings)
+    primary_signal: PrimarySignalSettings = Field(default_factory=PrimarySignalSettings)
 
 
 class LiveSettings(BaseModel):
@@ -75,6 +91,9 @@ __all__ = [
     "StrategySettings",
     "DecisionSettings",
     "LiveTimeModelSettings",
+    "PatternToggle",
+    "PrimaryPatternsSettings",
+    "PrimarySignalSettings",
     "LiveTimeSettings",
     "LiveSettings",
 ]

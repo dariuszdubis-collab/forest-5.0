@@ -12,6 +12,8 @@ def test_engulfing_detects_positive():
     )
     res = engulfing.detect(df, atr=1.0)
     assert res and res["type"] == "bullish_engulfing"
+    assert res["hi"] == 10.7 and res["lo"] == 9.3
+    assert res["score"] > 0
 
 
 def test_engulfing_negative():
@@ -28,6 +30,8 @@ def test_pinbar_detects_positive():
     df = pd.DataFrame([{"open": 11, "high": 11.2, "low": 9, "close": 11.1}])
     res = pinbar.detect(df, atr=1.0)
     assert res and res["type"] == "bullish_pinbar"
+    assert res["hi"] == 11.2 and res["lo"] == 9
+    assert res["score"] > 0
 
 
 def test_pinbar_negative():
@@ -45,6 +49,8 @@ def test_stars_detects_positive():
     )
     res = stars.detect(df, atr=1.0)
     assert res and res["type"] == "morning_star"
+    assert res["hi"] == 10.5 and res["lo"] == 9
+    assert res["score"] > 0
 
 
 def test_stars_negative():
