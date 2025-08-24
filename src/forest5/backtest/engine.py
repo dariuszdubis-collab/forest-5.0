@@ -86,7 +86,9 @@ def bootstrap_position(
 class BacktestEngine:
     """Event driven backtesting engine with setup management."""
 
-    def __init__(self, df: pd.DataFrame, settings: BacktestSettings, price_col: str = "close") -> None:
+    def __init__(
+        self, df: pd.DataFrame, settings: BacktestSettings, price_col: str = "close"
+    ) -> None:
         self.df = df
         self.settings = settings
         self.price_col = price_col
@@ -217,7 +219,11 @@ class BacktestEngine:
         high = float(row["high"])
         low = float(row["low"])
         close = float(row[self.price_col])
-        atr_prev = float(self.df.iloc[index - 1]["atr"]) if "atr" in self.df.columns and index > 0 else None
+        atr_prev = (
+            float(self.df.iloc[index - 1]["atr"])
+            if "atr" in self.df.columns and index > 0
+            else None
+        )
 
         remaining: list[dict] = []
         for pos in self.positions:
