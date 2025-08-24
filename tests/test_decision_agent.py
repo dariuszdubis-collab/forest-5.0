@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 
 from forest5.decision import DecisionAgent, DecisionConfig
@@ -105,4 +106,24 @@ def test_decision_agent_accepts_string_actions() -> None:
         {"tech": -1, "time": 0, "ai": 0},
         "sell_majority",
         1.5,
+    )
+
+
+@dataclass
+class _SimpleSignal:
+    action: str
+    technical_score: float = 1.0
+    confidence_tech: float = 1.0
+
+
+def test_decision_agent_handles_custom_dataclass_with_string_action() -> None:
+    ts = datetime(2024, 1, 1)
+    agent = DecisionAgent()
+    sig = _SimpleSignal(action="BUY")
+    res = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
+    assert (res.decision, res.votes, res.reason, res.weight) == (
+        "BUY",
+        {"tech": 1, "time": 0, "ai": 0},
+        "buy_majority",
+        1.0,
     )
