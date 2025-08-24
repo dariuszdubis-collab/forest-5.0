@@ -78,7 +78,7 @@ def bootstrap_position(
             qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=atr_multiple)
             if qty0 > 0.0:
                 rm.buy(p0, qty0)
-                tb.add(df.index[0], p0, qty0, "BUY")
+                tb.add(df.index[0], p0, qty0, "BUY", entry=p0)
                 position += qty0
     return position
 
@@ -417,8 +417,9 @@ def _trading_loop(
             debug.log("signal_rejected", time=str(t), reason="no_confluence")
 
         if this_sig < 0 and position > 0.0:
+            entry_price = getattr(rm, "_avg_price", 0.0)
             rm.sell(price, position)
-            tb.add(t, price, position, "SELL")
+            tb.add(t, entry_price, position, "SELL", price_close=float(price), entry=entry_price)
             if debug:
                 debug.log("position_close", time=str(t), price=float(price), qty=float(position))
             position = 0.0
@@ -428,7 +429,7 @@ def _trading_loop(
             qty *= float(weight)
             if qty > 0.0:
                 rm.buy(price, qty)
-                tb.add(t, price, qty, "BUY")
+                tb.add(t, price, qty, "BUY", entry=float(price))
                 if debug:
                     debug.log(
                         "position_open",

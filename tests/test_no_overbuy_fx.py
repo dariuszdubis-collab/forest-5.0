@@ -25,4 +25,4 @@ def test_no_overbuy_fx():
     for tr in res.trades.trades:
         d = _asdict_trade(tr)
         if d.get("side") == "BUY":
-            assert d["price"] * d["qty"] <= cap + 1e-6, "BUY przekracza dostępny kapitał!"
+            assert d["price_open"] * d["qty"] <= cap + 1e-6, "BUY przekracza dostępny kapitał!"
