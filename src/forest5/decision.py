@@ -11,6 +11,13 @@ from .time_only import TimeOnlyModel
 from .signals.fusion import _to_sign
 
 
+def _normalize_action(action: int | float | str) -> int | float:
+    """Convert common string actions to numeric values."""
+    if isinstance(action, str):
+        return {"BUY": 1, "SELL": -1, "KEEP": 0, "WAIT": 0}.get(action.upper(), 0)
+    return action
+
+
 @dataclass
 class DecisionResult:
     """Result of a decision fusion.
@@ -75,21 +82,14 @@ class DecisionAgent:
         context_text: str = "",
     ) -> DecisionResult:
         if isinstance(tech_signal, Mapping) or is_dataclass(tech_signal):
-            action = (
-                tech_signal.get("action", 0)
+            get = (
+                tech_signal.get
                 if isinstance(tech_signal, Mapping)
-                else getattr(tech_signal, "action", 0)
+                else lambda k, d=None: getattr(tech_signal, k, d)
             )
-            tech_score = (
-                tech_signal.get("technical_score", action)
-                if isinstance(tech_signal, Mapping)
-                else getattr(tech_signal, "technical_score", action)
-            )
-            confidence = (
-                tech_signal.get("confidence_tech", 1.0)
-                if isinstance(tech_signal, Mapping)
-                else getattr(tech_signal, "confidence_tech", 1.0)
-            )
+            action = _normalize_action(get("action", 0))
+            tech_score = get("technical_score", action)
+            confidence = get("confidence_tech", 1.0)
             votes: dict[str, tuple[int, float]] = {
                 "tech": (
                     _to_sign(action if action else tech_score),
