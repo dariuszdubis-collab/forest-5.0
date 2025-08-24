@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import argparse
 import csv
 import json
 import logging
@@ -19,6 +18,7 @@ from forest5.backtest.engine import run_backtest
 from forest5.time_only import TimeOnlyModel
 from forest5.utils.argparse_ext import PercentAction
 from forest5.utils.validate import ensure_backtest_ready
+
 # --------------------------------------------------------------------------------------
 # Utils
 # --------------------------------------------------------------------------------------
