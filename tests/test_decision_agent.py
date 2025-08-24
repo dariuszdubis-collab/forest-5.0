@@ -83,3 +83,26 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
         "sell_majority",
         1.5,
     )
+
+
+def test_decision_agent_accepts_string_actions() -> None:
+    ts = datetime(2024, 1, 1)
+    agent = DecisionAgent()
+
+    mapping_signal = {"action": "BUY", "technical_score": 2.0, "confidence_tech": 0.5}
+    res = agent.decide(ts, tech_signal=mapping_signal, value=0.0, symbol="EURUSD")
+    assert (res.decision, res.votes, res.reason, res.weight) == (
+        "BUY",
+        {"tech": 1, "time": 0, "ai": 0},
+        "buy_majority",
+        1.0,
+    )
+
+    sig = TechnicalSignal(action="SELL", technical_score=-3.0, confidence_tech=0.5)
+    res2 = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
+    assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
+        "SELL",
+        {"tech": -1, "time": 0, "ai": 0},
+        "sell_majority",
+        1.5,
+    )
