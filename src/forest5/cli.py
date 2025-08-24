@@ -279,12 +279,24 @@ def cmd_grid(args: argparse.Namespace) -> int:
         rsi_period=int(args.rsi_period),
         rsi_oversold=int(args.rsi_oversold),
         rsi_overbought=int(args.rsi_overbought),
+        t_sep_atr=float(args.t_sep_atr),
+        pullback_atr=float(args.pullback_atr),
+        entry_buffer_atr=float(args.entry_buffer_atr),
+        sl_atr=float(args.sl_atr),
+        sl_min_atr=float(args.sl_min_atr),
+        rr=float(args.rr),
+        q_low=float(args.q_low),
+        q_high=float(args.q_high),
         time_model=args.time_model,
         min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
     )
-    if args.strategy and args.strategy != "h1_ema_rsi_atr":
-        kwargs["strategy"] = args.strategy
+    kwargs["strategy"] = args.strategy
+    kwargs["patterns"] = {
+        "engulf": {"enabled": bool(args.pat_engulf)},
+        "pinbar": {"enabled": bool(args.pat_pinbar)},
+        "star": {"enabled": bool(args.pat_star)},
+    }
     if risk_vals:
         kwargs["risk_values"] = risk_vals
     if max_dd_vals:
@@ -355,6 +367,11 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
             sl_atr=args.sl_atr,
             sl_min_atr=args.sl_min_atr,
             rr=args.rr,
+            patterns={
+                "engulf": {"enabled": bool(args.pat_engulf)},
+                "pinbar": {"enabled": bool(args.pat_pinbar)},
+                "star": {"enabled": bool(args.pat_star)},
+            },
         ),
         risk=dict(
             initial_capital=float(args.capital),
@@ -563,6 +580,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--rr", type=float, default=2.0)
     p_gr.add_argument("--q-low", type=float, default=0.1)
     p_gr.add_argument("--q-high", type=float, default=0.9)
+    p_gr.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
+    p_gr.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
+    p_gr.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
 
     p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
     p_gr.add_argument(
@@ -600,6 +620,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_wf.add_argument("--rr", type=float, default=2.0)
     p_wf.add_argument("--q-low", type=float, default=0.1)
     p_wf.add_argument("--q-high", type=float, default=0.9)
+    p_wf.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
+    p_wf.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
+    p_wf.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
     p_wf.add_argument("--capital", type=float, default=100_000.0)
     p_wf.add_argument("--risk", action=PercentAction, default=0.01)
     p_wf.add_argument("--max-dd", action=PercentAction, default=0.30)

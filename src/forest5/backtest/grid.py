@@ -77,6 +77,16 @@ def run_grid(
     rsi_period: int = 14,
     rsi_oversold: int = 30,
     rsi_overbought: int = 70,
+    t_sep_atr: float = 0.5,
+    pullback_atr: float = 0.5,
+    entry_buffer_atr: float = 0.1,
+    sl_atr: float = 1.0,
+    sl_min_atr: float = 0.0,
+    rr: float = 2.0,
+    q_low: float = 0.1,
+    q_high: float = 0.9,
+    strategy: str = "ema_cross",
+    patterns: Dict[str, Dict[str, bool]] | None = None,
     time_model: Path | None = None,
     min_confluence: float = 1.0,
     n_jobs: int = 1,
@@ -122,18 +132,36 @@ def run_grid(
                 f"rsi{rsi_period_value}_maxdd{max_dd_value}"
             )
             run_debug = base_debug_dir / name
-        settings = BacktestSettings(
-            symbol=symbol,
-            timeframe="1h",
-            strategy=dict(
-                name="ema_cross",
+        if strategy == "h1_ema_rsi_atr":
+            strat = dict(
+                name=strategy,
+                ema_fast=fast,
+                ema_slow=slow,
+                atr_period=atr_period,
+                rsi_period=rsi_period_value,
+                t_sep_atr=t_sep_atr,
+                pullback_atr=pullback_atr,
+                entry_buffer_atr=entry_buffer_atr,
+                sl_atr=sl_atr,
+                sl_min_atr=sl_min_atr,
+                rr=rr,
+            )
+            if patterns:
+                strat["patterns"] = patterns
+        else:
+            strat = dict(
+                name=strategy,
                 fast=fast,
                 slow=slow,
                 use_rsi=use_rsi,
                 rsi_period=rsi_period_value,
                 rsi_overbought=rsi_overbought,
                 rsi_oversold=rsi_oversold,
-            ),
+            )
+        settings = BacktestSettings(
+            symbol=symbol,
+            timeframe="1h",
+            strategy=strat,
             risk=dict(
                 initial_capital=capital,
                 risk_per_trade=risk_value,
@@ -148,6 +176,8 @@ def run_grid(
         settings.time.model.enabled = bool(time_model)
         settings.time.model.path = time_model
         settings.time.fusion_min_confluence = float(min_confluence)
+        settings.time.q_low = float(q_low)
+        settings.time.q_high = float(q_high)
         res = run_backtest(df, settings)
         end, mdd, cagr = _compute_metrics(res.equity_curve)
         return GridResult(
