@@ -14,6 +14,8 @@ from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
+from ..signals import SetupRegistry
+from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
 from ..utils.log import setup_logger
 from ..utils.debugger import DebugLogger
@@ -180,6 +182,7 @@ def run_live(
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
 
+    registry = SetupRegistry()
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
@@ -241,10 +244,45 @@ def run_live(
                             log.error("max_drawdown_reached", drawdown_pct=dd * 100)
                             break
 
+                        if sig != 0:
+                            action = "BUY" if sig > 0 else "SELL"
+                            registry.arm(
+                                settings.broker.symbol,
+                                len(df) - 1,
+                                TechnicalSignal(
+                                    timeframe=tf,
+                                    action=action,
+                                    entry=current_bar["close"],
+                                    horizon_minutes=_TF_MINUTES[tf],
+                                    technical_score=1.0 if action == "BUY" else -1.0,
+                                    confidence_tech=1.0,
+                                ),
+                            )
+
+                        current_bar = {
+                            "start": bar_start,
+                            "open": price,
+                            "high": price,
+                            "low": price,
+                            "close": price,
+                        }
+
+                        steps += 1
+                        if max_steps is not None and steps >= max_steps:
+                            break
+
+                    triggered = registry.check(
+                        settings.broker.symbol,
+                        len(df),
+                        current_bar["high"],
+                        current_bar["low"],
+                    )
+                    if triggered:
+                        idx = pd.to_datetime(ts, unit="s")
                         dec: DecisionResult = agent.decide(
                             idx,
-                            sig,
-                            current_bar["close"],
+                            triggered,
+                            price,
                             settings.broker.symbol,
                             context_text,
                         )
@@ -263,7 +301,7 @@ def run_live(
                                 if decision in ("BUY", "SELL")
                                 else 0
                             ),
-                            price=current_bar["close"],
+                            price=price,
                             latency_ms=0.0,
                             error=None,
                             context={"votes": votes, "reason": reason, "weight": weight},
@@ -307,18 +345,6 @@ def run_live(
                                     status=res.status,
                                     latency_ms=latency,
                                 )
-
-                        current_bar = {
-                            "start": bar_start,
-                            "open": price,
-                            "high": price,
-                            "low": price,
-                            "close": price,
-                        }
-
-                        steps += 1
-                        if max_steps is not None and steps >= max_steps:
-                            break
             time.sleep(0.25)
     except KeyboardInterrupt:
         log.info("keyboard_interrupt")
