@@ -50,6 +50,7 @@ def test_cli_walkforward_basic(tmp_path, monkeypatch):
 
     def fake_run_backtest(df, settings):
         captured["settings"] = settings
+
         class R:
             equity_curve = pd.Series([1.0], index=df.index)
 
