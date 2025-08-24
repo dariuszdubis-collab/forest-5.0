@@ -63,7 +63,7 @@ def test_h1_signal_triggers_buy_with_targets(monkeypatch, base_params):
 
     # breakout on next bar
     df2 = pd.concat(
-        [df, pd.DataFrame([{ "open": 2, "high": 3.2, "low": 2.0, "close": 2.5 }])],
+        [df, pd.DataFrame([{"open": 2, "high": 3.2, "low": 2.0, "close": 2.5}])],
         ignore_index=True,
     )
     res = compute_primary_signal_h1(df2, base_params, registry=reg)
@@ -100,7 +100,7 @@ def test_h1_signal_requires_rsi_cross(monkeypatch, base_params):
     compute_primary_signal_h1(df, base_params, registry=reg)
 
     df2 = pd.concat(
-        [df, pd.DataFrame([{ "open": 2, "high": 3.5, "low": 2.0, "close": 2.5 }])],
+        [df, pd.DataFrame([{"open": 2, "high": 3.5, "low": 2.0, "close": 2.5}])],
         ignore_index=True,
     )
     res = compute_primary_signal_h1(df2, base_params, registry=reg)
