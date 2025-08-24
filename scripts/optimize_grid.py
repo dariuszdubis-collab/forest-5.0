@@ -12,12 +12,12 @@ from pathlib import Path
 
 import pandas as pd
 
+from forest5.cli import SafeHelpFormatter, _parse_range
 from forest5.config import BacktestSettings, RiskSettings, StrategySettings
 from forest5.backtest.engine import run_backtest
 from forest5.time_only import TimeOnlyModel
-from forest5.utils.validate import ensure_backtest_ready
 from forest5.utils.argparse_ext import PercentAction
-
+from forest5.utils.validate import ensure_backtest_ready
 
 # --------------------------------------------------------------------------------------
 # Utils
@@ -27,38 +27,6 @@ from forest5.utils.argparse_ext import PercentAction
 def log_json(**payload: object) -> None:
     """Emit one JSON line (UTF-8, no ASCII escaping)."""
     print(json.dumps(payload, ensure_ascii=False))
-
-
-def parse_range(spec: str) -> list[int]:
-    """
-    Parse a numeric range like:
-      "5-20"        -> [5, 6, ..., 20]
-      "20-60:5"     -> [20, 25, 30, ..., 60]
-      "10"          -> [10]
-    """
-    spec = str(spec).strip()
-    if "-" not in spec:
-        # single value
-        try:
-            return [int(float(spec))]
-        except ValueError as ex:
-            raise argparse.ArgumentTypeError(f"Niepoprawny zakres: {spec}") from ex
-
-    core, step_str = (spec.split(":", 1) + ["1"])[:2]
-    lo_str, hi_str = core.split("-", 1)
-    lo = int(float(lo_str))
-    hi = int(float(hi_str))
-    step = int(float(step_str))
-    if step <= 0:
-        raise argparse.ArgumentTypeError(f"Krok musi być > 0 (given: {step})")
-    if hi < lo:
-        raise argparse.ArgumentTypeError(f"Górna granica < dolnej: {spec}")
-
-    # inclusive range
-    vals: list[int] = list(range(lo, hi + 1, step))
-    if vals[-1] != hi:
-        vals.append(hi)
-    return vals
 
 
 @dataclass(frozen=True)
@@ -83,6 +51,8 @@ class GridResult:
     max_dd: float
     trades: int
     equity_end: float
+    pnl_net: float
+    sharpe: float
     score: float
 
 
@@ -115,6 +85,13 @@ def _run_one(
     equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
     initial = float(s.risk.initial_capital)
     ret = equity_end / initial - 1.0
+    pnl_net = equity_end - initial
+    returns = equity.pct_change().dropna()
+    sharpe = (
+        float(returns.mean() / returns.std() * (252**0.5))
+        if not returns.empty and returns.std() != 0
+        else 0.0
+    )
     max_dd = float(res.max_dd)
     trades = len(res.trades.trades)
     score = ret - dd_penalty * max_dd
@@ -129,6 +106,8 @@ def _run_one(
         max_dd=max_dd,
         trades=trades,
         equity_end=equity_end,
+        pnl_net=pnl_net,
+        sharpe=sharpe,
         score=score,
     )
 
@@ -165,6 +144,8 @@ def _export_csv(path: Path, rows: list[GridResult]) -> None:
                 "max_dd",
                 "trades",
                 "equity_end",
+                "pnl_net",
+                "sharpe",
                 "score",
             ],
         )
@@ -175,6 +156,8 @@ def _export_csv(path: Path, rows: list[GridResult]) -> None:
             d["ret"] = f"{d['ret']:.6f}"
             d["max_dd"] = f"{d['max_dd']:.6f}"
             d["equity_end"] = f"{d['equity_end']:.6f}"
+            d["pnl_net"] = f"{d['pnl_net']:.6f}"
+            d["sharpe"] = f"{d['sharpe']:.6f}"
             w.writerow(d)
 
 
@@ -182,7 +165,10 @@ def _print_top(rows: list[GridResult], n: int = 10) -> None:
     if not rows:
         return
     df = pd.DataFrame([asdict(r) for r in rows])
-    df = df.sort_values("score", ascending=False).head(n)
+    sort_cols = [c for c in ("pnl_net", "sharpe") if c in df.columns]
+    if sort_cols:
+        df = df.sort_values(by=sort_cols, ascending=False)
+    df = df.head(n)
     # Pretty print numeric columns with limited precision
     with pd.option_context("display.max_columns", None, "display.width", 120):
         print(df.to_string(index=False, justify="right"))
@@ -190,7 +176,8 @@ def _print_top(rows: list[GridResult], n: int = 10) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Forest 5.0 – optymalizacja parametrów (grid search)."
+        description="Forest 5.0 – optymalizacja parametrów (grid search).",
+        formatter_class=SafeHelpFormatter,
     )
     parser.add_argument("--csv", required=True, help="Ścieżka do CSV z danymi OHLC.")
     parser.add_argument("--symbol", default="SYMBOL", help="Symbol (opisowy).")
@@ -263,8 +250,8 @@ def main() -> None:
     base.time.model.path = args.time_model
     base.time.fusion_min_confluence = float(args.min_confluence)
 
-    fast_vals = parse_range(args.fast)
-    slow_vals = parse_range(args.slow)
+    fast_vals = _parse_range(args.fast)
+    slow_vals = _parse_range(args.slow)
 
     # Build grid
     points: list[GridPoint] = []

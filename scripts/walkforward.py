@@ -9,6 +9,7 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 
 # forest5
+from forest5.cli import SafeHelpFormatter, _parse_range
 from forest5.config import BacktestSettings, StrategySettings, RiskSettings
 from forest5.backtest.engine import run_backtest
 from forest5.utils.argparse_ext import PercentAction
@@ -86,29 +87,6 @@ def load_prices(path: str | Path) -> pd.DataFrame:
 
 
 # ----------------------------- RANGES & GRID --------------------------------
-
-
-def parse_int_range(spec: str) -> List[int]:
-    """
-    Parsuj zakres typu:
-      - 'a-b'       -> a, a+1, ..., b
-      - 'a-b:step'  -> a, a+step, ..., b
-      - 'v1,v2,...' -> lista wartości
-    """
-    spec = spec.strip()
-    if "," in spec:
-        return [int(x) for x in spec.split(",") if x != ""]
-    step = 1
-    if ":" in spec:
-        rng, st = spec.split(":")
-        step = int(st)
-    else:
-        rng = spec
-    if "-" in rng:
-        a, b = rng.split("-")
-        return list(range(int(a), int(b) + 1, step))
-    v = int(rng)
-    return [v]
 
 
 def build_param_grid(
@@ -230,16 +208,23 @@ def _mk_settings(
 def evaluate_df(
     df: pd.DataFrame,
     settings: BacktestSettings,
-) -> Tuple[float, float, int, float]:
+) -> Tuple[float, float, int, float, float, float]:
     res = run_backtest(df, settings)
 
     equity = res.equity_curve
     eq_end = float(equity.iloc[-1]) if not equity.empty else 0.0
     init_cap = float(settings.risk.initial_capital)
     ret = (eq_end / init_cap) - 1.0 if init_cap > 0 else 0.0
+    pnl_net = eq_end - init_cap
+    returns = equity.pct_change().dropna()
+    sharpe = (
+        float(returns.mean() / returns.std() * (252**0.5))
+        if not returns.empty and returns.std() != 0
+        else 0.0
+    )
     max_dd = float(res.max_dd)
     trades = len(res.trades.trades)
-    return ret, max_dd, trades, eq_end
+    return ret, max_dd, trades, eq_end, pnl_net, sharpe
 
 
 def pick_best_on_train(
@@ -275,7 +260,7 @@ def pick_best_on_train(
             atr_period=atr_period,
             atr_multiple=atr_multiple,
         )
-        tr_ret, tr_dd, _, _ = evaluate_df(train_df, st)
+        tr_ret, tr_dd, _, _, _, _ = evaluate_df(train_df, st)
         score = tr_ret - dd_penalty * tr_dd
         if (score > best_score) or (score == best_score and (tr_ret > best_ret or tr_dd < best_dd)):
             best = p
@@ -291,7 +276,7 @@ def pick_best_on_train(
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser("walkforward")
+    ap = argparse.ArgumentParser("walkforward", formatter_class=SafeHelpFormatter)
     ap.add_argument("--csv", required=True, help="Ścieżka do danych (CSV)")
     ap.add_argument("--symbol", default="SYMBOL")
 
@@ -321,6 +306,7 @@ def main() -> None:
     ap.add_argument("--dd-penalty", type=float, default=0.5)
     ap.add_argument("--skip-fast-ge-slow", action="store_true")
     ap.add_argument("--export", default="out/walkforward.csv")
+    ap.add_argument("--top", type=int, default=10, help="Ile rekordów wyświetlić")
 
     args = ap.parse_args()
 
@@ -332,8 +318,8 @@ def main() -> None:
         raise SystemExit("Pusty zakres danych po cięciu start/end.")
 
     # 2) grid parametrów
-    fast_vals = parse_int_range(args.fast)
-    slow_vals = parse_int_range(args.slow)
+    fast_vals = _parse_range(args.fast)
+    slow_vals = _parse_range(args.slow)
     grid = build_param_grid(
         fast_vals,
         slow_vals,
@@ -393,7 +379,7 @@ def main() -> None:
             atr_period=args.atr_period,
             atr_multiple=args.atr_multiple,
         )
-        te_ret, te_dd, te_trades, te_eq_end = evaluate_df(test, st_best)
+        te_ret, te_dd, te_trades, te_eq_end, te_pnl_net, te_sharpe = evaluate_df(test, st_best)
 
         row = {
             "train_start": tr_start,
@@ -412,6 +398,8 @@ def main() -> None:
             "test_max_dd": te_dd,
             "test_trades": te_trades,
             "test_equity_end": te_eq_end,
+            "test_pnl_net": te_pnl_net,
+            "test_sharpe": te_sharpe,
         }
         rows.append(row)
         print(
@@ -427,11 +415,18 @@ def main() -> None:
             }
         )
 
-    # 4) eksport
+    # 4) sort & export
+    res_df = pd.DataFrame(rows)
+    sort_cols = [c for c in ("test_pnl_net", "test_sharpe") if c in res_df.columns]
+    if sort_cols:
+        res_df = res_df.sort_values(by=sort_cols, ascending=False)
+    with pd.option_context("display.max_columns", None, "display.width", 120):
+        print(res_df.head(args.top).to_string(index=False, justify="right"))
+
     out_path = Path(args.export)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(out_path, index=False)
-    print({"event": "walkforward_export_done", "out": str(out_path), "rows": len(rows)})
+    res_df.to_csv(out_path, index=False)
+    print({"event": "walkforward_export_done", "out": str(out_path), "rows": len(res_df)})
 
 
 if __name__ == "__main__":
