@@ -74,3 +74,17 @@ def test_live_time_model_quantile_valid():
 def test_live_time_model_quantile_invalid(q_low: float, q_high: float):
     with pytest.raises(ValidationError, match="0.0 <= q_low < q_high <= 1.0"):
         LiveTimeModelSettings(q_low=q_low, q_high=q_high)
+
+
+def test_live_settings_h1_ema_rsi_atr(tmp_path: Path):
+    p = tmp_path / "cfg_live.yaml"
+    p.write_text(
+        "broker:\n  type: mt4\n" "strategy:\n  name: h1_ema_rsi_atr\n  compat_int: 42\n  params:\n    ema_fast: 21\n    ema_slow: 55\n",
+        encoding="utf-8",
+    )
+
+    s = load_live_settings(p)
+
+    assert s.strategy.name == "h1_ema_rsi_atr"  # nosec B101
+    assert s.strategy.compat_int == 42  # nosec B101
+    assert s.strategy.params["ema_fast"] == 21  # nosec B101
