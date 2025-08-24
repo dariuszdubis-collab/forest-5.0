@@ -10,9 +10,13 @@ from .ai_agent import SentimentAgent
 from .live.router import OrderRouter, PaperBroker
 from .time_only import TimeOnlyModel
 from .signals.fusion import _fuse_votes, _to_sign
+from .utils.log import setup_logger
 
 
 Dir = Literal[-1, 0, 1]
+
+
+log = setup_logger()
 
 
 @dataclass
@@ -282,4 +286,12 @@ class DecisionAgent:
             ai_sent = self.ai.analyse(context_text, symbol)
             votes.append(_normalize_ai_input(ai_sent, cfg))
 
-        return _fuse_votes(votes, cfg)
+        log.debug("decision_inputs", votes=[v.__dict__ for v in votes])
+        result = _fuse_votes(votes, cfg)
+        log.debug(
+            "decision_result",
+            action=result.action,
+            weight_sum=result.weight_sum,
+            reason=result.reason,
+        )
+        return result
