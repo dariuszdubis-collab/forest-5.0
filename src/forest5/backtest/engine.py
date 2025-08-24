@@ -12,6 +12,8 @@ from ..core.indicators import atr, ema, rsi
 from ..utils.log import setup_logger
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
+from ..signals.contract import TechnicalSignal
+from ..signals.setups import SetupRegistry, SetupCandidate
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
@@ -26,6 +28,13 @@ class BacktestResult:
     equity_curve: pd.Series
     max_dd: float
     trades: TradeBook
+
+
+@dataclass
+class TPslPolicy:
+    """Policy defining priority between take-profit and stop-loss hits."""
+
+    priority: str = "tp"
 
 
 def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
@@ -72,6 +81,211 @@ def bootstrap_position(
                 tb.add(df.index[0], p0, qty0, "BUY")
                 position += qty0
     return position
+
+
+class BacktestEngine:
+    """Event driven backtesting engine with setup management."""
+
+    def __init__(self, df: pd.DataFrame, settings: BacktestSettings, price_col: str = "close") -> None:
+        self.df = df
+        self.settings = settings
+        self.price_col = price_col
+
+        # Core components
+        self.tp_sl_policy = TPslPolicy(priority=getattr(settings, "tp_sl_priority", "tp"))
+        ttl = getattr(getattr(settings, "strategy", object()), "setup_ttl_bars", 1)
+        self.setups = SetupRegistry(ttl_bars=int(ttl))
+
+        self.time_model: TimeOnlyModel | None = None
+        if settings.time.model.enabled and settings.time.model.path:
+            try:
+                self.time_model = TimeOnlyModel.load(settings.time.model.path)
+            except Exception:  # pragma: no cover - defensive
+                self.time_model = None
+
+        self.positions: list[dict] = []
+        self.equity: float = 0.0
+        self.equity_curve: list[float] = []
+
+    # ------------------------------------------------------------------
+    # Signal generation and setup handling
+    def _compute_signal_contract(self, up_to: int) -> TechnicalSignal:
+        """Return full :class:`TechnicalSignal` for bar ``up_to``."""
+
+        orig = getattr(self.settings.strategy, "compat_int", None)
+        try:
+            if hasattr(self.settings.strategy, "compat_int"):
+                self.settings.strategy.compat_int = False
+            res = compute_signal(self.df.iloc[: up_to + 1], self.settings, price_col=self.price_col)
+        finally:
+            if orig is not None:
+                self.settings.strategy.compat_int = orig
+        if isinstance(res, TechnicalSignal):
+            return res
+        action_val = int(res.iloc[-1]) if len(res) else 0
+        action = "BUY" if action_val > 0 else "SELL" if action_val < 0 else "KEEP"
+        return TechnicalSignal(action=action)
+
+    # ------------------------------------------------------------------
+    def on_bar_close(self, index: int) -> None:
+        """Handle bar close events.
+
+        Updates open positions for the finished bar and arms new setups if the
+        computed signal indicates so.
+        """
+
+        row = self.df.iloc[index]
+        self._update_open_positions(index, row)
+
+        contract = self._compute_signal_contract(index)
+        if contract.action in {"BUY", "SELL"}:
+            setup_id = contract.meta.get("id", str(index))
+            candidate = SetupCandidate(id=setup_id, **contract.__dict__)
+            self.setups.arm(setup_id, index, candidate)
+
+        # Mark-to-market after bar close
+        close_price = float(row[self.price_col])
+        mtm = 0.0
+        for pos in self.positions:
+            if pos["action"] == "BUY":
+                mtm += close_price - pos["entry"]
+            else:
+                mtm += pos["entry"] - close_price
+        self.equity_curve.append(self.equity + mtm)
+
+    # ------------------------------------------------------------------
+    def on_bar_open(self, index: int) -> None:
+        """Trigger armed setups at the open of bar ``index``."""
+
+        row = self.df.iloc[index]
+        open_p = float(row["open"])
+        high = float(row["high"])
+        low = float(row["low"])
+
+        keys = list(getattr(self.setups, "_setups", {}).keys())
+        for key in keys:
+            cand = self.setups.check(key, index, high, low)
+            if cand is None:
+                continue
+
+            # Gap fill: choose best fill price respecting direction
+            entry = float(cand.entry)
+            if cand.action == "BUY" and open_p > entry:
+                entry = open_p
+            elif cand.action == "SELL" and open_p < entry:
+                entry = open_p
+
+            # TimeOnlyModel check
+            if self.time_model:
+                tm_res = self.time_model.decide(self.df.index[index])
+                decision = tm_res.get("decision") if isinstance(tm_res, dict) else tm_res
+                if decision in {"WAIT", "HOLD"}:
+                    continue  # blocked by time model
+
+            self._open_position(cand, entry, index)
+
+    # ------------------------------------------------------------------
+    def _open_position(self, cand: SetupCandidate, entry: float, index: int) -> None:
+        meta = dict(cand.meta) if cand.meta else {}
+        pos = {
+            "id": cand.id,
+            "action": cand.action,
+            "entry": float(entry),
+            "sl": float(cand.sl),
+            "tp": float(cand.tp),
+            "open_index": index,
+            "horizon": int(getattr(cand, "horizon_minutes", 0)),
+            "meta": meta,
+        }
+        if "trailing_atr" in meta:
+            pos["trailing_atr"] = float(meta["trailing_atr"])
+        self.positions.append(pos)
+
+    # ------------------------------------------------------------------
+    def _close_position(self, pos: dict, price: float) -> None:
+        if pos["action"] == "BUY":
+            self.equity += price - pos["entry"]
+        else:
+            self.equity += pos["entry"] - price
+
+    # ------------------------------------------------------------------
+    def _update_open_positions(self, index: int, row: pd.Series) -> None:
+        if not self.positions:
+            return
+
+        open_p = float(row["open"])
+        high = float(row["high"])
+        low = float(row["low"])
+        close = float(row[self.price_col])
+        atr_prev = float(self.df.iloc[index - 1]["atr"]) if "atr" in self.df.columns and index > 0 else None
+
+        remaining: list[dict] = []
+        for pos in self.positions:
+            # Trailing stop update
+            trail = pos.get("trailing_atr")
+            if trail is not None and atr_prev is not None:
+                if pos["action"] == "BUY":
+                    new_sl = close - trail * atr_prev
+                    if new_sl > pos["sl"]:
+                        pos["sl"] = new_sl
+                else:
+                    new_sl = close + trail * atr_prev
+                    if new_sl < pos["sl"]:
+                        pos["sl"] = new_sl
+
+            bars_open = index - pos["open_index"]
+            ttl = pos["meta"].get("ttl_bars") if isinstance(pos.get("meta"), dict) else None
+            if ttl is not None and bars_open >= ttl:
+                self._close_position(pos, close)
+                continue
+
+            horizon = pos.get("horizon")
+            if horizon and bars_open >= horizon:
+                self._close_position(pos, close)
+                continue
+
+            # Check for SL/TP hits, considering gaps at open first
+            hit_tp = hit_sl = False
+            fill_price = close
+            if pos["action"] == "BUY":
+                open_hit_sl = open_p <= pos["sl"]
+                open_hit_tp = open_p >= pos["tp"]
+                if open_hit_sl or open_hit_tp:
+                    hit_sl, hit_tp = open_hit_sl, open_hit_tp
+                    fill_price = open_p
+                else:
+                    high_hit = high >= pos["tp"]
+                    low_hit = low <= pos["sl"]
+                    hit_tp, hit_sl = high_hit, low_hit
+                    fill_price = pos["tp"] if high_hit else pos["sl"] if low_hit else close
+            else:  # SELL
+                open_hit_sl = open_p >= pos["sl"]
+                open_hit_tp = open_p <= pos["tp"]
+                if open_hit_sl or open_hit_tp:
+                    hit_sl, hit_tp = open_hit_sl, open_hit_tp
+                    fill_price = open_p
+                else:
+                    high_hit = high >= pos["sl"]
+                    low_hit = low <= pos["tp"]
+                    hit_tp, hit_sl = low_hit, high_hit
+                    fill_price = pos["tp"] if low_hit else pos["sl"] if high_hit else close
+
+            if hit_tp and hit_sl:
+                if self.tp_sl_policy.priority.lower() == "sl":
+                    hit_tp = False
+                else:
+                    hit_sl = False
+
+            if hit_tp:
+                self._close_position(pos, fill_price if fill_price != close else pos["tp"])
+                continue
+            if hit_sl:
+                self._close_position(pos, fill_price if fill_price != close else pos["sl"])
+                continue
+
+            remaining.append(pos)
+
+        self.positions = remaining
 
 
 def _fuse_with_time(

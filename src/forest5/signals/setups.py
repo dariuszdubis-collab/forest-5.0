@@ -7,6 +7,19 @@ from .contract import TechnicalSignal
 
 
 @dataclass
+class SetupCandidate(TechnicalSignal):
+    """Candidate trade setup derived from :class:`TechnicalSignal`.
+
+    It extends :class:`TechnicalSignal` with an identifier so that backtest
+    engines can track which setup resulted in an opened position.  Existing
+    code that expects a :class:`TechnicalSignal` continues to work because
+    :class:`SetupCandidate` subclasses it.
+    """
+
+    id: str = ""
+
+
+@dataclass
 class _ArmedSetup:
     signal: TechnicalSignal
     expiry: int
@@ -78,4 +91,4 @@ class SetupRegistry:
         return None
 
 
-__all__ = ["SetupRegistry"]
+__all__ = ["SetupRegistry", "SetupCandidate"]
