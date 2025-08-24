@@ -13,8 +13,8 @@ def test_decision_agent_waits_when_time_model_waits() -> None:
     ts = datetime(2024, 1, 1)  # 00:00
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     assert decision == "WAIT"
-    assert votes == {"tech": 1, "time": 0, "ai": 0}
-    assert reason == "time_wait"
+    assert votes == {"tech": 1}
+    assert reason == "timeonly_wait"
 
 
 def test_decision_agent_majority_and_tie() -> None:
@@ -25,19 +25,19 @@ def test_decision_agent_majority_and_tie() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "BUY",
-        {"tech": 1, "time": 1, "ai": 0},
+        {"tech": 1, "time": 1},
         "buy_majority",
     )
     decision, votes, reason = agent.decide(ts, tech_signal=-1, value=-2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "SELL",
-        {"tech": -1, "time": -1, "ai": 0},
+        {"tech": -1, "time": -1},
         "sell_majority",
     )
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=-2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1, "time": -1, "ai": 0},
+        {"tech": 1, "time": -1},
         "no_consensus",
     )
 
@@ -49,7 +49,7 @@ def test_decision_agent_respects_confluence_threshold() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1, "time": 0, "ai": 0},
+        {"tech": 1},
         "no_consensus",
     )
 
@@ -58,7 +58,7 @@ def test_decision_agent_respects_confluence_threshold() -> None:
     decision, votes, reason = agent2.decide(ts, tech_signal=1, value=2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "BUY",
-        {"tech": 1, "time": 1, "ai": 0},
+        {"tech": 1, "time": 1},
         "buy_majority",
     )
 
@@ -71,7 +71,7 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
     res = agent.decide(ts, tech_signal=mapping_signal, value=0.0, symbol="EURUSD")
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
-        {"tech": 1, "time": 0, "ai": 0},
+        {"tech": 1},
         "buy_majority",
         1.0,
     )
@@ -80,9 +80,9 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
     res2 = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
     assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
         "SELL",
-        {"tech": -1, "time": 0, "ai": 0},
+        {"tech": -1},
         "sell_majority",
-        1.5,
+        1.0,
     )
 
 
@@ -90,22 +90,22 @@ def test_decision_agent_accepts_string_actions() -> None:
     ts = datetime(2024, 1, 1)
     agent = DecisionAgent()
 
-    mapping_signal = {"action": "BUY", "technical_score": 2.0, "confidence_tech": 0.5}
+    mapping_signal = {"action": "BUY", "technical_score": 2.0, "confidence_tech": 1.0}
     res = agent.decide(ts, tech_signal=mapping_signal, value=0.0, symbol="EURUSD")
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
-        {"tech": 1, "time": 0, "ai": 0},
+        {"tech": 1},
         "buy_majority",
         1.0,
     )
 
-    sig = TechnicalSignal(action="SELL", technical_score=-3.0, confidence_tech=0.5)
+    sig = TechnicalSignal(action="SELL", technical_score=-3.0, confidence_tech=1.0)
     res2 = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
     assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
         "SELL",
-        {"tech": -1, "time": 0, "ai": 0},
+        {"tech": -1},
         "sell_majority",
-        1.5,
+        1.0,
     )
 
 
@@ -123,7 +123,7 @@ def test_decision_agent_handles_custom_dataclass_with_string_action() -> None:
     res = agent.decide(ts, tech_signal=sig, value=0.0, symbol="EURUSD")
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
-        {"tech": 1, "time": 0, "ai": 0},
+        {"tech": 1},
         "buy_majority",
         1.0,
     )

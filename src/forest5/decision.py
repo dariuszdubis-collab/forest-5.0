@@ -152,6 +152,53 @@ def _normalize_tech_input(tech_signal, cfg) -> DecisionVote:
     return DecisionVote(source="tech", direction=0, weight=0.0, score=0.0, meta={"mode": "unknown"})
 
 
+def _normalize_ai_input(ai_signal, cfg) -> DecisionVote:
+    """Normalize AI sentiment output into a ``DecisionVote``.
+
+    The function accepts raw numbers, dataclasses, or mappings with ``score``
+    and optional ``confidence_ai`` fields.  Missing confidence values default to
+    ``cfg.decision.ai.default_conf``.  The vote weight scales with
+    ``abs(score)`` and a global AI weight multiplier.
+    """
+
+    ai_cfg = getattr(getattr(cfg, "decision", object()), "ai", object())
+    default_conf = getattr(ai_cfg, "default_conf", 1.0)
+    w_ai = getattr(getattr(getattr(cfg, "decision", object()), "weights", object()), "ai", 1.0)
+
+    if isinstance(ai_signal, Mapping) or is_dataclass(ai_signal):
+        get = (
+            ai_signal.get
+            if isinstance(ai_signal, Mapping)
+            else lambda k, d=None: getattr(ai_signal, k, d)
+        )
+        score = float(get("score", 0.0))
+        conf = float(get("confidence_ai", default_conf))
+        mode = (
+            "dataclass"
+            if is_dataclass(ai_signal) and not isinstance(ai_signal, Mapping)
+            else "mapping"
+        )
+        return DecisionVote(
+            source="ai",
+            direction=_to_sign(score),
+            weight=abs(score) * conf * w_ai,
+            score=score,
+            meta={"mode": mode},
+        )
+
+    if isinstance(ai_signal, (int, float)):
+        score = float(ai_signal)
+        return DecisionVote(
+            source="ai",
+            direction=_to_sign(score),
+            weight=abs(score) * default_conf * w_ai,
+            score=score,
+            meta={"mode": "int"},
+        )
+
+    return DecisionVote(source="ai", direction=0, weight=0.0, score=0.0, meta={"mode": "unknown"})
+
+
 @dataclass
 class DecisionConfig:
     use_ai: bool = False
@@ -192,95 +239,65 @@ class DecisionAgent:
         symbol: str,
         context_text: str = "",
     ) -> DecisionResult:
-        if isinstance(tech_signal, Mapping) or is_dataclass(tech_signal):
-            get = (
-                tech_signal.get
-                if isinstance(tech_signal, Mapping)
-                else lambda k, d=None: getattr(tech_signal, k, d)
-            )
-            action = _normalize_action(get("action", 0))
-            tech_score = get("technical_score", action)
-            confidence = get("confidence_tech", 1.0)
-            votes: dict[str, DecisionVote] = {
-                "tech": DecisionVote(
-                    source="tech",
-                    direction=_to_sign(action if action else tech_score),
-                    weight=abs(float(tech_score)) * float(confidence),
-                    score=float(tech_score),
-                ),
-                "time": DecisionVote(source="time", direction=0),
-                "ai": DecisionVote(source="ai", direction=0),
-            }
-        else:
-            votes = {
-                "tech": DecisionVote(
-                    source="tech",
-                    direction=_to_sign(int(tech_signal)),
-                    weight=1.0,
-                    score=float(tech_signal),
-                ),
-                "time": DecisionVote(source="time", direction=0),
-                "ai": DecisionVote(source="ai", direction=0),
-            }
+        votes: list[DecisionVote] = []
+
+        votes.append(_normalize_tech_input(tech_signal, self.config))
 
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
             if isinstance(tm_res, tuple):
                 tm_decision, tm_weight = tm_res
-            else:  # backward compatibility
+            else:
                 tm_decision, tm_weight = tm_res, 1.0
             if tm_decision == "WAIT":
                 return DecisionResult(
                     "WAIT",
                     0.0,
-                    "time_wait",
-                    {k: asdict(v) for k, v in votes.items()},
+                    "timeonly_wait",
+                    {v.source: asdict(v) for v in votes},
                 )
-            votes["time"] = DecisionVote(
-                source="time",
-                direction=_to_sign(1 if tm_decision == "BUY" else -1),
-                weight=float(tm_weight),
-                score=float(tm_weight),
+            w_time = getattr(
+                getattr(getattr(self.config, "decision", object()), "weights", object()),
+                "time",
+                1.0,
+            )
+            votes.append(
+                DecisionVote(
+                    source="time",
+                    direction=_to_sign(1 if tm_decision == "BUY" else -1),
+                    weight=float(w_time),
+                    score=float(tm_weight),
+                )
             )
 
         if self.ai:
-            s = self.ai.analyse(context_text, symbol).score
-            votes["ai"] = DecisionVote(
-                source="ai",
-                direction=_to_sign(s),
-                weight=abs(float(s)),
-                score=float(s),
-            )
+            ai_sent = self.ai.analyse(context_text, symbol)
+            votes.append(_normalize_ai_input(ai_sent, self.config))
 
-        pos_total = sum(v.weight for v in votes.values() if v.direction > 0)
-        neg_total = sum(v.weight for v in votes.values() if v.direction < 0)
+        pos_total = sum(v.weight for v in votes if v.direction > 0)
+        neg_total = sum(v.weight for v in votes if v.direction < 0)
         if max(pos_total, neg_total) < max(self.config.min_confluence, 1.0):
             return DecisionResult(
                 "WAIT",
                 0.0,
                 "no_consensus",
-                {k: asdict(v) for k, v in votes.items()},
+                {v.source: asdict(v) for v in votes},
             )
 
         if pos_total > neg_total:
             dec = "BUY"
-            weights = [v.weight for v in votes.values() if v.direction > 0]
+            weights = [v.weight for v in votes if v.direction > 0]
         elif neg_total > pos_total:
             dec = "SELL"
-            weights = [v.weight for v in votes.values() if v.direction < 0]
+            weights = [v.weight for v in votes if v.direction < 0]
         else:
             return DecisionResult(
                 "WAIT",
                 0.0,
                 "no_consensus",
-                {k: asdict(v) for k, v in votes.items()},
+                {v.source: asdict(v) for v in votes},
             )
 
         final_weight = min(weights) if weights else 0.0
         reason = "buy_majority" if dec == "BUY" else "sell_majority"
-        return DecisionResult(
-            dec,
-            final_weight,
-            reason,
-            {k: asdict(v) for k, v in votes.items()},
-        )
+        return DecisionResult(dec, final_weight, reason, {v.source: asdict(v) for v in votes})
