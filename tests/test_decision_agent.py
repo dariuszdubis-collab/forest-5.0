@@ -13,7 +13,7 @@ def test_decision_agent_waits_when_time_model_waits() -> None:
     ts = datetime(2024, 1, 1)  # 00:00
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     assert decision == "WAIT"
-    assert votes == {"tech": 1}
+    assert votes == {}
     assert reason == "timeonly_wait"
 
 

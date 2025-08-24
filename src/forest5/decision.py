@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import dataclass, is_dataclass
 from types import SimpleNamespace
 from typing import Any, Literal, Mapping
 
@@ -252,8 +252,6 @@ class DecisionAgent:
     ) -> DecisionResult:
         votes: list[DecisionVote] = []
 
-        votes.append(_normalize_tech_input(tech_signal, self.config))
-
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
             if isinstance(tm_res, tuple):
@@ -261,12 +259,7 @@ class DecisionAgent:
             else:
                 tm_decision, tm_weight = tm_res, 1.0
             if tm_decision == "WAIT":
-                return DecisionResult(
-                    "WAIT",
-                    0.0,
-                    "timeonly_wait",
-                    {v.source: asdict(v) for v in votes},
-                )
+                return DecisionResult("WAIT", 0.0, "timeonly_wait")
             w_time = getattr(
                 getattr(getattr(self.config, "decision", object()), "weights", object()),
                 "time",
@@ -280,6 +273,8 @@ class DecisionAgent:
                     score=float(tm_weight),
                 )
             )
+
+        votes.append(_normalize_tech_input(tech_signal, self.config))
 
         if self.ai:
             ai_sent = self.ai.analyse(context_text, symbol)
