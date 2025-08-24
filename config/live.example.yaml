@@ -29,13 +29,22 @@ time:
 
   primary_signal:
     strategy:
-      name: "h1_ema_rsi_atr"
-      ema_fast: 21
-      ema_slow: 55
-      atr_period: 14
-      rsi_period: 14
-      t_sep_atr: 0.5
-      pullback_atr: 0.5
-      entry_buffer_atr: 0.1
-      sl_atr: 1.0
-      rr: 2.0
+      compat_int: true  # false to return full TechnicalSignal instead of -1/0/1
+      params:
+        name: "h1_ema_rsi_atr"
+        ema_fast: 21
+        ema_slow: 55
+        atr_period: 14
+        rsi_period: 14
+        t_sep_atr: 0.5
+        pullback_atr: 0.5
+        entry_buffer_atr: 0.1
+        sl_atr: 1.0
+        rr: 2.0
+    patterns:  # candlestick pattern filters; disable any to skip its detector
+      engulf:
+        enabled: true  # disable to ignore engulfing candles
+      pinbar:
+        enabled: true  # disable to ignore pinbar patterns
+      star:
+        enabled: true  # disable to ignore morning/evening star patterns
