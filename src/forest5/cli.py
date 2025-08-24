@@ -4,9 +4,11 @@ import argparse
 import os
 import re
 import sys
+import random
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from forest5.config import (
@@ -254,6 +256,10 @@ def cmd_grid(args: argparse.Namespace) -> int:
     risk_vals = args.risk_values if args.risk_values else None
     max_dd_vals = args.max_dd_values if args.max_dd_values else None
 
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+
     if args.time_model and not os.path.exists(args.time_model):
         print(f"Plik modelu czasu nie istnieje: {args.time_model}")
         sys.exit(1)
@@ -277,7 +283,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
     )
-    if args.strategy:
+    if args.strategy and args.strategy != "h1_ema_rsi_atr":
         kwargs["strategy"] = args.strategy
     if risk_vals:
         kwargs["risk_values"] = risk_vals
@@ -285,6 +291,10 @@ def cmd_grid(args: argparse.Namespace) -> int:
         kwargs["max_dd_values"] = max_dd_vals
     if args.debug_dir:
         kwargs["debug_dir"] = args.debug_dir
+
+    if args.dry_run:
+        print("dry-run", kwargs)
+        return 0
 
     out = run_grid(df, **kwargs)
 
@@ -296,13 +306,111 @@ def cmd_grid(args: argparse.Namespace) -> int:
     head = out.head(args.top)
     print(head)
 
-    if args.export:
-        out_path = Path(args.export)
+    if args.out:
+        out_path = Path(args.out)
         if out_path.suffix.lower() in (".parquet", ".pq"):
             out.to_parquet(out_path, index=False)
         else:
             out.to_csv(out_path, index=False)
         print(f"Zapisano wyniki grid do: {out_path.resolve()}")
+
+    return 0
+
+
+def cmd_walkforward(args: argparse.Namespace) -> int:
+    if args.csv:
+        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+    else:
+        df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
+
+    assert_h1_ohlc(df)
+
+    def _single_val(spec: str) -> int:
+        vals = _parse_span_or_list(spec)
+        if len(vals) != 1:
+            raise ValueError("Expected single value for strategy parameter")
+        return vals[0]
+
+    ema_fast = _single_val(args.ema_fast)
+    ema_slow = _single_val(args.ema_slow)
+    rsi_len = _single_val(args.rsi_len)
+    atr_len = _single_val(args.atr_len)
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+
+    settings = BacktestSettings(
+        symbol=args.symbol,
+        timeframe="1h",
+        strategy=dict(
+            name=args.strategy,
+            ema_fast=ema_fast,
+            ema_slow=ema_slow,
+            atr_period=atr_len,
+            rsi_period=rsi_len,
+            t_sep_atr=args.t_sep_atr,
+            pullback_atr=args.pullback_atr,
+            entry_buffer_atr=args.entry_buffer_atr,
+            sl_atr=args.sl_atr,
+            sl_min_atr=args.sl_min_atr,
+            rr=args.rr,
+        ),
+        risk=dict(
+            initial_capital=float(args.capital),
+            risk_per_trade=float(args.risk),
+            max_drawdown=float(args.max_dd),
+            fee_perc=float(args.fee),
+            slippage_perc=float(args.slippage),
+        ),
+        atr_period=atr_len,
+        atr_multiple=args.atr_multiple,
+        debug_dir=args.debug_dir,
+    )
+
+    settings.time.q_low = float(args.q_low)
+    settings.time.q_high = float(args.q_high)
+
+    train = int(args.train)
+    test = int(args.test)
+    start = 0
+    rows: list[dict[str, object]] = []
+
+    while start + train + test <= len(df):
+        if args.mode == "anchored":
+            train_df = df.iloc[: start + train]
+        else:
+            train_df = df.iloc[start : start + train]
+        test_df = df.iloc[start + train : start + train + test]
+
+        if not args.dry_run:
+            res = run_backtest(test_df, settings)
+            eq = res.equity_curve
+            eq_end = float(eq.iloc[-1]) if not eq.empty else 0.0
+            rows.append(
+                {
+                    "train_start": train_df.index[0],
+                    "train_end": train_df.index[-1],
+                    "test_start": test_df.index[0],
+                    "test_end": test_df.index[-1],
+                    "equity_end": eq_end,
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "train_start": train_df.index[0],
+                    "train_end": train_df.index[-1],
+                    "test_start": test_df.index[0],
+                    "test_end": test_df.index[-1],
+                }
+            )
+        start += test
+
+    if args.out:
+        out_path = Path(args.out)
+        pd.DataFrame(rows).to_csv(out_path, index=False)
+        print(f"Zapisano wyniki WF do: {out_path.resolve()}")
 
     return 0
 
@@ -402,9 +510,25 @@ def build_parser() -> argparse.ArgumentParser:
         "grid", help="Przeszukiwanie parametrów", formatter_class=SafeHelpFormatter
     )
     add_data_source_args(p_gr)
-    p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
-    p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
-    p_gr.add_argument("--strategy", default=None, help="Nazwa strategii")
+    p_gr.add_argument(
+        "--ema-fast",
+        "--fast-values",
+        dest="fast_values",
+        required=True,
+        help="Np. 5:20:1 lub 5,8,13",
+    )
+    p_gr.add_argument(
+        "--ema-slow",
+        "--slow-values",
+        dest="slow_values",
+        required=True,
+        help="Np. 10:60:2 lub 12,26",
+    )
+    p_gr.add_argument(
+        "--strategy",
+        default="h1_ema_rsi_atr",
+        help="Nazwa strategii",
+    )
     p_gr.add_argument(
         "--risk-values",
         type=_parse_float_list,
@@ -423,24 +547,71 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
     p_gr.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
 
-    p_gr.add_argument("--atr-period", type=int, default=14)
+    p_gr.add_argument("--atr-len", "--atr-period", dest="atr_period", type=int, default=14)
     p_gr.add_argument("--atr-multiple", type=float, default=2.0)
 
     p_gr.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
-    p_gr.add_argument("--rsi-period", type=int, default=14)
+    p_gr.add_argument("--rsi-len", "--rsi-period", dest="rsi_period", type=int, default=14)
     p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
     p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
+
+    p_gr.add_argument("--t-sep-atr", type=float, default=0.5)
+    p_gr.add_argument("--pullback-atr", type=float, default=0.5)
+    p_gr.add_argument("--entry-buffer-atr", type=float, default=0.1)
+    p_gr.add_argument("--sl-atr", type=float, default=1.0)
+    p_gr.add_argument("--sl-min-atr", type=float, default=0.0)
+    p_gr.add_argument("--rr", type=float, default=2.0)
+    p_gr.add_argument("--q-low", type=float, default=0.1)
+    p_gr.add_argument("--q-high", type=float, default=0.9)
 
     p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
     p_gr.add_argument(
         "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
     )
 
+    p_gr.add_argument("--dry-run", action="store_true", help="Tylko pokaż konfigurację")
+    p_gr.add_argument("--seed", type=int, default=None, help="Losowe ziarno")
     p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
-    p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
+    p_gr.add_argument("--out", "--export", dest="out", default=None, help="Zapis do CSV/Parquet")
     p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_gr.set_defaults(func=cmd_grid)
+
+    # walkforward
+    p_wf = sub.add_parser(
+        "walkforward",
+        help="Walk-forward evaluation",
+        formatter_class=SafeHelpFormatter,
+    )
+    add_data_source_args(p_wf)
+    p_wf.add_argument("--train", type=int, required=True, help="Okno treningowe (liczba barów)")
+    p_wf.add_argument("--test", type=int, required=True, help="Okno testowe (liczba barów)")
+    p_wf.add_argument("--mode", choices=("rolling", "anchored"), default="rolling")
+    p_wf.add_argument("--strategy", default="h1_ema_rsi_atr")
+    p_wf.add_argument("--ema-fast", required=True)
+    p_wf.add_argument("--ema-slow", required=True)
+    p_wf.add_argument("--rsi-len", default="14")
+    p_wf.add_argument("--atr-len", default="14")
+    p_wf.add_argument("--t-sep-atr", type=float, default=0.5)
+    p_wf.add_argument("--pullback-atr", type=float, default=0.5)
+    p_wf.add_argument("--entry-buffer-atr", type=float, default=0.1)
+    p_wf.add_argument("--sl-atr", type=float, default=1.0)
+    p_wf.add_argument("--sl-min-atr", type=float, default=0.0)
+    p_wf.add_argument("--rr", type=float, default=2.0)
+    p_wf.add_argument("--q-low", type=float, default=0.1)
+    p_wf.add_argument("--q-high", type=float, default=0.9)
+    p_wf.add_argument("--capital", type=float, default=100_000.0)
+    p_wf.add_argument("--risk", action=PercentAction, default=0.01)
+    p_wf.add_argument("--max-dd", action=PercentAction, default=0.30)
+    p_wf.add_argument("--fee", action=PercentAction, default=0.0005)
+    p_wf.add_argument("--slippage", action=PercentAction, default=0.0)
+    p_wf.add_argument("--atr-multiple", type=float, default=2.0)
+    p_wf.add_argument("--dry-run", action="store_true")
+    p_wf.add_argument("--seed", type=int, default=None)
+    p_wf.add_argument("--jobs", type=int, default=1)
+    p_wf.add_argument("--out", default=None)
+    p_wf.add_argument("--debug-dir", type=Path, default=None)
+    p_wf.set_defaults(func=cmd_walkforward)
 
     # live
     p_lv = sub.add_parser("live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter)
