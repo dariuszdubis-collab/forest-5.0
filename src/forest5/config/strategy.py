@@ -17,6 +17,8 @@ class H1EmaRsiAtrParams(BaseModel):
     t_sep_atr: float = 0.5
     pullback_atr: float = Field(0.5, alias="pullback_to_ema_fast_atr")
     entry_buffer_atr: float = 0.1
+    sl_buffer_atr: float = 0.0
+    tp_buffer_atr: float = 0.0
     sl_atr: float = 1.0
     sl_min_atr: float = 0.0
     rr: float = 2.0
@@ -84,6 +86,8 @@ class BaseStrategySettings(BaseModel):
     t_sep_atr: float | None = None
     pullback_atr: float | None = Field(None, alias="pullback_to_ema_fast_atr")
     entry_buffer_atr: float | None = None
+    sl_buffer_atr: float | None = None
+    tp_buffer_atr: float | None = None
     sl_atr: float | None = None
     sl_min_atr: float | None = None
     rr: float | None = None
@@ -107,6 +111,8 @@ class BaseStrategySettings(BaseModel):
             "t_sep_atr",
             "pullback_atr",
             "entry_buffer_atr",
+            "sl_buffer_atr",
+            "tp_buffer_atr",
             "sl_atr",
             "sl_min_atr",
             "rr",
