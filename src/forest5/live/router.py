@@ -8,7 +8,15 @@ class OrderRouter(Protocol):
     def connect(self) -> None: ...
     def close(self) -> None: ...
     def set_price(self, price: float) -> None: ...
-    def market_order(self, side: str, qty: float, price: Optional[float] = None) -> OrderResult: ...
+    def market_order(
+        self,
+        side: str,
+        qty: float,
+        price: Optional[float] = None,
+        *,
+        sl: Optional[float] = None,
+        tp: Optional[float] = None,
+    ) -> OrderResult: ...
     def position_qty(self) -> float: ...
     def equity(self) -> float: ...
 
@@ -63,7 +71,15 @@ class PaperBroker:
     def _fee(self, notional: float) -> float:
         return abs(notional) * self._fee_perc
 
-    def market_order(self, side: str, qty: float, price: Optional[float] = None) -> OrderResult:
+    def market_order(
+        self,
+        side: str,
+        qty: float,
+        price: Optional[float] = None,
+        *,
+        sl: Optional[float] = None,
+        tp: Optional[float] = None,
+    ) -> OrderResult:
         self._id += 1
 
         if not self._connected:

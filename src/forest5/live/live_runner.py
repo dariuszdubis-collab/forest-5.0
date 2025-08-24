@@ -319,6 +319,8 @@ def run_live(
                                 decision,
                                 settings.broker.volume * weight,
                                 price,
+                                sl=getattr(triggered, "sl", None),
+                                tp=getattr(triggered, "tp", None),
                             )
                             latency = (time.time() - start_ts) * 1000.0
                             log.info(
