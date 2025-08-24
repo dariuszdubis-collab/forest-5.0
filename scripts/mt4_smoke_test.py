@@ -6,6 +6,12 @@ The script drops a single BUY command into the bridge's ``commands`` folder and
 waits for a corresponding response file to appear in ``results``.  It is a
 lightweight check to verify that the Expert Advisor can communicate with this
 Python environment.
+
+Optionally set ``FOREST_SMOKE_SL`` and ``FOREST_SMOKE_TP`` environment variables
+to provide stop-loss and take-profit values for the command::
+
+    export FOREST_SMOKE_SL=0.001  # 0.1% stop loss
+    export FOREST_SMOKE_TP=0.002  # 0.2% take profit
 """
 
 import json
@@ -33,6 +39,11 @@ res_dir.mkdir(parents=True, exist_ok=True)
 cid = uuid.uuid4().hex
 cmd_path = cmd_dir / f"cmd_{cid}.json"
 res_path = res_dir / f"res_{cid}.json"
+# Optional stop-loss/take-profit overrides
+sl_env = os.environ.get("FOREST_SMOKE_SL")
+tp_env = os.environ.get("FOREST_SMOKE_TP")
+sl = float(sl_env) if sl_env is not None else None
+tp = float(tp_env) if tp_env is not None else None
 
 with cmd_path.open("w") as f:
     json.dump(
@@ -41,8 +52,8 @@ with cmd_path.open("w") as f:
             "action": "BUY",
             "symbol": "EURUSD",
             "volume": 0.01,
-            "sl": None,
-            "tp": None,
+            "sl": sl,
+            "tp": tp,
         },
         f,
     )
