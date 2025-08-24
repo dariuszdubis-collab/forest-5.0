@@ -57,7 +57,11 @@ class TradeBook:
         price_close = float(price_close if price_close is not None else price_open)
         qty = float(qty)
         side_u = side.upper()
-        pnl = (price_close - price_open) * qty if side_u == "BUY" else (price_open - price_close) * qty
+        pnl = (
+            (price_close - price_open) * qty
+            if side_u == "BUY"
+            else (price_open - price_close) * qty
+        )
         self.trades.append(
             Trade(
                 time=time,
