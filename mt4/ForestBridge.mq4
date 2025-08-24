@@ -58,15 +58,33 @@ void WriteState(){
    if(t==OP_BUY)  qty+=OrderLots();
    if(t==OP_SELL) qty-=OrderLots();
  }
- string fn=StringFormat("position_%s.json",_Symbol);
- WriteJson(Join(Join(BridgeRoot,"state"),fn), StringFormat("{\"qty\":%.2f}",qty));
+string fn=StringFormat("position_%s.json",_Symbol);
+WriteJson(Join(Join(BridgeRoot,"state"),fn), StringFormat("{\"qty\":%.2f}",qty));
 }
 
-string ExecuteCommand(const string id,const string action,const string symbol,double volume){
+void NormalizeStopsForBuy(const string symbol,double ask,double &sl,double &tp){
+ int digits=(int)MarketInfo(symbol,MODE_DIGITS);
+ double point=MarketInfo(symbol,MODE_POINT);
+ double mindist=MarketInfo(symbol,MODE_STOPLEVEL)*point;
+ if(sl>0){
+   if(ask-sl<mindist) sl=ask-mindist;
+   sl=NormalizeDouble(sl,digits);
+ }
+ if(tp>0){
+   if(tp-ask<mindist) tp=ask+mindist;
+   tp=NormalizeDouble(tp,digits);
+ }
+}
+
+string ExecuteCommand(const string id,const string action,const string symbol,double volume,double sl,double tp){
  RefreshRates(); int ticket=-1; double price=0.0; bool ok=false; string err="";
  if(action=="BUY"){
    double lots=volume; double ask=NormalizeDouble(Ask,Digits);
-   ticket=OrderSend(symbol,OP_BUY,lots,ask,Slippage,0,0,"FOREST",Magic,0,clrGreen);
+   double _sl=sl; double _tp=tp;
+   NormalizeStopsForBuy(symbol,ask,_sl,_tp);
+   if(LogDebug && (_sl>0 || _tp>0))
+     Log("BUY stops sl="+DoubleToString(_sl,Digits)+" tp="+DoubleToString(_tp,Digits));
+   ticket=OrderSend(symbol,OP_BUY,lots,ask,Slippage,_sl,_tp,"FOREST",Magic,0,clrGreen);
    if(ticket>0){ ok=true; price=ask; } else { err=ErrToStr(GetLastError()); }
  } else if(action=="SELL"){
    double toclose=volume; ok=true;
@@ -98,14 +116,17 @@ void ProcessCommands(){
    string s=FileReadString(h); FileClose(h);
    string id=fname; int dot=StringFind(id,".json",0); if(dot>0) id=StringSubstr(id,0,dot);
    if(StringFind(id,"cmd_")==0) id=StringSubstr(id,4);
-   string action=ExtractStr(s,"\"action\":\"","\"");
-   string symbol=ExtractStr(s,"\"symbol\":\"","\""); if(symbol=="") symbol=_Symbol;
-   double volume=ExtractDouble(s,"\"volume\":");
-   if(LogDebug) Log("CMD "+id+" "+action+" "+symbol+" vol="+DoubleToString(volume,2));
-   string resjs=ExecuteCommand(id,action,symbol,volume);
-   string resfile=Join(Join(BridgeRoot,"results"),"res_"+id+".json");
-   WriteJson(resfile,resjs);
-   FileDelete(path);
+  string action=ExtractStr(s,"\"action\":\"","\"");
+  string symbol=ExtractStr(s,"\"symbol\":\"","\""); if(symbol=="") symbol=_Symbol;
+  double volume=ExtractDouble(s,"\"volume\":");
+  double sl=ExtractDouble(s,"\"sl\":");
+  double tp=ExtractDouble(s,"\"tp\":");
+  if(LogDebug) Log("CMD "+id+" "+action+" "+symbol+" vol="+DoubleToString(volume,2)+
+                     " sl="+DoubleToString(sl,Digits)+" tp="+DoubleToString(tp,Digits));
+  string resjs=ExecuteCommand(id,action,symbol,volume,sl,tp);
+  string resfile=Join(Join(BridgeRoot,"results"),"res_"+id+".json");
+  WriteJson(resfile,resjs);
+  FileDelete(path);
  } while(FileFindNext(hfind,fname));
  FileFindClose(hfind);
 }
