@@ -40,4 +40,3 @@ def test_contract_sl_tp_preserved() -> None:
     pos = engine.positions[0]
     assert pos["sl"] == 99.0
     assert pos["tp"] == 105.0
-
