@@ -20,6 +20,8 @@ class H1EmaRsiAtrSettings(BaseModel):
     name: Literal["h1_ema_rsi_atr"] = "h1_ema_rsi_atr"
     compat_int: int | None = None
     params: H1EmaRsiAtrParams = Field(default_factory=H1EmaRsiAtrParams)
+    tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
+    setup_ttl_bars: int = 1
 
 
 class BaseStrategySettings(BaseModel):
@@ -35,6 +37,8 @@ class BaseStrategySettings(BaseModel):
     rsi_oversold: int = 30
     compat_int: int | None = None
     params: dict[str, Any] | None = None
+    tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
+    setup_ttl_bars: int = 1
 
 
 __all__ = ["BaseStrategySettings", "H1EmaRsiAtrSettings"]

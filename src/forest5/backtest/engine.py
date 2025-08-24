@@ -34,7 +34,7 @@ class BacktestResult:
 class TPslPolicy:
     """Policy defining priority between take-profit and stop-loss hits."""
 
-    priority: str = "tp"
+    priority: str = "SL_FIRST"
 
 
 def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
@@ -94,8 +94,14 @@ class BacktestEngine:
         self.price_col = price_col
 
         # Core components
-        self.tp_sl_policy = TPslPolicy(priority=getattr(settings, "tp_sl_priority", "tp"))
-        ttl = getattr(getattr(settings, "strategy", object()), "setup_ttl_bars", 1)
+        self.tp_sl_policy = TPslPolicy(
+            priority=getattr(settings, "tp_sl_priority", "SL_FIRST")
+        )
+        ttl = getattr(
+            settings,
+            "setup_ttl_bars",
+            getattr(getattr(settings, "strategy", object()), "setup_ttl_bars", 1),
+        )
         self.setups = SetupRegistry(ttl_bars=int(ttl))
 
         self.time_model: TimeOnlyModel | None = None
@@ -277,7 +283,7 @@ class BacktestEngine:
                     fill_price = pos["tp"] if low_hit else pos["sl"] if high_hit else close
 
             if hit_tp and hit_sl:
-                if self.tp_sl_policy.priority.lower() == "sl":
+                if self.tp_sl_policy.priority.upper() == "SL_FIRST":
                     hit_tp = False
                 else:
                     hit_sl = False
