@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from forest5.decision import _normalize_tech_input, DecisionVote
+from forest5.decision import _normalize_tech_input
 from forest5.signals.contract import TechnicalSignal
 
 

@@ -116,7 +116,11 @@ def _normalize_tech_input(tech_signal, cfg) -> DecisionVote:
         raw_meta = get("meta")
         if isinstance(raw_meta, Mapping):
             meta.update(raw_meta)
-        meta["mode"] = "dataclass" if is_dataclass(tech_signal) and not isinstance(tech_signal, Mapping) else "mapping"
+        meta["mode"] = (
+            "dataclass"
+            if is_dataclass(tech_signal) and not isinstance(tech_signal, Mapping)
+            else "mapping"
+        )
         return DecisionVote(
             source="tech",
             direction=_to_sign(action if action else tech_score),
