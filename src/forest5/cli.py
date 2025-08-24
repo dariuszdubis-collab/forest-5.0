@@ -496,14 +496,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
     p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
-    p_gr.add_argument("--t-sep-atr", type=float, default=0.5)
-    p_gr.add_argument("--pullback-atr", type=float, default=0.5)
-    p_gr.add_argument("--entry-buffer-atr", type=float, default=0.1)
-    p_gr.add_argument("--sl-atr", type=float, default=1.0)
-    p_gr.add_argument("--sl-min-atr", type=float, default=0.0)
-    p_gr.add_argument("--rr", type=float, default=2.0)
-    p_gr.add_argument("--q-low", type=float, default=0.1)
-    p_gr.add_argument("--q-high", type=float, default=0.9)
+    p_gr.add_argument("--t-sep-atr", dest="t_sep_atr", type=float, default=0.5)
+    p_gr.add_argument(
+        "--pullback-atr",
+        "--pullback-to-ema-fast-atr",
+        dest="pullback_atr",
+        type=float,
+        default=0.5,
+    )
+    p_gr.add_argument("--entry-buffer-atr", dest="entry_buffer_atr", type=float, default=0.1)
+    p_gr.add_argument("--sl-atr", dest="sl_atr", type=float, default=1.0)
+    p_gr.add_argument("--sl-min-atr", dest="sl_min_atr", type=float, default=0.0)
+    p_gr.add_argument("--rr", dest="rr", type=float, default=2.0)
+    p_gr.add_argument("--q-low", dest="q_low", type=float, default=0.1)
+    p_gr.add_argument("--q-high", dest="q_high", type=float, default=0.9)
     p_gr.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
     p_gr.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
     p_gr.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
@@ -536,14 +542,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_wf.add_argument("--ema-slow", required=True)
     p_wf.add_argument("--rsi-len", default="14")
     p_wf.add_argument("--atr-len", default="14")
-    p_wf.add_argument("--t-sep-atr", type=float, default=0.5)
-    p_wf.add_argument("--pullback-atr", type=float, default=0.5)
-    p_wf.add_argument("--entry-buffer-atr", type=float, default=0.1)
-    p_wf.add_argument("--sl-atr", type=float, default=1.0)
-    p_wf.add_argument("--sl-min-atr", type=float, default=0.0)
-    p_wf.add_argument("--rr", type=float, default=2.0)
-    p_wf.add_argument("--q-low", type=float, default=0.1)
-    p_wf.add_argument("--q-high", type=float, default=0.9)
+    p_wf.add_argument("--t-sep-atr", dest="t_sep_atr", type=float, default=0.5)
+    p_wf.add_argument(
+        "--pullback-atr",
+        "--pullback-to-ema-fast-atr",
+        dest="pullback_atr",
+        type=float,
+        default=0.5,
+    )
+    p_wf.add_argument("--entry-buffer-atr", dest="entry_buffer_atr", type=float, default=0.1)
+    p_wf.add_argument("--sl-atr", dest="sl_atr", type=float, default=1.0)
+    p_wf.add_argument("--sl-min-atr", dest="sl_min_atr", type=float, default=0.0)
+    p_wf.add_argument("--rr", dest="rr", type=float, default=2.0)
+    p_wf.add_argument("--q-low", dest="q_low", type=float, default=0.1)
+    p_wf.add_argument("--q-high", dest="q_high", type=float, default=0.9)
     p_wf.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
     p_wf.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
     p_wf.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
