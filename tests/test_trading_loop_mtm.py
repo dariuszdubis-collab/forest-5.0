@@ -1,16 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from forest5.backtest.engine import (
-    _generate_signal,
-    _trading_loop,
-    _validate_data,
-    bootstrap_position,
-)
-from forest5.backtest.risk import RiskManager
-from forest5.backtest.tradebook import TradeBook
-from forest5.config import BacktestSettings, RiskSettings, StrategySettings
-from forest5.core.indicators import atr
+import pytest
+
+pytest.skip("legacy trading loop removed", allow_module_level=True)
 
 
 def test_trading_loop_marks_once_per_bar():

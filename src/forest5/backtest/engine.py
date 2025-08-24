@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from ..config import BacktestSettings
-from ..utils.debugger import DebugLogger
-from ..core.indicators import atr, ema, rsi
+from ..core.indicators import atr, ema
 from ..utils.log import setup_logger
 from ..utils.validate import ensure_backtest_ready
+from ..utils.timeframes import _TF_MINUTES
+from forest5.signals.contract import TechnicalSignal
 from forest5.signals.factory import compute_signal
+from forest5.signals.setups import SetupRegistry
+from ..time_only import TimeOnlyModel
 from .risk import RiskManager
 from .tradebook import TradeBook
-from ..time_only import TimeOnlyModel
 from ..signals.fusion import _to_sign
 
 
@@ -28,50 +31,47 @@ class BacktestResult:
     trades: TradeBook
 
 
+class TPslPolicy(str, Enum):
+    """Priority rule when both TP and SL are hit on the same bar."""
+
+    TP = "tp"
+    SL = "sl"
+
+
+@dataclass
+class Position:
+    qty: float
+    entry: float
+    sl: float
+    tp: float
+    open_idx: int
+    horizon_idx: int
+
+
 def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
-    """Zapewnia poprawność danych wejściowych do backtestu."""
     return ensure_backtest_ready(df, price_col=price_col).copy()
 
 
-def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: str) -> pd.Series:
-    """Generuje serię sygnałów tradingowych."""
-    name = getattr(settings.strategy, "name", "ema_cross")
-    use_rsi = getattr(settings.strategy, "use_rsi", False)
-    if name in {"ema_rsi", "ema-cross+rsi"}:
-        use_rsi = True
+def _compute_signal_contract(
+    df: pd.DataFrame, settings: BacktestSettings, price_col: str
+) -> TechnicalSignal:
+    """Return :class:`TechnicalSignal` for the last row of ``df``."""
 
-    sig = compute_signal(df, settings, price_col=price_col).astype(int)
-    if use_rsi:
-        rr = rsi(df[price_col], settings.strategy.rsi_period)
-        sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
-        sig = sig.where(~rr.le(settings.strategy.rsi_oversold), other=1)
+    # ensure new contract API
+    if hasattr(settings.strategy, "compat_int"):
+        settings.strategy.compat_int = False
+
+    sig = compute_signal(df, settings, price_col=price_col)
+    if isinstance(sig, pd.Series):
+        last = int(sig.iloc[-1]) if len(sig) else 0
+        action = "BUY" if last > 0 else "SELL" if last < 0 else "KEEP"
+        entry = float(df[price_col].iloc[-1]) if action != "KEEP" else 0.0
+        return TechnicalSignal(
+            timeframe=settings.timeframe,
+            action=action,
+            entry=entry,
+        )
     return sig
-
-
-def bootstrap_position(
-    df: pd.DataFrame,
-    sig: pd.Series,
-    rm: RiskManager,
-    tb: TradeBook,
-    settings: BacktestSettings,
-    price_col: str,
-    atr_multiple: float,
-) -> float:
-    """Próba otwarcia pozycji na pierwszym barze dla skrajnych parametrów EMA."""
-    position = 0.0
-    if len(df) > 0 and settings.strategy.fast <= 2 and settings.strategy.slow >= 50:
-        f0 = ema(df[price_col], settings.strategy.fast)
-        s0 = ema(df[price_col], settings.strategy.slow)
-        first_sig = int(sig.iloc[0]) if len(sig) else 0
-        if first_sig == 0 and float(f0.iloc[0]) >= float(s0.iloc[0]):
-            p0 = float(df[price_col].iloc[0])
-            a0 = float(df["atr"].iloc[0]) if pd.notna(df["atr"].iloc[0]) else 0.0
-            qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=atr_multiple)
-            if qty0 > 0.0:
-                rm.buy(p0, qty0)
-                tb.add(df.index[0], p0, qty0, "BUY")
-                position += qty0
-    return position
 
 
 def _fuse_with_time(
@@ -85,12 +85,7 @@ def _fuse_with_time(
     return_reason: bool = False,
     return_weight: bool = False,
 ) -> int | tuple:
-    """Fuse technical, time and optional AI signals into one decision.
-
-    By default only the final decision ``-1/0/1`` is returned to preserve
-    backwards compatibility. When ``return_weight`` is True, the confidence
-    weight (0–1) is also returned. ``return_reason`` adds a textual reason.
-    """
+    """Fuse technical, time and optional AI signals into one decision."""
 
     votes: dict[str, tuple[int, float]] = {
         "tech": (_to_sign(tech_signal), 1.0),
@@ -103,7 +98,7 @@ def _fuse_with_time(
         if isinstance(tm_res, dict):
             tm_decision = tm_res.get("decision")
             tm_weight = tm_res.get("confidence", 1.0)
-        elif isinstance(tm_res, tuple):  # backward compatibility
+        elif isinstance(tm_res, tuple):
             tm_decision, tm_weight = tm_res
         else:  # pragma: no cover - simple fallback
             tm_decision, tm_weight = tm_res, 1.0
@@ -157,87 +152,161 @@ def _fuse_with_time(
     return res_dec
 
 
-def _trading_loop(
+def bootstrap_position(
     df: pd.DataFrame,
     sig: pd.Series,
     rm: RiskManager,
     tb: TradeBook,
-    position: float,
+    settings: BacktestSettings,
     price_col: str,
     atr_multiple: float,
-    settings: BacktestSettings,
-    debug: DebugLogger | None = None,
 ) -> float:
-    """Główna pętla tradingowa z mark-to-market."""
-    prices = df[price_col].to_numpy(dtype=float)
-    atr_vals = df["atr"].to_numpy(dtype=float)
-    sig_vals = sig.reindex(df.index).fillna(0).to_numpy(dtype=int)
+    """Attempt to open a position on the first bar for extreme EMA params."""
 
-    time_model: TimeOnlyModel | None = None
-    if settings.time.model.enabled and settings.time.model.path:
-        time_model = TimeOnlyModel.load(settings.time.model.path)
+    position = 0.0
+    if len(df) > 0 and settings.strategy.fast <= 2 and settings.strategy.slow >= 50:
+        f0 = ema(df[price_col], settings.strategy.fast)
+        s0 = ema(df[price_col], settings.strategy.slow)
+        first_sig = int(sig.iloc[0]) if len(sig) else 0
+        if first_sig == 0 and float(f0.iloc[0]) >= float(s0.iloc[0]):
+            p0 = float(df[price_col].iloc[0])
+            a0 = float(df["atr"].iloc[0]) if pd.notna(df["atr"].iloc[0]) else 0.0
+            qty0 = rm.position_size(price=p0, atr=a0, atr_multiple=atr_multiple)
+            if qty0 > 0.0:
+                rm.buy(p0, qty0)
+                tb.add(df.index[0], p0, qty0, "BUY")
+                position += qty0
+    return position
 
-    for t, price, atr_val, this_sig in zip(df.index, prices, atr_vals, sig_vals):
-        this_sig = int(this_sig)
 
-        fused, weight, fuse_reason = _fuse_with_time(
-            this_sig,
-            t,
-            float(price),
-            time_model,
-            settings.time.fusion_min_confluence,
-            None,
-            return_reason=True,
-            return_weight=True,
-        )
-        this_sig = fused
-        if fuse_reason in {"time_model_hold", "time_model_wait"} and debug:
-            debug.log("skip_candle", time=str(t), reason=fuse_reason)
-        if fuse_reason == "not_enough_confluence" and debug:
-            debug.log("signal_rejected", time=str(t), reason="no_confluence")
+def on_bar_close(
+    df: pd.DataFrame,
+    idx: int,
+    settings: BacktestSettings,
+    registry: SetupRegistry,
+    price_col: str,
+) -> None:
+    """Compute signal for bar ``idx`` and arm setups for the next bar."""
 
-        if this_sig < 0 and position > 0.0:
-            rm.sell(price, position)
-            tb.add(t, price, position, "SELL")
-            if debug:
-                debug.log("position_close", time=str(t), price=float(price), qty=float(position))
-            position = 0.0
+    sig = _compute_signal_contract(df.iloc[: idx + 1], settings, price_col)
+    if sig.action not in {"BUY", "SELL"}:
+        return
 
-        if this_sig > 0 and position <= 0.0:
-            qty = rm.position_size(price=price, atr=float(atr_val), atr_multiple=atr_multiple)
-            qty *= float(weight)
-            if qty > 0.0:
-                rm.buy(price, qty)
-                tb.add(t, price, qty, "BUY")
-                if debug:
-                    debug.log(
-                        "position_open",
-                        time=str(t),
-                        price=float(price),
-                        qty=float(qty),
-                        weight=float(weight),
-                    )
-                position = qty
-            elif debug:
-                debug.log(
-                    "signal_rejected",
-                    time=str(t),
-                    reason="qty_zero",
-                    price=float(price),
-                    atr=float(atr_val),
+    tf_minutes = _TF_MINUTES.get(settings.timeframe, 0)
+    horizon_bars = 0
+    if tf_minutes > 0 and sig.horizon_minutes:
+        horizon_bars = int(np.ceil(sig.horizon_minutes / tf_minutes))
+
+    sig.meta["armed_index"] = idx
+    sig.meta["horizon_bars"] = horizon_bars
+    registry.arm(settings.timeframe, idx, sig)
+
+
+def _apply_trailing(position: Position, high: float, atr_val: float, atr_mult: float) -> None:
+    if atr_val <= 0:
+        return
+    new_sl = max(position.sl, high - atr_mult * atr_val)
+    position.sl = float(new_sl)
+
+
+def _check_exit(
+    position: Position,
+    high: float,
+    low: float,
+    policy: TPslPolicy,
+) -> float | None:
+    """Return exit price if TP or SL is hit according to ``policy``."""
+
+    if policy == TPslPolicy.TP:
+        if high >= position.tp >= 0:
+            return position.tp
+        if low <= position.sl <= position.tp:
+            return position.sl
+    else:
+        if low <= position.sl <= position.tp:
+            return position.sl
+        if high >= position.tp >= 0:
+            return position.tp
+    return None
+
+
+def on_bar_open(
+    idx: int,
+    row: pd.Series,
+    settings: BacktestSettings,
+    registry: SetupRegistry,
+    rm: RiskManager,
+    tb: TradeBook,
+    position: Position | None,
+    policy: TPslPolicy,
+    time_model: TimeOnlyModel | None,
+    atr_multiple: float,
+    price_col: str,
+) -> Position | None:
+    """Process open positions and trigger setups at the start of a bar."""
+
+    high = float(row["high"])
+    low = float(row["low"])
+    atr_val = float(row.get("atr", 0.0))
+
+    # --- manage existing position ---------------------------------------
+    if position is not None:
+        _apply_trailing(position, high, atr_val, atr_multiple)
+        exit_price = _check_exit(position, high, low, policy)
+        if exit_price is not None:
+            rm.sell(exit_price, position.qty)
+            tb.add(row.name, exit_price, position.qty, "SELL")
+            position = None
+        else:
+            horizon_ok = idx < position.horizon_idx
+            max_bars = getattr(settings, "max_bars_open", 0)
+            if not horizon_ok or (max_bars > 0 and idx - position.open_idx >= max_bars):
+                close_price = float(row[price_col])
+                rm.sell(close_price, position.qty)
+                tb.add(row.name, close_price, position.qty, "SELL")
+                position = None
+
+    # --- try opening a new position -------------------------------------
+    if position is None:
+        trig = registry.check(settings.timeframe, idx, high, low)
+        if trig is not None:
+            armed_idx = trig.meta.get("armed_index", idx - 1)
+            horizon = trig.meta.get("horizon_bars", 0)
+            if horizon and idx - armed_idx > horizon:
+                trig = None
+        if trig is not None and trig.action == "BUY":
+            if time_model is not None:
+                tm_res = time_model.decide(row.name)
+                decision = tm_res.get("decision") if isinstance(tm_res, dict) else tm_res[0]
+                if decision in {"WAIT", "HOLD"}:
+                    trig = None
+            if trig is not None:
+                open_price = float(row["open"])
+                entry = float(trig.entry)
+                fill = open_price if open_price > entry else entry
+                qty = rm.position_size(
+                    price=fill,
+                    atr=atr_val,
+                    atr_multiple=atr_multiple,
                 )
-
-        equity_mtm = rm.equity + position * price
-        rm.record_mark_to_market(equity_mtm)
-
-        if rm.exceeded_max_dd():
-            log.warning("max_dd_exceeded", time=str(t), equity=equity_mtm)
-            break
+                if qty > 0.0:
+                    rm.buy(fill, qty)
+                    tb.add(row.name, fill, qty, "BUY")
+                    horizon_idx = idx + trig.meta.get("horizon_bars", 0)
+                    if horizon_idx == idx:
+                        horizon_idx = idx + 10**9
+                    position = Position(
+                        qty=qty,
+                        entry=fill,
+                        sl=float(trig.sl),
+                        tp=float(trig.tp),
+                        open_idx=idx,
+                        horizon_idx=horizon_idx,
+                    )
     return position
 
 
 def _compute_metrics(equity_curve: list[float]) -> tuple[pd.Series, float]:
-    """Wylicza końcową krzywą equity i maksymalny drawdown."""
     eq = pd.Series(equity_curve, dtype=float)
     peak = eq.cummax()
     dd = (peak - eq) / peak.replace(0, np.nan)
@@ -254,42 +323,57 @@ def run_backtest(
     atr_period: int | None = None,
     atr_multiple: float | None = None,
 ) -> BacktestResult:
-    # 1) walidacja danych
     df = _validate_data(df, price_col=price_col)
 
-    # 2) generowanie sygnału
-    sig = _generate_signal(df, settings, price_col=price_col)
-
-    # 3) przygotowanie ATR do sizingu
     ap = int(atr_period or settings.atr_period)
     am = float(atr_multiple or settings.atr_multiple)
     df["atr"] = atr(df["high"], df["low"], df["close"], ap)
 
-    # 4) stan początkowy
     tb = TradeBook()
     rm = risk or RiskManager(**settings.risk.model_dump())
+    registry = SetupRegistry(getattr(settings, "setup_ttl_bars", 1))
 
-    # 5) bootstrap potencjalnej pozycji
-    position = bootstrap_position(df, sig, rm, tb, settings, price_col, am)
+    time_model: TimeOnlyModel | None = None
+    if settings.time.model.enabled and settings.time.model.path:
+        time_model = TimeOnlyModel.load(settings.time.model.path)
 
-    # 6) główna pętla handlowa
-    debug = DebugLogger(settings.debug_dir) if settings.debug_dir else None
-    try:
-        position = _trading_loop(
-            df,
-            sig,
+    policy = TPslPolicy(getattr(settings, "tp_sl_priority", "tp"))
+
+    position: Position | None = None
+
+    for idx in range(len(df)):
+        row = df.iloc[idx]
+        position = on_bar_open(
+            idx,
+            row,
+            settings,
+            registry,
             rm,
             tb,
             position,
-            price_col,
+            policy,
+            time_model,
             am,
-            settings,
-            debug,
+            price_col,
         )
-    finally:
-        if debug:
-            debug.close()
+        on_bar_close(df, idx, settings, registry, price_col)
 
-    # 7) metryki
+        equity_mtm = rm.equity + (position.qty if position else 0.0) * float(row[price_col])
+        rm.record_mark_to_market(equity_mtm)
+        if rm.exceeded_max_dd():
+            log.warning("max_dd_exceeded", time=str(df.index[idx]), equity=equity_mtm)
+            break
+
     eq, max_dd = _compute_metrics(rm.equity_curve)
     return BacktestResult(equity_curve=eq, max_dd=max_dd, trades=tb)
+
+
+__all__ = [
+    "BacktestResult",
+    "TPslPolicy",
+    "run_backtest",
+    "on_bar_open",
+    "on_bar_close",
+    "_compute_signal_contract",
+]
+

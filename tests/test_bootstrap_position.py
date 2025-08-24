@@ -1,11 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from forest5.backtest.engine import (
-    _generate_signal,
-    _validate_data,
-    bootstrap_position,
-)
+from forest5.backtest.engine import _validate_data, bootstrap_position
+from forest5.signals.factory import compute_signal
 from forest5.backtest.risk import RiskManager
 from forest5.backtest.tradebook import TradeBook
 from forest5.config import BacktestSettings, RiskSettings, StrategySettings
@@ -34,7 +31,7 @@ def test_bootstrap_opens_initial_long():
     )
 
     df = _validate_data(df, price_col="close")
-    sig = _generate_signal(df, settings, price_col="close")
+    sig = compute_signal(df, settings, price_col="close").astype(int)
     df["atr"] = atr(df["high"], df["low"], df["close"], settings.atr_period)
 
     tb = TradeBook()

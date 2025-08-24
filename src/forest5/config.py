@@ -113,6 +113,9 @@ class BacktestSettings(BaseModel):
     time: BacktestTimeSettings = Field(default_factory=BacktestTimeSettings)
     atr_period: int = 14
     atr_multiple: float = 2.0
+    setup_ttl_bars: int = 1
+    tp_sl_priority: str = "tp"
+    max_bars_open: int = 0
     debug_dir: Path | None = None
 
     @field_validator("timeframe")

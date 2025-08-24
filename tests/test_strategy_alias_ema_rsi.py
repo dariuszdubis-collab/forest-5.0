@@ -1,6 +1,6 @@
-from forest5.backtest.engine import _generate_signal
 from forest5.config import BacktestSettings
 from forest5.examples.synthetic import generate_ohlc
+from forest5.signals.factory import compute_signal
 
 
 def test_strategy_alias_does_not_mutate_settings() -> None:
@@ -9,7 +9,7 @@ def test_strategy_alias_does_not_mutate_settings() -> None:
     settings.strategy.name = "ema_rsi"  # alias for ema_cross with RSI
     settings.strategy.use_rsi = False
 
-    sig = _generate_signal(df, settings, price_col="close")
+    sig = compute_signal(df, settings, price_col="close")
 
     assert settings.strategy.name == "ema_rsi"
     assert settings.strategy.use_rsi is False
