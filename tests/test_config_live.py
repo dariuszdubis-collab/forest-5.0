@@ -79,7 +79,8 @@ def test_live_time_model_quantile_invalid(q_low: float, q_high: float):
 def test_live_settings_h1_ema_rsi_atr(tmp_path: Path):
     p = tmp_path / "cfg_live.yaml"
     p.write_text(
-        "broker:\n  type: mt4\n" "strategy:\n  name: h1_ema_rsi_atr\n  compat_int: 42\n  params:\n    ema_fast: 21\n    ema_slow: 55\n",
+        "broker:\n  type: mt4\n"
+        "strategy:\n  name: h1_ema_rsi_atr\n  compat_int: 42\n  params:\n    ema_fast: 21\n    ema_slow: 55\n",
         encoding="utf-8",
     )
 
