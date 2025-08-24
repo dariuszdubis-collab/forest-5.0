@@ -10,7 +10,7 @@ def test_equity_curve_starts_at_initial_and_never_drops_to_price(monkeypatch):
     # Wymuszamy sygnał BUY na pierwszym barze, dalej brak zmian
     import forest5.backtest.engine as eng
 
-    def fake_signal(df, settings, price_col="close"):
+    def fake_signal(df, settings, price_col="close", compat_int=False):
         # 1 na pierwszym barze => otwarcie longa, dalej 0
         arr = np.zeros(len(df), dtype=int)
         arr[0] = 1
@@ -33,7 +33,7 @@ def test_mtm_drawdown_triggers_on_real_equity(monkeypatch):
     # Tworzymy "spadkowy" rynek i wymuszamy długą pozycję od pierwszego bara.
     import forest5.backtest.engine as eng
 
-    def fake_signal(df, settings, price_col="close"):
+    def fake_signal(df, settings, price_col="close", compat_int=False):
         arr = np.zeros(len(df), dtype=int)
         arr[0] = 1  # otwarcie longa
         return pd.Series(arr, index=df.index, dtype=int)

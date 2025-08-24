@@ -109,11 +109,11 @@ def test_compute_signal_h1_returns_contract():
 
 def test_compute_signal_h1_compat_int():
     df = generate_ohlc(periods=100, start_price=100.0)
-    s = _h1_settings(compat_int=True)
-    sig = compute_signal(df, s)
+    s = _h1_settings()
+    sig = compute_signal(df, s, compat_int=True)
     assert isinstance(sig, int) and sig in (-1, 0, 1)
     series = compute_signal_compat(df, s)
-    assert list(series.index) == [df.index[-1]]  # nosec B101
+    assert list(series.index) == list(df.index)  # nosec B101
     assert set(series.unique()).issubset({-1, 0, 1})  # nosec B101
 
 
