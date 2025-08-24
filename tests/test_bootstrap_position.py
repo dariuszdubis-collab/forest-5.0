@@ -43,3 +43,5 @@ def test_bootstrap_opens_initial_long():
 
     assert pos > 0.0
     assert len(tb.trades) == 1
+    d = tb.trades[0].__dict__
+    assert {"entry", "sl", "tp", "reason_close", "setup_id", "pattern"}.issubset(d)

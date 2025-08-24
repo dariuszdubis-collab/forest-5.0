@@ -14,7 +14,9 @@ def test_config_from_yaml(tmp_path: Path):
         "  slow: 30\n"
         "risk:\n"
         "  initial_capital: 50000.0\n"
-        "  risk_per_trade: 0.02\n",
+        "  risk_per_trade: 0.02\n"
+        "tp_sl_priority: TP_FIRST\n"
+        "setup_ttl_bars: 2\n",
         encoding="utf-8",
     )
     s = BacktestSettings.from_file(p)
@@ -24,3 +26,5 @@ def test_config_from_yaml(tmp_path: Path):
     assert isinstance(s.strategy, BaseStrategySettings)
     assert s.risk.initial_capital == 50_000.0
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
+    assert s.tp_sl_priority == "TP_FIRST"
+    assert s.setup_ttl_bars == 2
