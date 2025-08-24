@@ -20,8 +20,10 @@ from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv, load_symbol_csv
-from forest5.utils.argparse_ext import PercentAction
+from forest5.utils.argparse_ext import PercentAction, parse_span_or_list
 from forest5.utils.log import setup_logger
+
+_parse_span_or_list = parse_span_or_list
 
 
 class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -81,79 +83,6 @@ def load_ohlc_csv(
     return df
 
 
-# ------------------------------- CLI commands --------------------------------
-
-
-def _parse_span_or_list(spec: str) -> list[int]:
-    """Parse a numeric span (``lo-hi[:step]`` or ``lo:hi:step``) or
-    comma-separated list.
-
-    Examples::
-        "5-7"        -> [5, 6, 7]
-        "1-5:2"      -> [1, 3, 5]
-        "8:16:1"     -> [8, 9, 10, 11, 12, 13, 14, 15, 16]
-        "1,2,10"     -> [1, 2, 10]
-
-    The range is inclusive and supports negative numbers, e.g. ``-3--1``.
-    Raises :class:`argparse.ArgumentTypeError` when the specification is
-    malformed, ``lo > hi`` or ``step <= 0``.
-    """
-
-    spec = str(spec).strip()
-
-    # Comma separated list of values
-    if "," in spec:
-        try:
-            return [int(float(x.strip())) for x in spec.split(",") if x.strip()]
-        except ValueError as ex:
-            raise argparse.ArgumentTypeError(f"Invalid list: {spec}") from ex
-    # ``lo:hi:step`` form
-    m = re.fullmatch(
-        r"\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*",
-        spec,
-    )
-    if m:
-        lo = int(float(m.group(1)))
-        hi = int(float(m.group(2)))
-        step = int(float(m.group(3)))
-        if step <= 0:
-            raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
-        if hi < lo:
-            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
-        vals: list[int] = list(range(lo, hi + 1, step))
-        if vals[-1] != hi:
-            vals.append(hi)
-        return vals
-
-    # Extract optional step for ``lo-hi[:step]``
-    core, step_str = (spec.split(":", 1) + ["1"])[:2]
-    try:
-        step = int(float(step_str))
-    except ValueError as ex:
-        raise argparse.ArgumentTypeError(f"Invalid step: {step_str}") from ex
-    if step <= 0:
-        raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
-
-    m = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*-\s*([+-]?\d+(?:\.\d+)?)\s*", core)
-    if m:
-        lo = int(float(m.group(1)))
-        hi = int(float(m.group(2)))
-        if hi < lo:
-            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
-        vals = list(range(lo, hi + 1, step))
-        if vals[-1] != hi:
-            vals.append(hi)
-        return vals
-
-    # Single value without span
-    try:
-        return [int(float(spec))]
-    except ValueError as ex:
-        raise argparse.ArgumentTypeError(
-            f"Invalid range: {spec}. Expected formats: lo-hi[:step] or lo:hi:step"
-        ) from ex
-
-
 # Backwards compatibility – old name used in previous versions/tests
 _parse_range = _parse_span_or_list
 
@@ -163,6 +92,12 @@ def _parse_int_list(spec: str | None) -> list[int]:
     if not spec:
         return []
     return [int(x.strip()) for x in spec.split(",") if x.strip()]
+
+
+def _parse_str_list(spec: str | None) -> list[str]:
+    if not spec:
+        return []
+    return [s.strip() for s in str(spec).split(",") if s.strip()]
 
 
 def _parse_float_list(spec: str | None) -> list[float]:
@@ -242,68 +177,69 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
-    if args.csv:
-        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
-    else:
-        df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
+    kwargs: dict[str, object] = {}
+    if args.strategy_name:
+        kwargs["strategy_name"] = args.strategy_name
+    if args.timeframe:
+        kwargs["timeframe"] = args.timeframe
+    if args.ema_fast:
+        kwargs["ema_fast"] = [int(x) for x in args.ema_fast]
+    if args.ema_slow:
+        kwargs["ema_slow"] = [int(x) for x in args.ema_slow]
+    if args.rsi_len:
+        kwargs["rsi_len"] = [int(x) for x in args.rsi_len]
+    if args.atr_len:
+        kwargs["atr_len"] = [int(x) for x in args.atr_len]
+    if args.t_sep_atr:
+        kwargs["t_sep_atr"] = args.t_sep_atr
+    if args.pullback_atr:
+        kwargs["pullback_atr"] = args.pullback_atr
+    if args.entry_buffer_atr:
+        kwargs["entry_buffer_atr"] = args.entry_buffer_atr
+    if args.sl_buffer_atr:
+        kwargs["sl_buffer_atr"] = args.sl_buffer_atr
+    if args.sl_min_atr:
+        kwargs["sl_min_atr"] = args.sl_min_atr
+    if args.tp_rr:
+        kwargs["tp_rr"] = args.tp_rr
+    if args.trailing_atr:
+        kwargs["trailing_atr"] = args.trailing_atr
+    if args.setup_ttl_bars:
+        kwargs["setup_ttl_bars"] = [int(x) for x in args.setup_ttl_bars]
+    if args.engulf_eps_atr:
+        kwargs["engulf_eps_atr"] = args.engulf_eps_atr
+    if args.engulf_body_min:
+        kwargs["engulf_body_min"] = args.engulf_body_min
+    if args.pinbar_wick_dom:
+        kwargs["pinbar_wick_dom"] = args.pinbar_wick_dom
+    if args.pinbar_body_max:
+        kwargs["pinbar_body_max"] = args.pinbar_body_max
+    if args.pinbar_opp_wick_max:
+        kwargs["pinbar_opp_wick_max"] = args.pinbar_opp_wick_max
+    if args.star_reclaim_min:
+        kwargs["star_reclaim_min"] = args.star_reclaim_min
+    if args.star_mid_small_max:
+        kwargs["star_mid_small_max"] = args.star_mid_small_max
+    if args.q_low:
+        kwargs["q_low"] = [int(x) for x in args.q_low]
+    if args.q_high:
+        kwargs["q_high"] = [int(x) for x in args.q_high]
+    kwargs["disable_timeonly"] = bool(args.disable_timeonly)
+    if args.pairs:
+        kwargs["pairs"] = args.pairs
+    if args.from_:
+        kwargs["from_"] = args.from_
+    if args.to:
+        kwargs["to"] = args.to
+    if args.seed is not None:
+        kwargs["seed"] = args.seed
+    if args.out:
+        kwargs["out"] = Path(args.out)
+    kwargs["parallel"] = bool(args.parallel)
+    if args.max_workers is not None:
+        kwargs["max_workers"] = args.max_workers
 
-    assert_h1_ohlc(df)
-
-    fast_vals = list(_parse_span_or_list(args.fast_values))
-    slow_vals = list(_parse_span_or_list(args.slow_values))
-    risk_vals = args.risk_values if args.risk_values else None
-    max_dd_vals = args.max_dd_values if args.max_dd_values else None
-
-    if args.time_model and not os.path.exists(args.time_model):
-        print(f"Plik modelu czasu nie istnieje: {args.time_model}")
-        sys.exit(1)
-
-    kwargs = dict(
-        symbol=args.symbol,
-        fast_values=fast_vals,
-        slow_values=slow_vals,
-        capital=float(args.capital),
-        risk=float(args.risk),
-        max_dd=float(args.max_dd),
-        fee=float(args.fee),
-        slippage=float(args.slippage),
-        atr_period=int(args.atr_period),
-        atr_multiple=float(args.atr_multiple),
-        use_rsi=bool(args.use_rsi),
-        rsi_period=int(args.rsi_period),
-        rsi_oversold=int(args.rsi_oversold),
-        rsi_overbought=int(args.rsi_overbought),
-        time_model=args.time_model,
-        min_confluence=float(args.min_confluence),
-        n_jobs=int(args.jobs),
-    )
-    if args.strategy:
-        kwargs["strategy"] = args.strategy
-    if risk_vals:
-        kwargs["risk_values"] = risk_vals
-    if max_dd_vals:
-        kwargs["max_dd_values"] = max_dd_vals
-    if args.debug_dir:
-        kwargs["debug_dir"] = args.debug_dir
-
-    out = run_grid(df, **kwargs)
-
-    # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
-    sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
-    if sort_cols:
-        out = out.sort_values(by=sort_cols, ascending=False)
-
-    head = out.head(args.top)
-    print(head)
-
-    if args.export:
-        out_path = Path(args.export)
-        if out_path.suffix.lower() in (".parquet", ".pq"):
-            out.to_parquet(out_path, index=False)
-        else:
-            out.to_csv(out_path, index=False)
-        print(f"Zapisano wyniki grid do: {out_path.resolve()}")
-
+    run_grid(**kwargs)
     return 0
 
 
@@ -397,49 +333,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_bt.set_defaults(func=cmd_backtest)
 
-    # grid
+        # grid
     p_gr = sub.add_parser(
         "grid", help="Przeszukiwanie parametrów", formatter_class=SafeHelpFormatter
     )
-    add_data_source_args(p_gr)
-    p_gr.add_argument("--fast-values", required=True, help="Np. 5:20:1 lub 5,8,13")
-    p_gr.add_argument("--slow-values", required=True, help="Np. 10:60:2 lub 12,26")
-    p_gr.add_argument("--strategy", default=None, help="Nazwa strategii")
-    p_gr.add_argument(
-        "--risk-values",
-        type=_parse_float_list,
-        default=None,
-        help="Lista wartości ryzyka, np. 0.01,0.02",
-    )
-    p_gr.add_argument(
-        "--max-dd-values",
-        type=_parse_float_list,
-        default=None,
-        help="Lista wartości max DD, np. 0.2,0.3",
-    )
-    p_gr.add_argument("--capital", type=float, default=100_000.0)
-    p_gr.add_argument("--risk", action=PercentAction, default=0.01)
-    p_gr.add_argument("--max-dd", action=PercentAction, default=0.30, help="Dozwolone obsunięcie")
-    p_gr.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
-    p_gr.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
-
-    p_gr.add_argument("--atr-period", type=int, default=14)
-    p_gr.add_argument("--atr-multiple", type=float, default=2.0)
-
-    p_gr.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
-    p_gr.add_argument("--rsi-period", type=int, default=14)
-    p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
-    p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
-
-    p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
-    p_gr.add_argument(
-        "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
-    )
-
-    p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
-    p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
-    p_gr.add_argument("--export", default=None, help="Zapis do CSV/Parquet")
-    p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
+    p_gr.add_argument("--strategy-name", type=_parse_str_list, default=None, help="Strategy name(s)")
+    p_gr.add_argument("--timeframe", type=_parse_str_list, default=None, help="Timeframe(s)")
+    p_gr.add_argument("--ema-fast", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--ema-slow", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--rsi-len", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--atr-len", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--t-sep-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--pullback-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--entry-buffer-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--sl-buffer-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--sl-min-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--tp-rr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--trailing-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--setup-ttl-bars", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--engulf-eps-atr", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--engulf-body-min", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--pinbar-wick-dom", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--pinbar-body-max", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--pinbar-opp-wick-max", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--star-reclaim-min", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--star-mid-small-max", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--q-low", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--q-high", type=parse_span_or_list, default=None)
+    p_gr.add_argument("--disable-timeonly", action="store_true")
+    p_gr.add_argument("--pairs", type=_parse_str_list, default=None)
+    p_gr.add_argument("--from", dest="from_", default=None)
+    p_gr.add_argument("--to", default=None)
+    p_gr.add_argument("--seed", type=int, default=None)
+    p_gr.add_argument("--out", default=None)
+    p_gr.add_argument("--parallel", action="store_true")
+    p_gr.add_argument("--max-workers", type=int, default=None)
     p_gr.set_defaults(func=cmd_grid)
 
     # live
