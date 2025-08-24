@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
@@ -62,9 +63,6 @@ def test_min_confluence_sell_and_conflict_without_ai() -> None:
         {"tech": -1, "time": 1},
         "no_consensus",
     )
-
-
-from dataclasses import dataclass
 
 
 @dataclass
