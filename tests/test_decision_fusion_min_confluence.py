@@ -35,13 +35,13 @@ def test_min_confluence_requires_both_votes() -> None:
     assert (decision, votes, reason) == (
         "BUY",
         {"tech": 1, "time": 1},
-        "buy_majority",
+        "ok",
     )
     decision, votes, reason = agent.decide(ts, tech_signal=0, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 0, "time": 1},
-        "no_consensus",
+        {},
+        "below_min_confluence",
     )
 
 
@@ -53,15 +53,15 @@ def test_min_confluence_sell_and_conflict_without_ai() -> None:
     assert (decision, votes, reason) == (
         "SELL",
         {"tech": -1, "time": -1},
-        "sell_majority",
+        "ok",
     )
     tm_buy = DummyTimeModel("BUY")
     agent_conflict = DecisionAgent(config=DecisionConfig(time_model=tm_buy, min_confluence=2))
     decision, votes, reason = agent_conflict.decide(ts, tech_signal=-1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": -1, "time": 1},
-        "no_consensus",
+        {},
+        "tie",
     )
 
 
@@ -87,7 +87,7 @@ def test_min_confluence_with_ai() -> None:
     assert (decision, votes, reason) == (
         "BUY",
         {"tech": 1, "ai": 1},
-        "buy_majority",
+        "ok",
     )
 
     agent.ai = DummyAI(-1.0)
@@ -95,13 +95,13 @@ def test_min_confluence_with_ai() -> None:
     assert (decision, votes, reason) == (
         "SELL",
         {"tech": -1, "ai": -1},
-        "sell_majority",
+        "ok",
     )
 
     agent.ai = DummyAI(-1.0)
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1, "ai": -1},
-        "no_consensus",
+        {},
+        "tie",
     )

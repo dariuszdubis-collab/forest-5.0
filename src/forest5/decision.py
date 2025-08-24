@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, is_dataclass
+from types import SimpleNamespace
 from typing import Any, Literal, Mapping
 
 import pandas as pd
@@ -8,7 +9,7 @@ import pandas as pd
 from .ai_agent import SentimentAgent
 from .live.router import OrderRouter, PaperBroker
 from .time_only import TimeOnlyModel
-from .signals.fusion import _to_sign
+from .signals.fusion import _fuse_votes, _to_sign
 
 
 Dir = Literal[-1, 0, 1]
@@ -61,6 +62,16 @@ class DecisionResult:
     def votes(self) -> dict[str, Dir]:
         if not self.details:
             return {}
+        if "votes" in self.details and isinstance(self.details["votes"], list):
+            raw_votes = self.details["votes"]
+            out: dict[str, Dir] = {}
+            for v in raw_votes:
+                if isinstance(v, Mapping):
+                    src = v.get("source")
+                    dir_ = v.get("direction")
+                    if isinstance(src, str) and isinstance(dir_, (int, float)):
+                        out[src] = _to_sign(dir_)  # type: ignore[assignment]
+            return out
         out: dict[str, Dir] = {}
         for k, v in self.details.items():
             if isinstance(v, Mapping) and "direction" in v:
@@ -274,30 +285,4 @@ class DecisionAgent:
             ai_sent = self.ai.analyse(context_text, symbol)
             votes.append(_normalize_ai_input(ai_sent, self.config))
 
-        pos_total = sum(v.weight for v in votes if v.direction > 0)
-        neg_total = sum(v.weight for v in votes if v.direction < 0)
-        if max(pos_total, neg_total) < max(self.config.min_confluence, 1.0):
-            return DecisionResult(
-                "WAIT",
-                0.0,
-                "no_consensus",
-                {v.source: asdict(v) for v in votes},
-            )
-
-        if pos_total > neg_total:
-            dec = "BUY"
-            weights = [v.weight for v in votes if v.direction > 0]
-        elif neg_total > pos_total:
-            dec = "SELL"
-            weights = [v.weight for v in votes if v.direction < 0]
-        else:
-            return DecisionResult(
-                "WAIT",
-                0.0,
-                "no_consensus",
-                {v.source: asdict(v) for v in votes},
-            )
-
-        final_weight = min(weights) if weights else 0.0
-        reason = "buy_majority" if dec == "BUY" else "sell_majority"
-        return DecisionResult(dec, final_weight, reason, {v.source: asdict(v) for v in votes})
+        return _fuse_votes(votes, SimpleNamespace(decision=self.config))

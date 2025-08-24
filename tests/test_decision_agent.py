@@ -26,19 +26,19 @@ def test_decision_agent_majority_and_tie() -> None:
     assert (decision, votes, reason) == (
         "BUY",
         {"tech": 1, "time": 1},
-        "buy_majority",
+        "ok",
     )
     decision, votes, reason = agent.decide(ts, tech_signal=-1, value=-2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "SELL",
         {"tech": -1, "time": -1},
-        "sell_majority",
+        "ok",
     )
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=-2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1, "time": -1},
-        "no_consensus",
+        {},
+        "tie",
     )
 
 
@@ -49,8 +49,8 @@ def test_decision_agent_respects_confluence_threshold() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1},
-        "no_consensus",
+        {},
+        "below_min_confluence",
     )
 
     time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
@@ -59,7 +59,7 @@ def test_decision_agent_respects_confluence_threshold() -> None:
     assert (decision, votes, reason) == (
         "BUY",
         {"tech": 1, "time": 1},
-        "buy_majority",
+        "ok",
     )
 
 
@@ -72,7 +72,7 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
         {"tech": 1},
-        "buy_majority",
+        "ok",
         1.0,
     )
 
@@ -81,8 +81,8 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
     assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
         "SELL",
         {"tech": -1},
-        "sell_majority",
-        1.0,
+        "ok",
+        -1.0,
     )
 
 
@@ -95,7 +95,7 @@ def test_decision_agent_accepts_string_actions() -> None:
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
         {"tech": 1},
-        "buy_majority",
+        "ok",
         1.0,
     )
 
@@ -104,8 +104,8 @@ def test_decision_agent_accepts_string_actions() -> None:
     assert (res2.decision, res2.votes, res2.reason, res2.weight) == (
         "SELL",
         {"tech": -1},
-        "sell_majority",
-        1.0,
+        "ok",
+        -1.0,
     )
 
 
@@ -124,6 +124,6 @@ def test_decision_agent_handles_custom_dataclass_with_string_action() -> None:
     assert (res.decision, res.votes, res.reason, res.weight) == (
         "BUY",
         {"tech": 1},
-        "buy_majority",
+        "ok",
         1.0,
     )
