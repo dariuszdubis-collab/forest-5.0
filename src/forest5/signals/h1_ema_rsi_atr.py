@@ -24,6 +24,10 @@ import pandas as pd
 
 from forest5.core.indicators import atr, ema, rsi
 from .contract import TechnicalSignal
+from .setups import SetupRegistry
+
+
+_REGISTRY = SetupRegistry()
 
 
 DEFAULT_PARAMS: dict[str, Any] = {
@@ -56,7 +60,11 @@ def _to_params(params: Any | None) -> dict[str, Any]:
     return {**DEFAULT_PARAMS, **vars(params)}
 
 
-def compute_primary_signal_h1(df: pd.DataFrame, params: Any | None = None) -> TechnicalSignal:
+def compute_primary_signal_h1(
+    df: pd.DataFrame,
+    params: Any | None = None,
+    registry: SetupRegistry | None = None,
+) -> TechnicalSignal:
     """Compute H1 EMA/RSI/ATR signal.
 
     Parameters
@@ -69,14 +77,24 @@ def compute_primary_signal_h1(df: pd.DataFrame, params: Any | None = None) -> Te
     """
 
     p = _to_params(params)
+    reg = registry or _REGISTRY
+
+    if df.empty:
+        return TechnicalSignal(timeframe=p["timeframe"], horizon_minutes=p["horizon_minutes"])
+
+    idx = len(df) - 1
+    high = df["high"]
+    low = df["low"]
+
+    triggered = reg.check(p["timeframe"], idx, high.iloc[-1], low.iloc[-1])
+    if triggered:
+        return triggered
 
     lookback = max(p["ema_fast"], p["ema_slow"], p["atr_period"], p["rsi_period"]) + 2
     if len(df) < lookback:
         return TechnicalSignal(timeframe=p["timeframe"], horizon_minutes=p["horizon_minutes"])
 
     close = df["close"]
-    high = df["high"]
-    low = df["low"]
 
     ema_f = ema(close, p["ema_fast"])
     ema_s = ema(close, p["ema_slow"])
@@ -89,6 +107,13 @@ def compute_primary_signal_h1(df: pd.DataFrame, params: Any | None = None) -> Te
     rsi_last = rsi_series.iloc[-1]
     rsi_prev = rsi_series.iloc[-2]
     close_prev = close.iloc[-2]
+
+    meta = {
+        "ema_fast": float(ema_f_last),
+        "ema_slow": float(ema_s_last),
+        "atr": float(atr_last),
+        "rsi": float(rsi_last),
+    }
 
     # --- Trend gate -------------------------------------------------------
     sep_ok = abs(ema_f_last - ema_s_last) >= p["t_sep_atr"] * atr_last
@@ -106,44 +131,43 @@ def compute_primary_signal_h1(df: pd.DataFrame, params: Any | None = None) -> Te
     trigger_down = rsi_prev > 50 >= rsi_last
     trigger = (trend == 1 and trigger_up) or (trend == -1 and trigger_down)
 
+    drivers: list[str] = []
     action = "KEEP"
     entry = sl = tp = 0.0
-    drivers: list[str] = []
 
     if trend and pullback and trigger:
         drivers = ["ema_trend", "pullback", "rsi_trigger"]
         risk = p["sl_atr"] * atr_last
         if trend == 1:
-            entry = df["high"].iloc[-1] + p["entry_buffer_atr"] * atr_last
+            entry = high.iloc[-1] + p["entry_buffer_atr"] * atr_last
             sl = entry - risk
             tp = entry + risk * p["rr"]
             action = "BUY"
         else:
-            entry = df["low"].iloc[-1] - p["entry_buffer_atr"] * atr_last
+            entry = low.iloc[-1] - p["entry_buffer_atr"] * atr_last
             sl = entry + risk
             tp = entry - risk * p["rr"]
             action = "SELL"
 
-    meta = {
-        "ema_fast": float(ema_f_last),
-        "ema_slow": float(ema_s_last),
-        "atr": float(atr_last),
-        "rsi": float(rsi_last),
-    }
-
-    technical_score = 1.0 if action == "BUY" else -1.0 if action == "SELL" else 0.0
-    confidence_tech = abs(technical_score)
+        technical_score = 1.0 if action == "BUY" else -1.0
+        confidence_tech = abs(technical_score)
+        signal = TechnicalSignal(
+            timeframe=p["timeframe"],
+            action=action,
+            entry=entry,
+            sl=sl,
+            tp=tp,
+            horizon_minutes=p["horizon_minutes"],
+            technical_score=technical_score,
+            confidence_tech=confidence_tech,
+            drivers=drivers,
+            meta=meta,
+        )
+        reg.arm(p["timeframe"], idx, signal)
 
     return TechnicalSignal(
         timeframe=p["timeframe"],
-        action=action,
-        entry=entry,
-        sl=sl,
-        tp=tp,
         horizon_minutes=p["horizon_minutes"],
-        technical_score=technical_score,
-        confidence_tech=confidence_tech,
-        drivers=drivers,
         meta=meta,
     )
 
