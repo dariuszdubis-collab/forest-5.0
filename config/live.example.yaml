@@ -16,10 +16,16 @@ ai:
   model: "gpt-4o-mini"
   max_tokens: 200
   context_file: "context.txt"  # use absolute path; on Windows/Wine use Z:\\path\\to\\context.txt
-
 decision:
-  min_confluence: 2  # number of indicators that must agree; lower values may create false signals
-
+  min_confluence: 0.0
+  tie_epsilon: 0.05
+  weights:
+    tech: 1.0
+    ai: 0.75
+  tech:
+    default_conf_int: 0.50
+    conf_floor: 0.10
+    conf_cap: 1.00
 time:
   model:
     enabled: false  # true when using a trained time filter model

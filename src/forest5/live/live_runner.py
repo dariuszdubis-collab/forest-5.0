@@ -172,6 +172,9 @@ def run_live(
             ai_max_tokens=settings.ai.max_tokens,
             time_model=time_model,
             min_confluence=settings.decision.min_confluence,
+            tie_epsilon=settings.decision.tie_epsilon,
+            weights=settings.decision.weights,
+            tech=settings.decision.tech,
         ),
     )
 
