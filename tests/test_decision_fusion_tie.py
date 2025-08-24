@@ -19,6 +19,6 @@ def test_min_confluence_conflicting_votes_wait() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1, "time": -1},
-        "no_consensus",
+        {},
+        "tie",
     )
