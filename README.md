@@ -3,6 +3,12 @@
 Modułowy framework tradingowy łączący **analizę techniczną**, **agent AI (sentyment/fundamenty)**,
 **broker MT5 (stub)** i **paper trading**. Działa lokalnie (CLI). Opcjonalnie lekki UI (Streamlit).
 
+## Wymagania środowiskowe
+
+- Python ≥3.10,<3.13
+- pakiety: pandas, numpy, scipy, joblib, pydantic, pyyaml, structlog, plotly, tzdata, setuptools
+- pełna lista znajduje się w plikach `environment.yml` (Conda) oraz `pyproject.toml` (Poetry)
+
 ## Szybki start
 
 ```bash
@@ -25,6 +31,56 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
 # 5) Grid-search
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
 ```
+
+## Komendy GRID i walk-forward
+
+Pełne uruchomienie GRID:
+
+```bash
+python scripts/optimize_grid.py \
+  --csv data/EURUSD_H1_ML_ready.csv --symbol EURUSD \
+  --fast "5-20" --slow "20-60:5" \
+  --use-rsi --rsi-period 14 --rsi-oversold 30 --rsi-overbought 70 \
+  --capital 100000 --risk 0.01 --fee-perc 0.0005 --slippage-perc 0.0 \
+  --atr-period 14 --atr-multiple 2.0 \
+  --start 2009-07-01 --end 2011-12-31 \
+  --dd-penalty 0.5 --jobs 1 --quiet --skip-fast-ge-slow \
+  --export out/grid_ema_rsi.csv
+```
+
+Walk-forward:
+
+```bash
+PYTHONWARNINGS=ignore python scripts/walkforward.py \
+  --csv data/EURUSD_H1_ML_ready.csv --symbol EURUSD \
+  --fast "5-20" --slow "20-60:5" \
+  --use-rsi --rsi-period 14 --rsi-oversold 30 --rsi-overbought 70 \
+  --capital 100000 --risk 0.01 --fee-perc 0.0005 --slippage-perc 0.0 \
+  --atr-period 14 --atr-multiple 2.0 \
+  --start 2009-07-01 --end 2011-12-31 \
+  --train-months 12 --test-months 3 --step-months 3 \
+  --dd-penalty 0.5 --skip-fast-ge-slow \
+  --export out/walkforward.csv
+```
+
+### Kolumny `results.csv`
+
+Plik z wynikami gridu zawiera:
+
+- `fast`, `slow` – parametry strategii,
+- `equity_end` – końcowy kapitał,
+- `dd` – maksymalne obsunięcie,
+- `cagr` – roczna stopa zwrotu (CAGR),
+- `rar` – `cagr` podzielone przez `dd`,
+- `trades` – liczba transakcji,
+- `winrate` – odsetek zyskownych transakcji,
+- `pnl`, `pnl_net` – zysk brutto i netto,
+- `sharpe` – współczynnik Sharpe'a,
+- `expectancy` – średni zysk na transakcję,
+- `expectancy_by_pattern` – zysk w podziale na patterny,
+- `timeonly_wait_pct` – czas oczekiwania modelu TimeOnly,
+- `setups_expired_pct` – odsetek wygasłych setupów,
+- `rr_avg`, `rr_median` – średni i medianowy stosunek zysku do ryzyka.
 
 ## Pre-commit
 
