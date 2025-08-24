@@ -22,8 +22,13 @@ from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv, load_symbol_csv
-from forest5.utils.argparse_ext import PercentAction
+from forest5.utils.argparse_ext import PercentAction, span_or_list
 from forest5.utils.log import setup_logger
+
+
+# Backwards compatibility – old name used in previous versions/tests
+def _parse_range(spec: str) -> list[int]:
+    return span_or_list(spec, int)
 
 
 class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter):
@@ -84,94 +89,6 @@ def load_ohlc_csv(
 
 
 # ------------------------------- CLI commands --------------------------------
-
-
-def _parse_span_or_list(spec: str) -> list[int]:
-    """Parse a numeric span (``lo-hi[:step]`` or ``lo:hi:step``) or
-    comma-separated list.
-
-    Examples::
-        "5-7"        -> [5, 6, 7]
-        "1-5:2"      -> [1, 3, 5]
-        "8:16:1"     -> [8, 9, 10, 11, 12, 13, 14, 15, 16]
-        "1,2,10"     -> [1, 2, 10]
-
-    The range is inclusive and supports negative numbers, e.g. ``-3--1``.
-    Raises :class:`argparse.ArgumentTypeError` when the specification is
-    malformed, ``lo > hi`` or ``step <= 0``.
-    """
-
-    spec = str(spec).strip()
-
-    # Comma separated list of values
-    if "," in spec:
-        try:
-            return [int(float(x.strip())) for x in spec.split(",") if x.strip()]
-        except ValueError as ex:
-            raise argparse.ArgumentTypeError(f"Invalid list: {spec}") from ex
-    # ``lo:hi:step`` form
-    m = re.fullmatch(
-        r"\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*:\s*([+-]?\d+(?:\.\d+)?)\s*",
-        spec,
-    )
-    if m:
-        lo = int(float(m.group(1)))
-        hi = int(float(m.group(2)))
-        step = int(float(m.group(3)))
-        if step <= 0:
-            raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
-        if hi < lo:
-            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
-        vals: list[int] = list(range(lo, hi + 1, step))
-        if vals[-1] != hi:
-            vals.append(hi)
-        return vals
-
-    # Extract optional step for ``lo-hi[:step]``
-    core, step_str = (spec.split(":", 1) + ["1"])[:2]
-    try:
-        step = int(float(step_str))
-    except ValueError as ex:
-        raise argparse.ArgumentTypeError(f"Invalid step: {step_str}") from ex
-    if step <= 0:
-        raise argparse.ArgumentTypeError(f"Step must be > 0 (given: {step})")
-
-    m = re.fullmatch(r"\s*([+-]?\d+(?:\.\d+)?)\s*-\s*([+-]?\d+(?:\.\d+)?)\s*", core)
-    if m:
-        lo = int(float(m.group(1)))
-        hi = int(float(m.group(2)))
-        if hi < lo:
-            raise argparse.ArgumentTypeError(f"Upper bound < lower: {spec}")
-        vals = list(range(lo, hi + 1, step))
-        if vals[-1] != hi:
-            vals.append(hi)
-        return vals
-
-    # Single value without span
-    try:
-        return [int(float(spec))]
-    except ValueError as ex:
-        raise argparse.ArgumentTypeError(
-            f"Invalid range: {spec}. Expected formats: lo-hi[:step] or lo:hi:step"
-        ) from ex
-
-
-# Backwards compatibility – old name used in previous versions/tests
-_parse_range = _parse_span_or_list
-
-
-def _parse_int_list(spec: str | None) -> list[int]:
-    """Parse comma-separated integers into a list of ints."""
-    if not spec:
-        return []
-    return [int(x.strip()) for x in spec.split(",") if x.strip()]
-
-
-def _parse_float_list(spec: str | None) -> list[float]:
-    """Parse comma-separated floats into a list of floats."""
-    if not spec:
-        return []
-    return [float(x.strip()) for x in str(spec).split(",") if x.strip()]
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
@@ -251,8 +168,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
     assert_h1_ohlc(df)
 
-    fast_vals = list(_parse_span_or_list(args.fast_values))
-    slow_vals = list(_parse_span_or_list(args.slow_values))
+    fast_vals = span_or_list(args.fast_values, int)
+    slow_vals = span_or_list(args.slow_values, int)
     risk_vals = args.risk_values if args.risk_values else None
     max_dd_vals = args.max_dd_values if args.max_dd_values else None
 
@@ -338,7 +255,7 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
     assert_h1_ohlc(df)
 
     def _single_val(spec: str) -> int:
-        vals = _parse_span_or_list(spec)
+        vals = span_or_list(spec, int)
         if len(vals) != 1:
             raise ValueError("Expected single value for strategy parameter")
         return vals[0]
@@ -548,13 +465,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_gr.add_argument(
         "--risk-values",
-        type=_parse_float_list,
+        type=lambda s: span_or_list(s, float),
         default=None,
         help="Lista wartości ryzyka, np. 0.01,0.02",
     )
     p_gr.add_argument(
         "--max-dd-values",
-        type=_parse_float_list,
+        type=lambda s: span_or_list(s, float),
         default=None,
         help="Lista wartości max DD, np. 0.2,0.3",
     )
