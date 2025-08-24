@@ -21,15 +21,16 @@ def _old_trading_loop(df, sig, rm, tb, position, price_col, atr_multiple):
         this_sig = int(sig.loc[t]) if t in sig.index else 0
 
         if this_sig < 0 and position > 0.0:
+            entry_price = getattr(rm, "_avg_price", 0.0)
             rm.sell(price, position)
-            tb.add(t, price, position, "SELL")
+            tb.add(t, entry_price, position, "SELL", price_close=price, entry=entry_price)
             position = 0.0
 
         if this_sig > 0 and position <= 0.0:
             qty = rm.position_size(price=price, atr=float(row["atr"]), atr_multiple=atr_multiple)
             if qty > 0.0:
                 rm.buy(price, qty)
-                tb.add(t, price, qty, "BUY")
+                tb.add(t, price, qty, "BUY", entry=price)
                 position = qty
 
         equity_mtm = rm.equity + position * price
