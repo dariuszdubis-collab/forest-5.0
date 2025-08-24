@@ -14,6 +14,8 @@ from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
+from ..signals import SetupRegistry
+from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
 from ..utils.log import setup_logger
 from ..utils.debugger import DebugLogger
@@ -180,6 +182,7 @@ def run_live(
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
 
+    registry = SetupRegistry()
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
@@ -223,6 +226,7 @@ def run_live(
                         }
                         continue
 
+                    bar_closed = False
                     if bar_start == current_bar["start"]:
                         current_bar["high"] = max(current_bar["high"], price)
                         current_bar["low"] = min(current_bar["low"], price)
@@ -241,10 +245,42 @@ def run_live(
                             log.error("max_drawdown_reached", drawdown_pct=dd * 100)
                             break
 
+                        if sig != 0:
+                            action = "BUY" if sig > 0 else "SELL"
+                            registry.arm(
+                                settings.broker.symbol,
+                                len(df) - 1,
+                                TechnicalSignal(
+                                    timeframe=tf,
+                                    action=action,
+                                    entry=current_bar["close"],
+                                    horizon_minutes=_TF_MINUTES[tf],
+                                    technical_score=1.0 if action == "BUY" else -1.0,
+                                    confidence_tech=1.0,
+                                ),
+                            )
+
+                        current_bar = {
+                            "start": bar_start,
+                            "open": price,
+                            "high": price,
+                            "low": price,
+                            "close": price,
+                        }
+                        bar_closed = True
+
+                    triggered = registry.check(
+                        settings.broker.symbol,
+                        len(df),
+                        current_bar["high"],
+                        current_bar["low"],
+                    )
+                    if triggered:
+                        idx = pd.to_datetime(ts, unit="s")
                         dec: DecisionResult = agent.decide(
                             idx,
-                            sig,
-                            current_bar["close"],
+                            triggered,
+                            price,
                             settings.broker.symbol,
                             context_text,
                         )
@@ -263,7 +299,75 @@ def run_live(
                                 if decision in ("BUY", "SELL")
                                 else 0
                             ),
-                            price=current_bar["close"],
+                            price=price,
+                            latency_ms=0.0,
+                            error=None,
+                            context={"votes": votes, "reason": reason, "weight": weight},
+                        )
+                        if debug:
+                            debug.log(
+                                "decision",
+                                time=str(idx),
+                                decision=decision,
+                                votes=votes,
+                                reason=reason,
+                                weight=float(weight),
+                            )
+                        if decision in ("BUY", "SELL") and weight > 0:
+                            start_ts = time.time()
+                            res = broker.market_order(
+                                decision,
+                                settings.broker.volume * weight,
+                                price,
+                            )
+                            latency = (time.time() - start_ts) * 1000.0
+                            log.info(
+                                "order_result",
+                                timestamp=time.time(),
+                                symbol=settings.broker.symbol,
+                                action="market_order",
+                                side=decision,
+                                qty=res.filled_qty,
+                                price=res.avg_price,
+                                latency_ms=latency,
+                                error=res.error,
+                                context={"status": res.status, "id": res.id},
+                            )
+                            if debug:
+                                debug.log(
+                                    "order",
+                                    time=str(idx),
+                                    side=decision,
+                                    qty=res.filled_qty,
+                                    price=res.avg_price,
+                                    status=res.status,
+                                    latency_ms=latency,
+                                )
+                    elif not getattr(registry, "_setups", {}) and bar_closed:
+                        idx = pd.to_datetime(ts, unit="s")
+                        dec = agent.decide(
+                            idx,
+                            0,
+                            price,
+                            settings.broker.symbol,
+                            context_text,
+                        )
+                        decision = dec.decision
+                        weight = dec.weight
+                        votes = dec.votes
+                        reason = dec.reason
+                        log.info(
+                            "decision",
+                            timestamp=time.time(),
+                            symbol=settings.broker.symbol,
+                            action="decision",
+                            side=decision,
+                            qty=(
+                                settings.broker.volume * weight
+                                if decision in ("BUY", "SELL")
+                                else 0
+                            ),
+                            price=price,
                             latency_ms=0.0,
                             error=None,
                             context={"votes": votes, "reason": reason, "weight": weight},
@@ -308,14 +412,7 @@ def run_live(
                                     latency_ms=latency,
                                 )
 
-                        current_bar = {
-                            "start": bar_start,
-                            "open": price,
-                            "high": price,
-                            "low": price,
-                            "close": price,
-                        }
-
+                    if bar_closed:
                         steps += 1
                         if max_steps is not None and steps >= max_steps:
                             break
