@@ -82,6 +82,76 @@ def _normalize_action(action: int | float | str) -> int | float:
     return action
 
 
+def _normalize_tech_input(tech_signal, cfg) -> DecisionVote:
+    """Normalize various technical signal formats into a ``DecisionVote``.
+
+    ``tech_signal`` may be an int/float, mapping, or dataclass. For mappings and
+    dataclasses we expect ``action``/``technical_score``/``confidence_tech``
+    fields. Confidence is clamped to ``cfg.decision.tech.conf_floor`` and
+    ``cfg.decision.tech.conf_cap``. String actions like ``BUY``/``SELL``/``KEEP``
+    are mapped to numeric directions. The returned ``DecisionVote`` always
+    includes ``meta={'mode': <mode>}`` describing the normalization path.
+    Unknown formats yield a neutral vote.
+    """
+
+    tech_cfg = getattr(getattr(cfg, "decision", object()), "tech", object())
+    default_conf_int = getattr(tech_cfg, "default_conf_int", 1.0)
+    conf_floor = getattr(tech_cfg, "conf_floor", 0.0)
+    conf_cap = getattr(tech_cfg, "conf_cap", 1.0)
+    w_tech = getattr(getattr(getattr(cfg, "decision", object()), "weights", object()), "tech", 1.0)
+
+    def _clamp(v: float) -> float:
+        return max(conf_floor, min(conf_cap, v))
+
+    if isinstance(tech_signal, Mapping) or is_dataclass(tech_signal):
+        get = (
+            tech_signal.get
+            if isinstance(tech_signal, Mapping)
+            else lambda k, d=None: getattr(tech_signal, k, d)
+        )
+        action = _normalize_action(get("action", 0))
+        tech_score = float(get("technical_score", action))
+        conf = _clamp(float(get("confidence_tech", default_conf_int)))
+        meta = {}
+        raw_meta = get("meta")
+        if isinstance(raw_meta, Mapping):
+            meta.update(raw_meta)
+        meta["mode"] = (
+            "dataclass"
+            if is_dataclass(tech_signal) and not isinstance(tech_signal, Mapping)
+            else "mapping"
+        )
+        return DecisionVote(
+            source="tech",
+            direction=_to_sign(action if action else tech_score),
+            weight=conf * w_tech,
+            score=tech_score,
+            meta=meta,
+        )
+
+    if isinstance(tech_signal, str):
+        dir_val = _normalize_action(tech_signal)
+        if isinstance(dir_val, (int, float)):
+            return DecisionVote(
+                source="tech",
+                direction=_to_sign(dir_val),
+                weight=default_conf_int * w_tech,
+                score=float(dir_val),
+                meta={"mode": "str"},
+            )
+
+    if isinstance(tech_signal, (int, float)):
+        return DecisionVote(
+            source="tech",
+            direction=_to_sign(int(tech_signal)),
+            weight=default_conf_int * w_tech,
+            score=float(tech_signal),
+            meta={"mode": "int"},
+        )
+
+    return DecisionVote(source="tech", direction=0, weight=0.0, score=0.0, meta={"mode": "unknown"})
+
+
 @dataclass
 class DecisionConfig:
     use_ai: bool = False
