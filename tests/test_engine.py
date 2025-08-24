@@ -61,7 +61,7 @@ def test_gap_fill_trailing_and_priority():
         id="s1",
         action="BUY",
         entry=100.0,
-        sl=95.0,
+        sl=0.0,
         tp=110.0,
         meta={"trailing_atr": 0.5},
     )
