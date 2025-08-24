@@ -181,7 +181,13 @@ def main() -> None:
     with pd.option_context("display.max_columns", None, "display.width", 120):
         print(res_df.head(args.top).to_string(index=False, justify="right"))
 
-    print({"event": "walkforward_export_done", "out": str(Path(args.out) / "summary.csv"), "rows": len(res_df)})
+    print(
+        {
+            "event": "walkforward_export_done",
+            "out": str(Path(args.out) / "summary.csv"),
+            "rows": len(res_df),
+        }
+    )
 
 
 if __name__ == "__main__":

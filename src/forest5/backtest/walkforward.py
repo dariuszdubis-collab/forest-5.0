@@ -1,4 +1,5 @@
 """Walk-forward evaluation utilities."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -65,7 +66,7 @@ def _evaluate_df(
     pnl_net = eq_end - init_cap
     returns = equity.pct_change().dropna()
     sharpe = (
-        float(returns.mean() / returns.std() * (252 ** 0.5))
+        float(returns.mean() / returns.std() * (252**0.5))
         if not returns.empty and returns.std() != 0
         else 0.0
     )
