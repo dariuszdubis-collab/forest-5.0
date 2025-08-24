@@ -376,4 +376,3 @@ __all__ = [
     "on_bar_close",
     "_compute_signal_contract",
 ]
-
