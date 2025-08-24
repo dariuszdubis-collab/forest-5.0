@@ -17,7 +17,7 @@ from ..signals.combine import confirm_with_candles
 from ..signals import SetupRegistry
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import setup_logger
+from ..utils.log import TelemetryContext, new_id, setup_logger
 from ..utils.debugger import DebugLogger
 from .router import OrderRouter
 from .risk_guard import should_halt_for_drawdown
@@ -144,6 +144,7 @@ def run_live(
 
     broker.connect()
     start_equity = broker.equity() or 0.0
+    run_id = new_id("run")
     debug: DebugLogger | None = None
     if debug_dir:
         session_dir = Path(debug_dir) / f"session_{int(time.time())}"
@@ -250,18 +251,34 @@ def run_live(
 
                         if sig != 0:
                             action = "BUY" if sig > 0 else "SELL"
-                            registry.arm(
-                                settings.broker.symbol,
-                                len(df) - 1,
-                                TechnicalSignal(
-                                    timeframe=tf,
-                                    action=action,
-                                    entry=current_bar["close"],
-                                    horizon_minutes=_TF_MINUTES[tf],
-                                    technical_score=1.0 if action == "BUY" else -1.0,
-                                    confidence_tech=1.0,
-                                ),
+                            setup_id = f"{settings.broker.symbol}-{len(df) - 1}"
+                            ctx = TelemetryContext(
+                                run_id=run_id,
+                                symbol=settings.broker.symbol,
+                                timeframe=tf,
+                                setup_id=setup_id,
                             )
+                            sig_obj = TechnicalSignal(
+                                timeframe=tf,
+                                action=action,
+                                entry=current_bar["close"],
+                                horizon_minutes=_TF_MINUTES[tf],
+                                technical_score=1.0 if action == "BUY" else -1.0,
+                                confidence_tech=1.0,
+                            )
+                            try:
+                                registry.arm(
+                                    settings.broker.symbol,
+                                    len(df) - 1,
+                                    sig_obj,
+                                    ctx=ctx,
+                                )
+                            except TypeError:
+                                registry.arm(
+                                    settings.broker.symbol,
+                                    len(df) - 1,
+                                    sig_obj,
+                                )
 
                         current_bar = {
                             "start": bar_start,

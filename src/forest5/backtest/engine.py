@@ -9,7 +9,7 @@ import pandas as pd
 from ..config import BacktestSettings
 from ..utils.debugger import DebugLogger
 from ..core.indicators import atr, ema, rsi
-from ..utils.log import setup_logger
+from ..utils.log import TelemetryContext, new_id, setup_logger
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from ..signals.contract import TechnicalSignal
@@ -115,6 +115,7 @@ class BacktestEngine:
         self.df = df
         self.settings = settings
         self.price_col = price_col
+        self.run_id = new_id("run")
 
         # Core components
         self.tp_sl_policy = TPslPolicy(priority=getattr(settings, "tp_sl_priority", "SL_FIRST"))
@@ -168,7 +169,13 @@ class BacktestEngine:
         if contract.action in {"BUY", "SELL"}:
             setup_id = contract.meta.get("id", str(index))
             candidate = SetupCandidate(id=setup_id, **contract.__dict__)
-            self.setups.arm(setup_id, index, candidate)
+            ctx = TelemetryContext(
+                run_id=self.run_id,
+                symbol=self.settings.symbol,
+                timeframe=self.settings.timeframe,
+                setup_id=setup_id,
+            )
+            self.setups.arm(setup_id, index, candidate, ctx=ctx)
 
         # Mark-to-market after bar close
         close_price = float(row[self.price_col])

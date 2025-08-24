@@ -4,6 +4,14 @@ from dataclasses import dataclass
 from typing import Dict
 
 from .contract import TechnicalSignal
+from ..utils.log import (
+    TelemetryContext,
+    E_SETUP_ARM,
+    E_SETUP_EXPIRE,
+    E_SETUP_TRIGGER,
+    R_TTL,
+    log_event,
+)
 
 
 @dataclass
@@ -23,6 +31,7 @@ class SetupCandidate(TechnicalSignal):
 class _ArmedSetup:
     signal: TechnicalSignal
     expiry: int
+    ctx: TelemetryContext | None = None
 
 
 class SetupRegistry:
@@ -38,7 +47,13 @@ class SetupRegistry:
         self.ttl_bars = ttl_bars
         self._setups: Dict[str, _ArmedSetup] = {}
 
-    def arm(self, key: str, index: int, signal: TechnicalSignal) -> None:
+    def arm(
+        self,
+        key: str,
+        index: int,
+        signal: TechnicalSignal,
+        ctx: TelemetryContext | None = None,
+    ) -> None:
         """Store ``signal`` and arm it for the next bar.
 
         Parameters
@@ -53,7 +68,20 @@ class SetupRegistry:
             execute upon breakout.
         """
 
-        self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars)
+        self._setups[key] = _ArmedSetup(
+            signal=signal, expiry=index + self.ttl_bars, ctx=ctx
+        )
+        log_event(
+            E_SETUP_ARM,
+            ctx,
+            action=signal.action,
+            entry=signal.entry,
+            sl=signal.sl,
+            tp=signal.tp,
+            pattern=signal.meta.get("pattern"),
+            drivers=signal.drivers,
+            ttl_bars=self.ttl_bars,
+        )
 
     def check(self, key: str, index: int, high: float, low: float) -> TechnicalSignal | None:
         """Check for triggered or expired setups.
@@ -75,6 +103,17 @@ class SetupRegistry:
         # Expire old setups
         if index > setup.expiry:
             del self._setups[key]
+            log_event(
+                E_SETUP_EXPIRE,
+                setup.ctx,
+                action=setup.signal.action,
+                entry=setup.signal.entry,
+                sl=setup.signal.sl,
+                tp=setup.signal.tp,
+                pattern=setup.signal.meta.get("pattern"),
+                drivers=setup.signal.drivers,
+                reason=R_TTL,
+            )
             return None
 
         sig = setup.signal
@@ -84,10 +123,31 @@ class SetupRegistry:
 
         if triggered:
             del self._setups[key]
+            log_event(
+                E_SETUP_TRIGGER,
+                setup.ctx,
+                action=sig.action,
+                entry=sig.entry,
+                sl=sig.sl,
+                tp=sig.tp,
+                pattern=sig.meta.get("pattern"),
+                drivers=sig.drivers,
+            )
             return sig
 
         if index >= setup.expiry:
             del self._setups[key]
+            log_event(
+                E_SETUP_EXPIRE,
+                setup.ctx,
+                action=sig.action,
+                entry=sig.entry,
+                sl=sig.sl,
+                tp=sig.tp,
+                pattern=sig.meta.get("pattern"),
+                drivers=sig.drivers,
+                reason=R_TTL,
+            )
         return None
 
 
