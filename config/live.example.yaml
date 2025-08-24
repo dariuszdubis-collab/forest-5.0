@@ -48,3 +48,7 @@ time:
         enabled: true  # disable to ignore pinbar patterns
       star:
         enabled: true  # disable to ignore morning/evening star patterns
+
+backtest:
+  tp_sl_priority: SL_FIRST   # or TP_FIRST
+  setup_ttl_bars: 1
