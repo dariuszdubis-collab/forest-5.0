@@ -95,6 +95,7 @@ def run_grid(
     n_jobs: int = 1,
     cache_dir: str = ".cache/forest5-grid",
     debug_dir: Path | None = None,
+    seed: int | None = None,
 ) -> pd.DataFrame:
 
     mem = Memory(cache_dir, verbose=0)
@@ -127,7 +128,11 @@ def run_grid(
         risk_value: float,
         rsi_period_value: int,
         max_dd_value: float,
+        seed_value: int | None = None,
     ) -> GridResult:
+        if seed_value is not None:
+            random.seed(seed_value)
+            np.random.seed(seed_value)
         run_debug = None
         if base_debug_dir:
             name = (
@@ -196,16 +201,19 @@ def run_grid(
 
     try:
         if n_jobs == 1:
-            results = [
-                _single_run(
-                    c["fast"],
-                    c["slow"],
-                    c.get("risk", risk),
-                    c.get("rsi_period", rsi_period),
-                    c.get("max_dd", max_dd),
+            results = []
+            for i, c in enumerate(combos):
+                seed_value = seed + i if seed is not None else None
+                results.append(
+                    _single_run(
+                        c["fast"],
+                        c["slow"],
+                        c.get("risk", risk),
+                        c.get("rsi_period", rsi_period),
+                        c.get("max_dd", max_dd),
+                        seed_value,
+                    )
                 )
-                for c in combos
-            ]
         else:
             results = Parallel(n_jobs=n_jobs)(
                 delayed(_single_run)(
@@ -214,8 +222,9 @@ def run_grid(
                     c.get("risk", risk),
                     c.get("rsi_period", rsi_period),
                     c.get("max_dd", max_dd),
+                    seed + i if seed is not None else None,
                 )
-                for c in combos
+                for i, c in enumerate(combos)
             )
     finally:
         indicators.atr = atr_orig
@@ -263,7 +272,28 @@ def run_param_grid(
 
     keys = sorted(param_ranges.keys())
     combos = [dict(zip(keys, vals)) for vals in product(*[param_ranges[k] for k in keys])]
-    meta = {"params": param_ranges, "n_combos": len(combos)}
+    from datetime import datetime, timezone
+    import subprocess  # nosec B404
+
+    git_rev = "unknown"
+    try:  # pragma: no cover - best effort
+        git_rev = (
+            subprocess.check_output(  # nosec
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
+    except Exception:  # pragma: no cover
+        pass  # nosec B110
+
+    meta = {
+        "params": param_ranges,
+        "n_combos": len(combos),
+        "seed": seed,
+        "git": git_rev,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    }
 
     if dry_run:
         out = pd.DataFrame(combos)
