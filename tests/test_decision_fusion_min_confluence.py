@@ -22,7 +22,7 @@ def test_wait_short_circuit() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
-        {"tech": 1},
+        {},
         "timeonly_wait",
     )
 
