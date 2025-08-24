@@ -23,4 +23,4 @@ def test_engine_marks_once_per_bar():
     )
     res = run_backtest(df, s)
     # 1 punkt startowy + 1 punkt na bar => len == len(df) + 1
-    assert len(res.equity_curve) in (len(df), len(df) + 1)
+    assert len(res.equity_curve) == len(df) + 1

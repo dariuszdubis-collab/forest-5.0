@@ -136,3 +136,17 @@ def test_compute_signal_compat_accepts_mapping(monkeypatch):
     series = compute_signal_compat(df, s)
     assert list(series.index) == list(df.index)  # nosec B101
     assert series.iloc[-1] == 1  # nosec B101
+
+
+def test_compute_signal_passes_contract(monkeypatch):
+    df = generate_ohlc(periods=10, start_price=100.0)
+    s = BacktestSettings()
+    s.strategy.name = "h1_ema_rsi_atr"
+    fake = TechnicalSignal(action="BUY", entry=1.0, sl=0.5, tp=1.5)
+
+    def _fake(df, params):
+        return fake
+
+    monkeypatch.setattr("forest5.signals.factory.compute_primary_signal_h1", _fake)
+    res = compute_signal(df, s)
+    assert res is fake
