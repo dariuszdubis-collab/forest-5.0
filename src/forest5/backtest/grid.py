@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 from typing import Iterable, Any, Dict, List
+import json
+import random
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -222,3 +225,137 @@ def run_grid(
     out["rar"] = out["cagr"] / out["dd"].replace(0, np.nan)
     out["rar"] = out["rar"].fillna(0.0)
     return out
+
+
+def run_param_grid(
+    df: pd.DataFrame,
+    base_settings: BacktestSettings,
+    param_ranges: Dict[str, Iterable[Any]],
+    *,
+    jobs: int = 1,
+    seed: int | None = None,
+    dry_run: bool = False,
+    results_path: Path | None = None,
+    meta_path: Path | None = None,
+):
+    """Run a grid search over arbitrary parameter ranges.
+
+    Parameters
+    ----------
+    df:
+        OHLC data.
+    base_settings:
+        :class:`BacktestSettings` instance providing base configuration.
+    param_ranges:
+        Mapping of parameter names to iterables of values.  Keys matching
+        attributes on ``settings.strategy``/``settings.risk``/``settings.time``
+        are applied accordingly.
+    jobs:
+        Number of parallel workers.
+    seed:
+        Optional base seed.  Each worker receives ``seed + index``.
+    dry_run:
+        If ``True`` only combinations are returned without running backtests.
+    results_path, meta_path:
+        Optional paths where ``results.csv`` and ``meta.json`` should be
+        written.
+    """
+
+    keys = sorted(param_ranges.keys())
+    combos = [dict(zip(keys, vals)) for vals in product(*[param_ranges[k] for k in keys])]
+    meta = {"params": param_ranges, "n_combos": len(combos)}
+
+    if dry_run:
+        out = pd.DataFrame(combos)
+        if results_path:
+            out.to_csv(results_path, index=False)
+        if meta_path:
+            Path(meta_path).write_text(json.dumps(meta))
+        return out, meta
+
+    def _single(idx: int, combo: Dict[str, Any]) -> Dict[str, Any]:
+        if seed is not None:
+            local_seed = seed + idx
+            random.seed(local_seed)
+            np.random.seed(local_seed)
+        settings = (
+            base_settings.model_copy(deep=True)
+            if hasattr(base_settings, "model_copy")
+            else deepcopy(base_settings)
+        )
+        for k, v in combo.items():
+            if hasattr(settings.strategy, k):
+                setattr(settings.strategy, k, v)
+            elif hasattr(settings.risk, k):
+                setattr(settings.risk, k, v)
+            elif hasattr(settings.time, k):
+                setattr(settings.time, k, v)
+            else:
+                setattr(settings, k, v)
+        try:
+            res = run_backtest(df, settings)
+            equity = res.equity_curve
+            end, dd, cagr = _compute_metrics(equity)
+            tb = res.trades.trades
+            pnls = [t.pnl for t in tb]
+            pnl = float(sum(pnls))
+            pnl_net = end - float(settings.risk.initial_capital)
+            trades = len(pnls)
+            wins = sum(1 for p in pnls if p > 0)
+            winrate = wins / trades if trades else 0.0
+            expectancy = pnl / trades if trades else 0.0
+            pattern_map: Dict[str, List[float]] = {}
+            rr_vals: List[float] = []
+            for t in tb:
+                if t.pattern:
+                    pattern_map.setdefault(t.pattern, []).append(t.pnl)
+                if t.sl is not None and t.entry is not None and t.qty:
+                    risk_amt = abs((t.entry - t.sl) * t.qty)
+                    if risk_amt > 0:
+                        rr_vals.append(t.pnl / risk_amt)
+            expectancy_by_pattern = {k: float(np.mean(v)) for k, v in pattern_map.items()}
+            rr_avg = float(np.mean(rr_vals)) if rr_vals else 0.0
+            rr_median = float(np.median(rr_vals)) if rr_vals else 0.0
+            returns = equity.pct_change().dropna()
+            sharpe = (
+                float(returns.mean() / returns.std() * np.sqrt(252))
+                if not returns.empty and returns.std() != 0
+                else 0.0
+            )
+            return {
+                **combo,
+                "equity_end": end,
+                "dd": dd,
+                "cagr": cagr,
+                "rar": cagr / dd if dd else 0.0,
+                "trades": trades,
+                "winrate": winrate,
+                "pnl": pnl,
+                "pnl_net": pnl_net,
+                "sharpe": sharpe,
+                "expectancy": expectancy,
+                "expectancy_by_pattern": expectancy_by_pattern,
+                "timeonly_wait_pct": 0.0,
+                "setups_expired_pct": 0.0,
+                "rr_avg": rr_avg,
+                "rr_median": rr_median,
+            }
+        except Exception as exc:  # pragma: no cover - defensive
+            return {**combo, "error": str(exc)}
+
+    if jobs == 1:
+        rows = [_single(i, combo) for i, combo in enumerate(combos)]
+    else:
+        rows = Parallel(n_jobs=jobs)(delayed(_single)(i, combo) for i, combo in enumerate(combos))
+
+    out = pd.DataFrame(rows)
+    if results_path:
+        to_save = out.copy()
+        if "expectancy_by_pattern" in to_save.columns:
+            to_save["expectancy_by_pattern"] = to_save["expectancy_by_pattern"].apply(
+                lambda v: json.dumps(v)
+            )
+        to_save.to_csv(results_path, index=False)
+    if meta_path:
+        Path(meta_path).write_text(json.dumps(meta))
+    return out, meta
