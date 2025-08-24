@@ -220,6 +220,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         kwargs["max_dd_values"] = max_dd_vals
     if args.debug_dir:
         kwargs["debug_dir"] = args.debug_dir
+    if args.seed is not None:
+        kwargs["seed"] = int(args.seed)
 
     if args.dry_run:
         print("dry-run", kwargs)
@@ -309,6 +311,7 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
     test = int(args.test)
     start = 0
     rows: list[dict[str, object]] = []
+    base_seed = int(args.seed) if args.seed is not None else None
 
     while start + train + test <= len(df):
         if args.mode == "anchored":
@@ -318,6 +321,10 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
         test_df = df.iloc[start + train : start + train + test]
 
         if not args.dry_run:
+            if base_seed is not None:
+                local_seed = base_seed + len(rows)
+                random.seed(local_seed)
+                np.random.seed(local_seed)
             res = run_backtest(test_df, settings)
             eq = res.equity_curve
             eq_end = float(eq.iloc[-1]) if not eq.empty else 0.0
