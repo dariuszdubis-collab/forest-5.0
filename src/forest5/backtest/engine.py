@@ -49,7 +49,30 @@ def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: st
     if name in {"ema_rsi", "ema-cross+rsi"}:
         use_rsi = True
 
-    sig = compute_signal(df, settings, price_col=price_col, compat_int=False).astype(int)
+    if name == "h1_ema_rsi_atr":
+        # Strategy returns a contract for the latest bar only. Build a signal
+        # series by iterating through the DataFrame and converting each contract
+        # to ``-1/0/1``.
+        from forest5.signals.h1_ema_rsi_atr import compute_primary_signal_h1
+        from forest5.signals.compat import contract_to_int
+
+        registry = SetupRegistry()
+        params = getattr(settings.strategy, "params", settings.strategy)
+        vals: list[int] = []
+        for i in range(len(df)):
+            contract = compute_primary_signal_h1(df.iloc[: i + 1], params=params, registry=registry)
+            vals.append(int(contract_to_int(contract)))
+        sig = pd.Series(vals, index=df.index, dtype=int)
+    else:
+        res = compute_signal(df, settings, price_col=price_col, compat_int=False)
+        if isinstance(res, TechnicalSignal):
+            from forest5.signals.compat import contract_to_int
+
+            val = int(contract_to_int(res))
+            sig = pd.Series([val] * len(df), index=df.index, dtype=int)
+        else:
+            sig = res.astype(int)
+
     if use_rsi:
         rr = rsi(df[price_col], settings.strategy.rsi_period)
         sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
