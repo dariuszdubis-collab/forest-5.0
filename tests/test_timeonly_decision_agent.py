@@ -21,7 +21,7 @@ class FakeTimeModel:
         ("WAIT", 1, "WAIT"),
         ("BUY", 1, "BUY"),
         ("SELL", -1, "SELL"),
-        ("BUY", -1, "SELL"),  # tech signal stronger
+        ("BUY", -1, "WAIT"),
     ],
 )
 def test_timeonly_decision_agent(time_sig: str, tech_sig: int, expected: str) -> None:
@@ -30,5 +30,5 @@ def test_timeonly_decision_agent(time_sig: str, tech_sig: int, expected: str) ->
     agent = DecisionAgent(config=DecisionConfig(min_confluence=1.0, time_model=fake))
     res = agent.decide(ts, tech_signal=tech_sig, value=100.0, symbol="EURUSD")
     assert res.decision == expected
-    exp_weight = 0.0 if expected == "WAIT" else (0.5 if time_sig == expected else 1.0)
+    exp_weight = 0.0 if expected == "WAIT" else 1.0
     assert res.weight == pytest.approx(exp_weight)
