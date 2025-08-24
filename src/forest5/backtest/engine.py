@@ -94,9 +94,7 @@ class BacktestEngine:
         self.price_col = price_col
 
         # Core components
-        self.tp_sl_policy = TPslPolicy(
-            priority=getattr(settings, "tp_sl_priority", "SL_FIRST")
-        )
+        self.tp_sl_policy = TPslPolicy(priority=getattr(settings, "tp_sl_priority", "SL_FIRST"))
         ttl = getattr(
             settings,
             "setup_ttl_bars",
