@@ -226,6 +226,7 @@ def run_live(
                         }
                         continue
 
+                    bar_closed = False
                     if bar_start == current_bar["start"]:
                         current_bar["high"] = max(current_bar["high"], price)
                         current_bar["low"] = min(current_bar["low"], price)
@@ -266,10 +267,7 @@ def run_live(
                             "low": price,
                             "close": price,
                         }
-
-                        steps += 1
-                        if max_steps is not None and steps >= max_steps:
-                            break
+                        bar_closed = True
 
                     triggered = registry.check(
                         settings.broker.symbol,
@@ -345,6 +343,79 @@ def run_live(
                                     status=res.status,
                                     latency_ms=latency,
                                 )
+                    elif not getattr(registry, "_setups", {}) and bar_closed:
+                        idx = pd.to_datetime(ts, unit="s")
+                        dec = agent.decide(
+                            idx,
+                            0,
+                            price,
+                            settings.broker.symbol,
+                            context_text,
+                        )
+                        decision = dec.decision
+                        weight = dec.weight
+                        votes = dec.votes
+                        reason = dec.reason
+                        log.info(
+                            "decision",
+                            timestamp=time.time(),
+                            symbol=settings.broker.symbol,
+                            action="decision",
+                            side=decision,
+                            qty=(
+                                settings.broker.volume * weight
+                                if decision in ("BUY", "SELL")
+                                else 0
+                            ),
+                            price=price,
+                            latency_ms=0.0,
+                            error=None,
+                            context={"votes": votes, "reason": reason, "weight": weight},
+                        )
+                        if debug:
+                            debug.log(
+                                "decision",
+                                time=str(idx),
+                                decision=decision,
+                                votes=votes,
+                                reason=reason,
+                                weight=float(weight),
+                            )
+                        if decision in ("BUY", "SELL") and weight > 0:
+                            start_ts = time.time()
+                            res = broker.market_order(
+                                decision,
+                                settings.broker.volume * weight,
+                                price,
+                            )
+                            latency = (time.time() - start_ts) * 1000.0
+                            log.info(
+                                "order_result",
+                                timestamp=time.time(),
+                                symbol=settings.broker.symbol,
+                                action="market_order",
+                                side=decision,
+                                qty=res.filled_qty,
+                                price=res.avg_price,
+                                latency_ms=latency,
+                                error=res.error,
+                                context={"status": res.status, "id": res.id},
+                            )
+                            if debug:
+                                debug.log(
+                                    "order",
+                                    time=str(idx),
+                                    side=decision,
+                                    qty=res.filled_qty,
+                                    price=res.avg_price,
+                                    status=res.status,
+                                    latency_ms=latency,
+                                )
+
+                    if bar_closed:
+                        steps += 1
+                        if max_steps is not None and steps >= max_steps:
+                            break
             time.sleep(0.25)
     except KeyboardInterrupt:
         log.info("keyboard_interrupt")
