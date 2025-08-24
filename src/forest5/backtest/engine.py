@@ -49,7 +49,7 @@ def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: st
     if name in {"ema_rsi", "ema-cross+rsi"}:
         use_rsi = True
 
-    sig = compute_signal(df, settings, price_col=price_col).astype(int)
+    sig = compute_signal(df, settings, price_col=price_col, compat_int=False).astype(int)
     if use_rsi:
         rr = rsi(df[price_col], settings.strategy.rsi_period)
         sig = sig.where(~rr.ge(settings.strategy.rsi_overbought), other=-1)
@@ -118,14 +118,12 @@ class BacktestEngine:
     def _compute_signal_contract(self, up_to: int) -> TechnicalSignal:
         """Return full :class:`TechnicalSignal` for bar ``up_to``."""
 
-        orig = getattr(self.settings.strategy, "compat_int", None)
-        try:
-            if hasattr(self.settings.strategy, "compat_int"):
-                self.settings.strategy.compat_int = False
-            res = compute_signal(self.df.iloc[: up_to + 1], self.settings, price_col=self.price_col)
-        finally:
-            if orig is not None:
-                self.settings.strategy.compat_int = orig
+        res = compute_signal(
+            self.df.iloc[: up_to + 1],
+            self.settings,
+            price_col=self.price_col,
+            compat_int=False,
+        )
         if isinstance(res, TechnicalSignal):
             return res
         action_val = int(res.iloc[-1]) if len(res) else 0

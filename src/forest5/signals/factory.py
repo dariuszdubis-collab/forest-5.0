@@ -13,7 +13,10 @@ from .contract import TechnicalSignal
 
 
 def compute_signal(
-    df: pd.DataFrame, settings, price_col: str = "close"
+    df: pd.DataFrame,
+    settings,
+    price_col: str = "close",
+    compat_int: bool = False,
 ) -> pd.Series | TechnicalSignal:
     """Generate trading signal without mutating the input settings."""
 
@@ -55,7 +58,7 @@ def compute_signal(
     if name == "h1_ema_rsi_atr":
         params = getattr(strategy, "params", None)
         res = compute_primary_signal_h1(df, params)
-        if getattr(strategy, "compat_int", False):
+        if compat_int:
             from .compat import contract_to_int
 
             return contract_to_int(res)
