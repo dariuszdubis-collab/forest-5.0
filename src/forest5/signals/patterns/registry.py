@@ -1,11 +1,14 @@
 """Registry and utilities for candlestick patterns."""
+
 from __future__ import annotations
 
 from typing import Callable, Dict, Optional
 
+from pandas import DataFrame
+
 from . import engulfing, pinbar, stars
 
-Detector = Callable[["DataFrame", float], Optional[dict]]
+Detector = Callable[[DataFrame, float], Optional[dict]]
 
 PATTERN_DETECTORS: Dict[str, Detector] = {
     "engulfing": engulfing.detect,
@@ -14,7 +17,9 @@ PATTERN_DETECTORS: Dict[str, Detector] = {
 }
 
 
-def best_pattern(df, atr: float, config: Optional[Dict[str, bool]] = None) -> Optional[dict]:
+def best_pattern(
+    df: DataFrame, atr: float, config: Optional[Dict[str, bool]] = None
+) -> Optional[dict]:
     """Return the highest score pattern based on configuration."""
     best = None
     for name, detector in PATTERN_DETECTORS.items():

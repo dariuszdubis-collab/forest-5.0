@@ -1,4 +1,5 @@
 """Engulfing pattern detector."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -28,12 +29,7 @@ def detect(df: pd.DataFrame, atr: float) -> dict | None:
     b = df.iloc[-1]
 
     # Bullish engulfing
-    if (
-        a.close < a.open
-        and b.close > b.open
-        and b.open < a.close
-        and b.close > a.open
-    ):
+    if a.close < a.open and b.close > b.open and b.open < a.close and b.close > a.open:
         score = (abs(b.close - b.open) + abs(a.close - a.open)) / atr
         return {
             "type": "bullish_engulfing",
@@ -43,12 +39,7 @@ def detect(df: pd.DataFrame, atr: float) -> dict | None:
         }
 
     # Bearish engulfing
-    if (
-        a.close > a.open
-        and b.close < b.open
-        and b.open > a.close
-        and b.close < a.open
-    ):
+    if a.close > a.open and b.close < b.open and b.open > a.close and b.close < a.open:
         score = (abs(b.close - b.open) + abs(a.close - a.open)) / atr
         return {
             "type": "bearish_engulfing",

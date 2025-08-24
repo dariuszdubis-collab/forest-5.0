@@ -25,17 +25,13 @@ def test_engulfing_negative():
 
 
 def test_pinbar_detects_positive():
-    df = pd.DataFrame(
-        [{"open": 11, "high": 11.2, "low": 9, "close": 11.1}]
-    )
+    df = pd.DataFrame([{"open": 11, "high": 11.2, "low": 9, "close": 11.1}])
     res = pinbar.detect(df, atr=1.0)
     assert res and res["type"] == "bullish_pinbar"
 
 
 def test_pinbar_negative():
-    df = pd.DataFrame(
-        [{"open": 10, "high": 10.5, "low": 9.8, "close": 10.2}]
-    )
+    df = pd.DataFrame([{"open": 10, "high": 10.5, "low": 9.8, "close": 10.2}])
     assert pinbar.detect(df, atr=1.0) is None
 
 
