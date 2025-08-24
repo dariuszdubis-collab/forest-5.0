@@ -18,6 +18,10 @@ SRC = (Path(__file__).resolve().parents[1] / "mt4" / "ForestBridge.mq4").read_te
         "commands",
         "results",
         "state",
+        '\\"sl\\":',
+        '\\"tp\\":',
+        'ExtractDouble(s,"\\"sl\\":")',
+        'ExtractDouble(s,"\\"tp\\":")',
     ],
 )
 def test_forestbridge_contains(token: str) -> None:
