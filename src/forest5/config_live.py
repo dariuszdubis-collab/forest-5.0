@@ -33,8 +33,22 @@ class BrokerSettings(BaseModel):
         return Path(v)
 
 
+class DecisionTechSettings(BaseModel):
+    default_conf_int: float = 1.0
+    conf_floor: float = 0.0
+    conf_cap: float = 1.0
+
+
+class DecisionWeights(BaseModel):
+    tech: float = 1.0
+    ai: float = 1.0
+
+
 class DecisionSettings(BaseModel):
-    min_confluence: float = 1.0
+    min_confluence: float = 0.0
+    tie_epsilon: float = 0.05
+    weights: DecisionWeights = Field(default_factory=DecisionWeights)
+    tech: DecisionTechSettings = Field(default_factory=DecisionTechSettings)
 
 
 class LiveTimeModelSettings(BaseModel):
@@ -89,6 +103,8 @@ class LiveSettings(BaseModel):
 __all__ = [
     "BrokerSettings",
     "StrategySettings",
+    "DecisionTechSettings",
+    "DecisionWeights",
     "DecisionSettings",
     "LiveTimeModelSettings",
     "PatternToggle",

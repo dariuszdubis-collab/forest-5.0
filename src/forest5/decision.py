@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from types import SimpleNamespace
 from typing import Any, Literal, Mapping
 
@@ -218,7 +218,12 @@ class DecisionConfig:
     time_model: TimeOnlyModel | None = None
     # Threshold of combined weights required to take a trade.
     # Technical signal always contributes at least 1.
-    min_confluence: float = 1.0
+    min_confluence: float = 0.0
+    tie_epsilon: float = 0.05
+    weights: Any = field(default_factory=lambda: SimpleNamespace(tech=1.0, ai=1.0, time=1.0))
+    tech: Any = field(
+        default_factory=lambda: SimpleNamespace(default_conf_int=1.0, conf_floor=0.0, conf_cap=1.0)
+    )
 
 
 class DecisionAgent:
@@ -251,6 +256,7 @@ class DecisionAgent:
         context_text: str = "",
     ) -> DecisionResult:
         votes: list[DecisionVote] = []
+        cfg = SimpleNamespace(decision=self.config)
 
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
@@ -260,11 +266,7 @@ class DecisionAgent:
                 tm_decision, tm_weight = tm_res, 1.0
             if tm_decision == "WAIT":
                 return DecisionResult("WAIT", 0.0, "timeonly_wait")
-            w_time = getattr(
-                getattr(getattr(self.config, "decision", object()), "weights", object()),
-                "time",
-                1.0,
-            )
+            w_time = getattr(getattr(cfg.decision, "weights", object()), "time", 1.0)
             votes.append(
                 DecisionVote(
                     source="time",
@@ -274,10 +276,10 @@ class DecisionAgent:
                 )
             )
 
-        votes.append(_normalize_tech_input(tech_signal, self.config))
+        votes.append(_normalize_tech_input(tech_signal, cfg))
 
         if self.ai:
             ai_sent = self.ai.analyse(context_text, symbol)
-            votes.append(_normalize_ai_input(ai_sent, self.config))
+            votes.append(_normalize_ai_input(ai_sent, cfg))
 
-        return _fuse_votes(votes, SimpleNamespace(decision=self.config))
+        return _fuse_votes(votes, cfg)
