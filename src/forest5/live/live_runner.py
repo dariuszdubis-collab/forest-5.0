@@ -288,7 +288,7 @@ def run_live(
                             context_text,
                         )
                         decision = dec.decision
-                        weight = dec.weight
+                        weight = dec.weight_sum
                         votes = dec.votes
                         reason = dec.reason
                         log.info(
@@ -358,7 +358,7 @@ def run_live(
                             context_text,
                         )
                         decision = dec.decision
-                        weight = dec.weight
+                        weight = dec.weight_sum
                         votes = dec.votes
                         reason = dec.reason
                         log.info(

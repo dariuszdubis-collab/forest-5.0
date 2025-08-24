@@ -84,10 +84,14 @@ class DecisionResult:
                 out[k] = v  # type: ignore[assignment]
         return out
 
-    def __iter__(self):  # pragma: no cover - tiny helper
-        yield self.action
-        yield self.votes
-        yield self.reason
+    def __iter__(self):  # pragma: no cover - legacy helper
+        """Allow unpacking ``decision, votes, reason = result``.
+
+        The second element is a mapping of ``{source: direction}`` extracted from
+        the ``details`` field to retain backward compatibility with older
+        return formats.
+        """
+        return iter((self.action, self.votes, self.reason))
 
 
 def _normalize_action(action: int | float | str) -> int | float:
