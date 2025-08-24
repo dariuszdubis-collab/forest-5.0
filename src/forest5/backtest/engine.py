@@ -195,8 +195,12 @@ class BacktestEngine:
             "id": cand.id,
             "action": cand.action,
             "entry": float(entry),
+            # Preserve original SL/TP from the signal so risk logic doesn't
+            # override them later.
             "sl": float(cand.sl),
             "tp": float(cand.tp),
+            "orig_sl": float(cand.sl),
+            "orig_tp": float(cand.tp),
             "open_index": index,
             "horizon": int(getattr(cand, "horizon_minutes", 0)),
             "meta": meta,
@@ -229,16 +233,17 @@ class BacktestEngine:
 
         remaining: list[dict] = []
         for pos in self.positions:
-            # Trailing stop update
+            # Trailing stop update – only when original signal had no SL.
             trail = pos.get("trailing_atr")
-            if trail is not None and atr_prev is not None:
+            sl_orig = pos.get("orig_sl", pos.get("sl", 0.0))
+            if trail is not None and atr_prev is not None and sl_orig <= 0.0:
                 if pos["action"] == "BUY":
                     new_sl = close - trail * atr_prev
-                    if new_sl > pos["sl"]:
+                    if pos["sl"] <= 0.0 or new_sl > pos["sl"]:
                         pos["sl"] = new_sl
                 else:
                     new_sl = close + trail * atr_prev
-                    if new_sl < pos["sl"]:
+                    if pos["sl"] <= 0.0 or new_sl < pos["sl"]:
                         pos["sl"] = new_sl
 
             bars_open = index - pos["open_index"]
