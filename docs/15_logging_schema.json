@@ -7,9 +7,18 @@
     "level": {"type": "string"},
     "symbol": {"type": "string"},
     "action": {"type": "string"},
+    "run_id": {"type": ["string", "null"]},
+    "setup_id": {"type": ["string", "null"]},
+    "client_order_id": {"type": ["string", "null"]},
+    "ticket": {"type": ["number", "null"]},
     "side": {"type": "string"},
+    "entry": {"type": ["number", "null"]},
+    "sl": {"type": ["number", "null"]},
+    "tp": {"type": ["number", "null"]},
     "qty": {"type": "number"},
     "price": {"type": "number"},
+    "reason": {"type": ["string", "null"]},
+    "ts": {"type": ["number", "null"]},
     "latency_ms": {"type": "number"},
     "error": {"type": ["string", "null"]},
     "context": {"type": ["object", "null"]},
@@ -84,6 +93,133 @@
         "fill_price": {"type": "number"},
         "slippage": {"type": "number"},
         "reason": {"type": "string"}
+      },
+      "required": ["event"]
+    }
+    ,
+    "order_submitted": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_submitted"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "order_ack": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_ack"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "order_filled": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_filled"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "order_rejected": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_rejected"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "order_timeout": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_timeout"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "order_retry": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "order_retry"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "broker_adjusted_stops": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "broker_adjusted_stops"},
+        "run_id": {"type": "string"},
+        "setup_id": {"type": "string"},
+        "client_order_id": {"type": "string"},
+        "ticket": {"type": "number"},
+        "side": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "qty": {"type": "number"},
+        "reason": {"type": "string"},
+        "ts": {"type": "number"}
       },
       "required": ["event"]
     }

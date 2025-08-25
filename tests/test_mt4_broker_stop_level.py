@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from forest5.live.mt4_broker import MT4Broker
+from forest5.utils.log import E_BROKER_ADJUSTED_STOPS
 
 
 def test_stop_level_clamps_sl_tp(tmp_path: Path, capfd) -> None:
@@ -23,7 +24,7 @@ def test_stop_level_clamps_sl_tp(tmp_path: Path, capfd) -> None:
     assert data["sl"] == pytest.approx(1.2340)
     assert data["tp"] == pytest.approx(1.2350)
     captured = capfd.readouterr()
-    assert "broker_adjusted_stops" in captured.out
+    assert E_BROKER_ADJUSTED_STOPS in captured.out
 
 
 def test_wait_for_result_returns_adjusted_stops(tmp_path: Path) -> None:

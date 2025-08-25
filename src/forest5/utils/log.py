@@ -24,6 +24,7 @@ E_ORDER_FILLED = "order_filled"
 E_ORDER_REJECTED = "order_rejected"
 E_ORDER_TIMEOUT = "order_timeout"
 E_ORDER_RETRY = "order_retry"
+E_BROKER_ADJUSTED_STOPS = "broker_adjusted_stops"
 # Legacy event names kept for backward compatibility.
 E_ORDER_PLACED = "order_placed"
 E_ORDER_CANCELLED = "order_cancelled"
