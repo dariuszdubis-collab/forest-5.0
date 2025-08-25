@@ -9,6 +9,7 @@ from typing import Optional
 
 from .router import OrderRouter, OrderResult
 from ..utils.log import (
+    E_BROKER_ADJUSTED_STOPS,
     E_ORDER_ACK,
     E_ORDER_FILLED,
     E_ORDER_REJECTED,
@@ -280,7 +281,7 @@ class MT4Broker(OrderRouter):
                 new_tp = price_for_stops + stop_level
             if new_sl != old_sl or new_tp != old_tp:
                 log.info(
-                    "broker_adjusted_stops",
+                    E_BROKER_ADJUSTED_STOPS,
                     old_sl=old_sl,
                     old_tp=old_tp,
                     new_sl=new_sl,
