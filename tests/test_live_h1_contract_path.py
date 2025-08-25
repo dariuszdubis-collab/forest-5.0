@@ -51,10 +51,11 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
         def __init__(self, *args, **kwargs):
             self.armed = False
 
-        def arm(self, signal, *, expiry=None, ctx=None):
+        def arm(self, key, index, signal, *, ctx=None):
             self.armed = True
+            return "id"
 
-        def check(self, key, index, high, low):
+        def check(self, index, price, ctx=None):
             if self.armed:
                 self.armed = False
                 return TechnicalSignal(

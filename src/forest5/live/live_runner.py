@@ -198,7 +198,6 @@ def run_live(
     bar_sec = _TF_MINUTES[tf] * 60
 
     registry = SetupRegistry()
-    setup_registry = registry
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
@@ -249,14 +248,13 @@ def run_live(
                         current_bar["close"] = price
                     else:
                         idx = pd.to_datetime(current_bar["start"], unit="s")
-                        setup_registry = registry
                         ctx = None
                         try:
                             sig = append_bar_and_signal(
                                 df,
                                 current_bar,
                                 settings,
-                                setup_registry=setup_registry,
+                                setup_registry=registry,
                                 ctx=ctx,
                             )
                         except TypeError:
@@ -275,6 +273,8 @@ def run_live(
                         if sig != 0:
                             action = "BUY" if sig > 0 else "SELL"
                             registry.arm(
+                                settings.broker.symbol,
+                                len(df),
                                 TechnicalSignal(
                                     timeframe=tf,
                                     action=action,
@@ -283,7 +283,6 @@ def run_live(
                                     technical_score=1.0 if action == "BUY" else -1.0,
                                     confidence_tech=1.0,
                                 ),
-                                expiry=len(df),
                                 ctx=None,
                             )
 
@@ -296,12 +295,9 @@ def run_live(
                         }
                         bar_closed = True
 
-                    triggered = registry.check(
-                        settings.broker.symbol,
-                        len(df),
-                        current_bar["high"],
-                        current_bar["low"],
-                    )
+                    triggered = registry.check(len(df), current_bar["high"])
+                    if not triggered:
+                        triggered = registry.check(len(df), current_bar["low"])
                     if triggered:
                         idx = pd.to_datetime(ts, unit="s")
                         dec: DecisionResult = agent.decide(
@@ -372,7 +368,7 @@ def run_live(
                                     status=res.status,
                                     latency_ms=latency,
                                 )
-                    elif not getattr(setup_registry, "_setups", {}) and bar_closed:
+                    elif not getattr(registry, "_setups", {}) and bar_closed:
                         idx = pd.to_datetime(ts, unit="s")
                         dec = agent.decide(
                             idx,

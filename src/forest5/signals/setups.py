@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Dict
 
 from .contract import TechnicalSignal
-from forest5.utils.log import E_SETUP_ARM, TelemetryContext, log_event
+from forest5.utils.log import (
+    E_SETUP_ARM,
+    E_SETUP_TRIGGER,
+    E_SETUP_EXPIRE,
+    TelemetryContext,
+    log_event,
+    new_id,
+)
 
 
 @dataclass
@@ -21,7 +28,15 @@ class SetupCandidate(TechnicalSignal):
 
 
 @dataclass
+class TriggeredSignal(TechnicalSignal):
+    """Signal emitted when an armed setup triggers."""
+
+    setup_id: str = ""
+
+
+@dataclass
 class _ArmedSetup:
+    key: str
     signal: TechnicalSignal
     expiry: int
     ctx: TelemetryContext | None = None
@@ -47,7 +62,7 @@ class SetupRegistry:
         signal: TechnicalSignal,
         *,
         ctx: TelemetryContext | None = None,
-    ) -> None:
+    ) -> str:
         """Store ``signal`` and arm it for the next bar.
 
         Parameters
@@ -62,44 +77,69 @@ class SetupRegistry:
             execute upon breakout.
         """
 
-        self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars, ctx=ctx)
+        setup_id = new_id("setup")
+        self._setups[setup_id] = _ArmedSetup(
+            key=key, signal=signal, expiry=index + self.ttl_bars, ctx=ctx
+        )
         if ctx is not None:
-            log_event(E_SETUP_ARM, ctx=ctx, key=key, index=index, action=signal.action)
+            log_event(
+                E_SETUP_ARM,
+                ctx=ctx,
+                key=key,
+                index=index,
+                action=signal.action,
+                setup_id=setup_id,
+            )
+        return setup_id
 
-    def check(self, key: str, index: int, high: float, low: float) -> TechnicalSignal | None:
-        """Check for triggered or expired setups.
+    def check(
+        self,
+        index: int,
+        price: float,
+        *,
+        ctx: TelemetryContext | None = None,
+    ) -> TriggeredSignal | None:
+        """Check for triggered or expired setups at ``price``.
 
         Parameters
         ----------
-        key:
-            Identifier used when arming the setup.
         index:
             Index of the bar to evaluate.
-        high, low:
-            High and low price of the current bar used to detect breakouts.
+        price:
+            Current price used to detect breakouts.
         """
 
-        setup = self._setups.get(key)
-        if setup is None:
-            return None
+        for setup_id, setup in list(self._setups.items()):
+            if index > setup.expiry:
+                del self._setups[setup_id]
+                log_event(
+                    E_SETUP_EXPIRE,
+                    ctx=setup.ctx or ctx,
+                    key=setup.key,
+                    index=index,
+                    setup_id=setup_id,
+                )
+                continue
 
-        # Expire old setups
-        if index > setup.expiry:
-            del self._setups[key]
-            return None
+            sig = setup.signal
+            triggered = (sig.action == "BUY" and price >= sig.entry) or (
+                sig.action == "SELL" and price <= sig.entry
+            )
+            if triggered:
+                del self._setups[setup_id]
+                sig_data = {f.name: getattr(sig, f.name) for f in fields(TechnicalSignal)}
+                res = TriggeredSignal(setup_id=setup_id, **sig_data)
+                log_event(
+                    E_SETUP_TRIGGER,
+                    ctx=setup.ctx or ctx,
+                    key=setup.key,
+                    index=index,
+                    action=sig.action,
+                    setup_id=setup_id,
+                )
+                return res
 
-        sig = setup.signal
-        triggered = (sig.action == "BUY" and high >= sig.entry) or (
-            sig.action == "SELL" and low <= sig.entry
-        )
-
-        if triggered:
-            del self._setups[key]
-            return sig
-
-        if index >= setup.expiry:
-            del self._setups[key]
         return None
 
 
-__all__ = ["SetupRegistry", "SetupCandidate"]
+__all__ = ["SetupRegistry", "SetupCandidate", "TriggeredSignal"]

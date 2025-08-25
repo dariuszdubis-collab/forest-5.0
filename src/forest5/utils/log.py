@@ -14,6 +14,8 @@ import structlog
 # Application setup and lifecycle.
 E_SETUP_ARM = "setup_arm"
 E_SETUP_DONE = "setup_done"
+E_SETUP_TRIGGER = "setup_trigger"
+E_SETUP_EXPIRE = "setup_expire"
 
 # Trading related events.
 E_ORDER_PLACED = "order_placed"
@@ -79,7 +81,7 @@ def log_event(event: str, ctx: TelemetryContext | None = None, **fields) -> None
     if ctx is not None:
         # Only bind values that are not ``None`` to keep the log output compact.
         logger = logger.bind(**{k: v for k, v in asdict(ctx).items() if v is not None})
-    logger.info(event, event=event, **fields)
+    logger.info(event, **fields)
 
 
 def setup_logger(level: str = "INFO"):
