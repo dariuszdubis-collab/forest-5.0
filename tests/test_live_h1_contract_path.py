@@ -6,7 +6,7 @@ import time
 import forest5.live.live_runner as live_runner
 from forest5.live.live_runner import run_live
 import forest5.live.router as router
-from forest5.signals.contract import TechnicalSignal
+from forest5.signals.setups import TriggeredSignal
 from forest5.live.settings import (
     LiveSettings,
     BrokerSettings,
@@ -57,13 +57,12 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
         def check(self, *, index, price, ctx=None):
             if self.armed:
                 self.armed = False
-                return TechnicalSignal(
-                    timeframe="1m",
+                return TriggeredSignal(
+                    setup_id="s1",
                     action="BUY",
                     entry=1.0,
-                    horizon_minutes=1,
-                    technical_score=1.0,
-                    confidence_tech=1.0,
+                    sl=0.0,
+                    tp=0.0,
                 )
             return None
 
