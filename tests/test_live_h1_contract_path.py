@@ -30,9 +30,10 @@ def _mk_bridge(tmpdir: Path) -> Path:
     return bridge
 
 
-def _update_tick(path: Path, tick: dict, delay: float = 0.1) -> None:
-    time.sleep(delay)
-    path.write_text(json.dumps(tick), encoding="utf-8")
+def _update_ticks(path: Path, ticks: list[dict], delay: float = 0.1) -> None:
+    for tick in ticks:
+        time.sleep(delay)
+        path.write_text(json.dumps(tick), encoding="utf-8")
 
 
 def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
@@ -41,22 +42,34 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
 
     orig_append = live_runner.append_bar_and_signal
 
+    calls = {"n": 0}
+
     def fake_append(df, bar, settings, **kwargs):
         orig_append(df, bar, settings)
-        return 1
+        calls["n"] += 1
+        return 1 if calls["n"] == 1 else 0
 
     monkeypatch.setattr(live_runner, "append_bar_and_signal", fake_append)
 
     class TriggerRegistry:
+        last = None
+
         def __init__(self, *args, **kwargs):
             self.armed = False
+            self.arm_index: int | None = None
+            self.trigger_index: int | None = None
+            self.check_indices: list[int] = []
+            TriggerRegistry.last = self
 
         def arm(self, key, index, signal, *, ctx=None):
             self.armed = True
+            self.arm_index = index
 
         def check(self, *, index, price, ctx=None):
-            if self.armed:
+            self.check_indices.append(index)
+            if self.armed and index >= (self.arm_index or 0):
                 self.armed = False
+                self.trigger_index = index
                 return TriggeredSignal(
                     setup_id="s1",
                     action="BUY",
@@ -86,6 +99,7 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
             pass
 
         def market_order(self, side, qty, price, *, entry=None, sl=None, tp=None):
+            created.setdefault("orders", []).append((side, qty, price))
             return router.OrderResult(1, "filled", qty, price)
 
         def position_qty(self):
@@ -105,13 +119,27 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
     )
 
     t = threading.Thread(
-        target=_update_tick,
-        args=(tick_path, {"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 61}, 0.1),
+        target=_update_ticks,
+        args=(
+            tick_path,
+            [
+                {"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 61},
+                {"symbol": "EURUSD", "bid": 1.0, "ask": 1.0, "time": 121},
+            ],
+            0.5,
+        ),
     )
     t.start()
-    run_live(s, max_steps=2, timeout=0.5)
+    run_live(s, max_steps=2, timeout=2.0)
     t.join()
 
     broker = created.get("inst")
     assert isinstance(broker, FakeBroker)
     assert broker.ticks_dir == bridge / "ticks"
+    # Bar N should arm and bar N+1 should trigger and route to the broker
+    registry = TriggerRegistry.last
+    assert registry is not None
+    assert registry.arm_index == 1
+    assert registry.check_indices == [0, 1]
+    assert registry.trigger_index == 1
+    assert created.get("orders") == [("BUY", 0.01, 1.0)]

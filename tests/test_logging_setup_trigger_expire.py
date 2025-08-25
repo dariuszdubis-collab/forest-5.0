@@ -41,6 +41,7 @@ def test_setup_trigger_and_expire_logging(caplog):
     records = [json.loads(r.message) for r in caplog.records]
 
     trig = next(r for r in records if r["event"] == E_SETUP_TRIGGER)
+    assert trig["event"] == E_SETUP_TRIGGER
     assert trig["trigger_price"] == 1.2
     assert trig["fill_price"] == 1.2
     assert trig["slippage"] == pytest.approx(0.2)
@@ -51,6 +52,7 @@ def test_setup_trigger_and_expire_logging(caplog):
     assert trig["tp"] == 1.1
 
     exp = next(r for r in records if r["event"] == E_SETUP_EXPIRE)
+    assert exp["event"] == E_SETUP_EXPIRE
     assert exp["reason"] == R_TIMEOUT
 
     structlog.reset_defaults()
