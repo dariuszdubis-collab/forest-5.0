@@ -24,6 +24,7 @@ from forest5.core.indicators import atr, ema, rsi
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
 from forest5.utils.log import TelemetryContext
+from . import patterns
 
 
 _REGISTRY = SetupRegistry()
@@ -132,7 +133,7 @@ def compute_primary_signal_h1(
     trigger_down = rsi_prev > 50 >= rsi_last
     trigger = (trend == 1 and trigger_up) or (trend == -1 and trigger_down)
 
-    drivers: list[str] = []
+    drivers: list[Any] = []
     action = "KEEP"
     entry = sl = tp = 0.0
 
@@ -152,6 +153,21 @@ def compute_primary_signal_h1(
 
         technical_score = 1.0 if action == "BUY" else -1.0
         confidence_tech = abs(technical_score)
+
+        patterns_cfg = p.get("patterns", {}) or {}
+        if patterns_cfg.get("enabled"):
+            pattern = patterns.registry.best_pattern(df, atr_last, patterns_cfg)
+            if pattern:
+                name = pattern.get("name") or pattern.get("type")
+                strength = pattern.get("strength", pattern.get("score", 0.0))
+                if strength >= patterns_cfg.get("min_strength", 0.0):
+                    confidence_tech = max(
+                        0.0, min(1.0, confidence_tech + patterns_cfg.get("boost_conf", 0.0))
+                    )
+                    boost_score = patterns_cfg.get("boost_score", 0.0)
+                    technical_score += boost_score if technical_score > 0 else -boost_score
+                    drivers.append({"pattern": name, "strength": strength})
+                    meta["pattern"] = name
         signal = TechnicalSignal(
             timeframe=p["timeframe"],
             action=action,

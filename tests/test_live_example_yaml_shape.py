@@ -22,9 +22,10 @@ def test_live_example_yaml_parses_and_has_fields():
     assert hasattr(ps, "strategy")  # nosec B101
     assert getattr(ps.strategy, "compat_int", None) is not None  # nosec B101
     pats = ps.patterns
-    assert hasattr(pats, "engulf") and pats.engulf.enabled is True  # nosec B101
-    assert hasattr(pats, "pinbar") and pats.pinbar.enabled is True  # nosec B101
-    assert hasattr(pats, "star") and pats.star.enabled is True  # nosec B101
+    assert hasattr(pats, "enabled") and pats.enabled is True  # nosec B101
+    assert hasattr(pats, "min_strength")  # nosec B101
+    assert hasattr(pats, "boost_conf")  # nosec B101
+    assert hasattr(pats, "boost_score")  # nosec B101
     assert hasattr(s, "risk")  # nosec B101
     assert getattr(s.risk, "on_drawdown", None) is not None  # nosec B101
     assert s.risk.on_drawdown.action == "halt"  # nosec B101

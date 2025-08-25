@@ -29,14 +29,11 @@ class H1EmaRsiAtrParams(BaseModel):
         return getattr(self, item)
 
 
-class PatternToggle(BaseModel):
-    enabled: bool = True
-
-
-class PatternMetrics(BaseModel):
-    engulf: PatternToggle = Field(default_factory=PatternToggle)
-    pinbar: PatternToggle = Field(default_factory=PatternToggle)
-    star: PatternToggle = Field(default_factory=PatternToggle)
+class PatternSettings(BaseModel):
+    enabled: bool = False
+    min_strength: float = 0.0
+    boost_conf: float = 0.0
+    boost_score: float = 0.0
 
 
 class ProfileSettings(BaseModel):
@@ -54,7 +51,7 @@ class H1EmaRsiAtrSettings(BaseModel):
     name: Literal["h1_ema_rsi_atr"] = "h1_ema_rsi_atr"
     compat_int: int | None = None
     params: H1EmaRsiAtrParams = Field(default_factory=H1EmaRsiAtrParams)
-    patterns: PatternMetrics = Field(default_factory=PatternMetrics)
+    patterns: PatternSettings = Field(default_factory=PatternSettings)
     profile: ProfileSettings = Field(default_factory=ProfileSettings)
     time: TimeModelQuantiles = Field(default_factory=TimeModelQuantiles)
     tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
@@ -126,4 +123,4 @@ class BaseStrategySettings(BaseModel):
         return self
 
 
-__all__ = ["BaseStrategySettings", "H1EmaRsiAtrSettings"]
+__all__ = ["BaseStrategySettings", "H1EmaRsiAtrSettings", "PatternSettings"]

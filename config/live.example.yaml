@@ -47,13 +47,11 @@ time:
         entry_buffer_atr: 0.1
         sl_atr: 1.0
         rr: 2.0
-    patterns:  # candlestick pattern filters; disable any to skip its detector
-      engulf:
-        enabled: true  # disable to ignore engulfing candles
-      pinbar:
-        enabled: true  # disable to ignore pinbar patterns
-      star:
-        enabled: true  # disable to ignore morning/evening star patterns
+    patterns:
+      enabled: true  # enable candlestick pattern boosts
+      min_strength: 0.0
+      boost_conf: 0.1
+      boost_score: 0.2
 
 backtest:
   tp_sl_priority: SL_FIRST   # or TP_FIRST
