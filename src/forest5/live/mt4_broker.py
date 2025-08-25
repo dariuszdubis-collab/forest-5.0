@@ -8,7 +8,16 @@ from pathlib import Path
 from typing import Optional
 
 from .router import OrderRouter, OrderResult
-from ..utils.log import setup_logger
+from ..utils.log import (
+    E_ORDER_ACK,
+    E_ORDER_FILLED,
+    E_ORDER_REJECTED,
+    E_ORDER_RETRY,
+    E_ORDER_TIMEOUT,
+    TelemetryContext,
+    log_event,
+    setup_logger,
+)
 
 
 log = setup_logger()
@@ -94,7 +103,14 @@ class MT4Broker(OrderRouter):
     def _result_path(self, uid: str) -> Path:
         return self.results_dir / f"res_{uid}.json"
 
-    def _wait_for_result(self, uid: str, qty: float) -> OrderResult:
+    def _wait_for_result(
+        self,
+        uid: str,
+        qty: float,
+        *,
+        ctx: TelemetryContext | None = None,
+        client_order_id: str | None = None,
+    ) -> OrderResult:
         res_path = self._result_path(uid)
         deadline = time.time() + self.timeout
         attempt = 0
@@ -111,20 +127,58 @@ class MT4Broker(OrderRouter):
                     ticket = data.get("ticket", 0)
                     err = data.get("error")
                     filled = qty if status == "filled" else 0.0
+                    log_event(
+                        E_ORDER_ACK,
+                        ctx,
+                        client_order_id=client_order_id,
+                        ticket=ticket,
+                    )
+                    if status == "filled":
+                        log_event(
+                            E_ORDER_FILLED,
+                            ctx,
+                            client_order_id=client_order_id,
+                            ticket=ticket,
+                            fill_price=price,
+                            fill_qty=filled,
+                        )
+                    else:
+                        log_event(
+                            E_ORDER_REJECTED,
+                            ctx,
+                            client_order_id=client_order_id,
+                            ticket=ticket,
+                            reason=err,
+                        )
                     return OrderResult(
                         int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err
                     )
                 except json.JSONDecodeError:
                     attempt += 1
+                    log_event(
+                        E_ORDER_RETRY,
+                        ctx,
+                        client_order_id=client_order_id,
+                        attempt=attempt,
+                        reason="invalid_json",
+                    )
                     log.warning("invalid_json_result", path=str(res_path), attempt=attempt)
                     time.sleep(min(delay, max(0, deadline - time.time())))
                     delay = min(delay * 2, 1.0)
                     continue
                 except (OSError, ValueError, TypeError) as exc:  # pragma: no cover - defensive
+                    log_event(
+                        E_ORDER_RETRY,
+                        ctx,
+                        client_order_id=client_order_id,
+                        reason=str(exc),
+                        attempt=attempt,
+                    )
                     log.exception("invalid_result", path=str(res_path), error=str(exc))
                     time.sleep(min(delay, max(0, deadline - time.time())))
                     continue
             time.sleep(min(delay, max(0, deadline - time.time())))
+        log_event(E_ORDER_TIMEOUT, ctx, client_order_id=client_order_id)
         log.error("timeout_waiting_for_result", order_id=uid)
         return OrderResult(0, "rejected", 0.0, 0.0, "timeout")
 
@@ -137,9 +191,24 @@ class MT4Broker(OrderRouter):
         *,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
+        ctx: TelemetryContext | None = None,
+        client_order_id: str | None = None,
     ) -> OrderResult:
         if not self._connected:
             res = OrderResult(0, "rejected", 0.0, 0.0, "not connected")
+            log_event(
+                E_ORDER_ACK,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=0,
+            )
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=0,
+                reason="not connected",
+            )
             log.info(
                 "order_result",
                 timestamp=time.time(),
@@ -191,7 +260,12 @@ class MT4Broker(OrderRouter):
             context={"id": uid},
         )
 
-        res = self._wait_for_result(uid, qty)
+        res = self._wait_for_result(
+            uid,
+            qty,
+            ctx=ctx,
+            client_order_id=client_order_id,
+        )
         total_latency_ms = (time.time() - start_ts) * 1000.0
         log.info(
             "order_result",

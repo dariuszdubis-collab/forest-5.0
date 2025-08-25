@@ -3,6 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
+from ..utils.log import (
+    E_ORDER_ACK,
+    E_ORDER_FILLED,
+    E_ORDER_REJECTED,
+    E_ORDER_SUBMITTED,
+    TelemetryContext,
+    log_event,
+)
+
 
 class OrderRouter(Protocol):
     def connect(self) -> None: ...
@@ -16,6 +25,8 @@ class OrderRouter(Protocol):
         *,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
+        ctx: TelemetryContext | None = None,
+        client_order_id: str | None = None,
     ) -> OrderResult: ...
     def position_qty(self) -> float: ...
     def equity(self) -> float: ...
@@ -31,6 +42,40 @@ class OrderResult:
 
     def __getitem__(self, key: str):
         return getattr(self, key)
+
+
+def submit_order(
+    broker: OrderRouter,
+    side: str,
+    qty: float,
+    price: Optional[float] = None,
+    *,
+    sl: Optional[float] = None,
+    tp: Optional[float] = None,
+    ctx: TelemetryContext | None = None,
+    client_order_id: str | None = None,
+) -> OrderResult:
+    """Submit a market order through ``broker`` logging the submission event."""
+
+    log_event(
+        E_ORDER_SUBMITTED,
+        ctx,
+        side=side,
+        volume=qty,
+        price=price,
+        sl=sl,
+        tp=tp,
+        client_order_id=client_order_id,
+    )
+    return broker.market_order(
+        side,
+        qty,
+        price,
+        sl=sl,
+        tp=tp,
+        ctx=ctx,
+        client_order_id=client_order_id,
+    )
 
 
 class PaperBroker:
@@ -79,17 +124,47 @@ class PaperBroker:
         *,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
+        ctx: TelemetryContext | None = None,
+        client_order_id: str | None = None,
     ) -> OrderResult:
         self._id += 1
 
+        log_event(
+            E_ORDER_ACK,
+            ctx,
+            client_order_id=client_order_id,
+            ticket=self._id,
+        )
+
         if not self._connected:
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=self._id,
+                reason="not connected",
+            )
             return OrderResult(self._id, "rejected", 0.0, 0.0, "not connected")
 
         px = float(price) if price is not None else self._last_price
         if px is None:
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=self._id,
+                reason="no price",
+            )
             return OrderResult(self._id, "rejected", 0.0, 0.0, "no price")
 
         if qty <= 0:
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=self._id,
+                reason="qty <= 0",
+            )
             return OrderResult(self._id, "rejected", 0.0, 0.0, "qty <= 0")
 
         side_u = side.upper()
@@ -103,12 +178,27 @@ class PaperBroker:
             if new_qty > 0:
                 self._avg = (self._avg * self._pos + notional) / new_qty
             self._pos = new_qty
+            log_event(
+                E_ORDER_FILLED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=self._id,
+                fill_price=px,
+                fill_qty=qty,
+            )
             return OrderResult(self._id, "filled", qty, px)
 
         if side_u == "SELL":
             # sprzedaż: pozwalamy sprzedać do wielkości pozycji (long/flat)
             sell_qty = min(qty, self._pos)
             if sell_qty <= 0:
+                log_event(
+                    E_ORDER_REJECTED,
+                    ctx,
+                    client_order_id=client_order_id,
+                    ticket=self._id,
+                    reason="no position to sell",
+                )
                 return OrderResult(self._id, "rejected", 0.0, 0.0, "no position to sell")
             notional = px * sell_qty
             fee = self._fee(notional)
@@ -116,6 +206,21 @@ class PaperBroker:
             self._pos -= sell_qty
             if self._pos == 0.0:
                 self._avg = 0.0
+            log_event(
+                E_ORDER_FILLED,
+                ctx,
+                client_order_id=client_order_id,
+                ticket=self._id,
+                fill_price=px,
+                fill_qty=sell_qty,
+            )
             return OrderResult(self._id, "filled", sell_qty, px)
 
+        log_event(
+            E_ORDER_REJECTED,
+            ctx,
+            client_order_id=client_order_id,
+            ticket=self._id,
+            reason=f"unknown side: {side}",
+        )
         return OrderResult(self._id, "rejected", 0.0, 0.0, f"unknown side: {side}")
