@@ -28,9 +28,7 @@ def test_h1_contract_arm_and_trigger(monkeypatch, tmp_path, capsys):
             return TechnicalSignal(action="BUY", entry=1.1, sl=0.9, tp=1.3)
         return TechnicalSignal()
 
-    monkeypatch.setattr(
-        "forest5.live.live_runner.compute_signal", fake_compute_signal
-    )
+    monkeypatch.setattr("forest5.live.live_runner.compute_signal", fake_compute_signal)
     monkeypatch.setattr(
         "forest5.live.live_runner.log_event", lambda e, ctx=None, **f: events.append(e)
     )
@@ -53,9 +51,7 @@ def test_h1_contract_arm_and_trigger(monkeypatch, tmp_path, capsys):
         reg = FakeSetupRegistry()
         return reg
 
-    monkeypatch.setattr(
-        "forest5.live.live_runner.SetupRegistry", fake_setup_registry
-    )
+    monkeypatch.setattr("forest5.live.live_runner.SetupRegistry", fake_setup_registry)
 
     class FakeAgent:
         def __init__(self, *a, **k):
@@ -63,9 +59,7 @@ def test_h1_contract_arm_and_trigger(monkeypatch, tmp_path, capsys):
 
         def decide(self, idx, sig, price, symbol, context):
             action = sig.action if isinstance(sig, TechnicalSignal) else "WAIT"
-            return SimpleNamespace(
-                decision=action, weight_sum=1.0, votes={}, reason=""
-            )
+            return SimpleNamespace(decision=action, weight_sum=1.0, votes={}, reason="")
 
     monkeypatch.setattr("forest5.live.live_runner.DecisionAgent", FakeAgent)
 
@@ -104,9 +98,7 @@ def test_h1_contract_arm_and_trigger(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr("time.sleep", lambda _: None)
 
     settings = LiveSettings(
-        broker=BrokerSettings(
-            type="paper", bridge_dir=tmp_path, symbol="EURUSD", volume=1.0
-        ),
+        broker=BrokerSettings(type="paper", bridge_dir=tmp_path, symbol="EURUSD", volume=1.0),
         strategy=StrategySettings(name="h1_ema_rsi_atr", timeframe="1m"),
         risk=RiskSettings(max_drawdown=1.0),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=0, context_file=None),
@@ -151,9 +143,7 @@ def test_append_bar_uses_compute_signal_compat_for_ema_cross(monkeypatch):
         calls["compat"] += 1
         return pd.Series([0], index=df.index)
 
-    monkeypatch.setattr(
-        "forest5.live.live_runner.compute_signal_compat", fake_compat
-    )
+    monkeypatch.setattr("forest5.live.live_runner.compute_signal_compat", fake_compat)
 
     def fake_compute(*args, **kwargs):
         raise AssertionError("compute_signal called")
@@ -173,4 +163,3 @@ def test_append_bar_uses_compute_signal_compat_for_ema_cross(monkeypatch):
     bar = {"start": 0, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0}
     append_bar_and_signal(df, bar, settings)
     assert calls["compat"] == 1
-

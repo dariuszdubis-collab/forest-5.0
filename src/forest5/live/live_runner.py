@@ -13,8 +13,6 @@ from ..decision import DecisionAgent, DecisionConfig, DecisionResult
 from ..time_only import TimeOnlyModel
 from ..signals.factory import compute_signal
 from ..signals.compat import compute_signal_compat
-from ..signals.candles import candles_signal
-from ..signals.combine import confirm_with_candles
 from ..signals import SetupRegistry
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
@@ -57,19 +55,19 @@ def append_bar_and_signal(
     ctx: TelemetryContext | None = None,
 ) -> int:
     """Append ``bar`` to ``df`` and return only the latest signal."""
-    idx = pd.to_datetime(bar['start'], unit='s')
-    df.loc[idx, ['open', 'high', 'low', 'close']] = [
-        bar['open'],
-        bar['high'],
-        bar['low'],
-        bar['close'],
+    idx = pd.to_datetime(bar["start"], unit="s")
+    df.loc[idx, ["open", "high", "low", "close"]] = [
+        bar["open"],
+        bar["high"],
+        bar["low"],
+        bar["close"],
     ]
-    name = getattr(settings.strategy, 'name', 'ema_cross')
-    if name == 'h1_ema_rsi_atr':
+    name = getattr(settings.strategy, "name", "ema_cross")
+    if name == "h1_ema_rsi_atr":
         contract = compute_signal(df, settings.strategy, ctx=ctx)
         if (
             isinstance(contract, TechnicalSignal)
-            and contract.action in {'BUY', 'SELL'}
+            and contract.action in {"BUY", "SELL"}
             and setup_registry is not None
         ):
             bar_index = len(df) - 1
@@ -83,7 +81,8 @@ def append_bar_and_signal(
                 action=contract.action,
             )
         return 0
-    return int(compute_signal_compat(df, settings, 'close').iloc[-1])
+    return int(compute_signal_compat(df, settings, "close").iloc[-1])
+
 
 # Backward compatibility
 _append_bar_and_signal = append_bar_and_signal
