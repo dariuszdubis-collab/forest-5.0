@@ -14,11 +14,10 @@ from ..time_only import TimeOnlyModel
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
 from ..signals.compat import compute_signal_compat, contract_to_int
-from ..signals.h1_ema_rsi_atr import compute_primary_signal_h1
-from ..signals import SetupRegistry
+from ..signals import SetupRegistry, compute_signal
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import setup_logger, TelemetryContext, new_id
+from ..utils.log import setup_logger, TelemetryContext, new_id, log_event, E_SETUP_ARM
 from ..utils.debugger import DebugLogger
 import forest5.live.router as router
 from .risk_guard import should_halt_for_drawdown
@@ -67,9 +66,37 @@ def append_bar_and_signal(
 
     name = getattr(settings.strategy, "name", "ema_cross")
     if name == "h1_ema_rsi_atr":
-        params = getattr(settings.strategy, "params", None)
-        contract = compute_primary_signal_h1(df, params=params, registry=setup_registry, ctx=ctx)
-        return contract_to_int(contract)
+        contract = compute_signal(df, settings.strategy, ctx=ctx)
+        if (
+            isinstance(contract, TechnicalSignal)
+            and contract.action in ("BUY", "SELL")
+            and setup_registry is not None
+        ):
+            signal = TechnicalSignal(
+                timeframe=contract.timeframe,
+                action=contract.action,
+                entry=contract.entry,
+                sl=contract.sl,
+                tp=contract.tp,
+                horizon_minutes=contract.horizon_minutes,
+                technical_score=contract.technical_score,
+                confidence_tech=contract.confidence_tech,
+                drivers=contract.drivers,
+                meta=contract.meta,
+            )
+            key = getattr(settings.broker, "symbol", "")
+            setup_registry.arm(key, len(df), signal, ctx=ctx)
+            log_event(
+                E_SETUP_ARM,
+                ctx=ctx,
+                key=key,
+                index=len(df),
+                action=signal.action,
+                entry=float(signal.entry),
+                sl=float(signal.sl),
+                tp=float(signal.tp),
+            )
+        return 0
 
     if name != "ema_cross":
         return int(compute_signal_compat(df, settings, "close").iloc[-1])
