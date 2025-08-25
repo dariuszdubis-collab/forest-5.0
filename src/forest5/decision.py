@@ -143,7 +143,7 @@ def _normalize_tech_input(tech_signal, cfg) -> DecisionVote:
         return DecisionVote(
             source="tech",
             direction=_to_sign(action if action else tech_score),
-            weight=conf * w_tech,
+            weight=_clamp(conf * w_tech),
             score=tech_score,
             meta=meta,
         )
@@ -181,8 +181,14 @@ def _normalize_ai_input(ai_signal, cfg) -> DecisionVote:
     """
 
     ai_cfg = getattr(getattr(cfg, "decision", object()), "ai", object())
+    tech_cfg = getattr(getattr(cfg, "decision", object()), "tech", object())
     default_conf = getattr(ai_cfg, "default_conf", 1.0)
+    conf_floor = getattr(ai_cfg, "conf_floor", getattr(tech_cfg, "conf_floor", 0.2))
+    conf_cap = getattr(ai_cfg, "conf_cap", getattr(tech_cfg, "conf_cap", 0.9))
     w_ai = getattr(getattr(getattr(cfg, "decision", object()), "weights", object()), "ai", 1.0)
+
+    def _clamp_ai(v: float) -> float:
+        return max(conf_floor, min(conf_cap, v))
 
     if isinstance(ai_signal, Mapping) or is_dataclass(ai_signal):
         get = (
@@ -200,7 +206,7 @@ def _normalize_ai_input(ai_signal, cfg) -> DecisionVote:
         return DecisionVote(
             source="ai",
             direction=_to_sign(score),
-            weight=abs(score) * conf * w_ai,
+            weight=_clamp_ai(abs(score) * conf * w_ai),
             score=score,
             meta={"mode": mode},
         )
@@ -210,7 +216,7 @@ def _normalize_ai_input(ai_signal, cfg) -> DecisionVote:
         return DecisionVote(
             source="ai",
             direction=_to_sign(score),
-            weight=abs(score) * default_conf * w_ai,
+            weight=_clamp_ai(abs(score) * default_conf * w_ai),
             score=score,
             meta={"mode": "int"},
         )

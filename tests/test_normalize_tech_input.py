@@ -34,7 +34,7 @@ def test_normalize_dataclass_clamp_cap() -> None:
     sig = TechnicalSignal(action="BUY", technical_score=3.0, confidence_tech=0.95)
     vote = _normalize_tech_input(sig, cfg)
     assert vote.direction == 1
-    assert vote.weight == 0.9 * 1.5
+    assert vote.weight == 0.9
     assert vote.score == 3.0
     assert vote.meta["mode"] == "dataclass"
 

@@ -142,3 +142,21 @@ def test_decision_agent_handles_custom_dataclass_with_string_action() -> None:
         "ok",
         0.9,
     )
+
+
+def test_ai_weight_clamped_to_bounds() -> None:
+    ts = datetime(2024, 1, 1)
+    cfg = DecisionConfig()
+    cfg.weights.ai = 5.0
+    agent = DecisionAgent(config=cfg)
+
+    class DummyAI:
+        def analyse(self, context: str, symbol: str):
+            return {"score": 1.0, "confidence_ai": 1.0}
+
+    agent.ai = DummyAI()
+
+    res = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
+    votes = {v["source"]: v for v in res.details["votes"]}
+
+    assert votes["ai"]["weight"] == 0.9
