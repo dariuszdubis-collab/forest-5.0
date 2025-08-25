@@ -251,8 +251,6 @@ def run_live(
                         if sig != 0:
                             action = "BUY" if sig > 0 else "SELL"
                             registry.arm(
-                                settings.broker.symbol,
-                                len(df) - 1,
                                 TechnicalSignal(
                                     timeframe=tf,
                                     action=action,
@@ -261,6 +259,8 @@ def run_live(
                                     technical_score=1.0 if action == "BUY" else -1.0,
                                     confidence_tech=1.0,
                                 ),
+                                expiry=len(df),
+                                ctx=None,
                             )
 
                         current_bar = {
