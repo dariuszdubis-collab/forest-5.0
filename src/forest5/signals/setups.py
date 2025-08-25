@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 from .contract import TechnicalSignal
+from forest5.utils.log import E_SETUP_ARM, TelemetryContext, log_event
 
 
 @dataclass
@@ -38,7 +39,13 @@ class SetupRegistry:
         self.ttl_bars = ttl_bars
         self._setups: Dict[str, _ArmedSetup] = {}
 
-    def arm(self, key: str, index: int, signal: TechnicalSignal) -> None:
+    def arm(
+        self,
+        key: str,
+        index: int,
+        signal: TechnicalSignal,
+        ctx: TelemetryContext | None = None,
+    ) -> None:
         """Store ``signal`` and arm it for the next bar.
 
         Parameters
@@ -54,6 +61,8 @@ class SetupRegistry:
         """
 
         self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars)
+        if ctx is not None:
+            log_event(E_SETUP_ARM, ctx=ctx, key=key, index=index, action=signal.action)
 
     def check(self, key: str, index: int, high: float, low: float) -> TechnicalSignal | None:
         """Check for triggered or expired setups.

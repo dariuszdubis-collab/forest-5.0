@@ -20,12 +20,10 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-import pandas as pd
-
 from forest5.core.indicators import atr, ema, rsi
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
-from ..utils.log import TelemetryContext
+from forest5.utils.log import TelemetryContext
 
 
 _REGISTRY = SetupRegistry()
@@ -63,11 +61,11 @@ def _to_params(params: Any | None) -> dict[str, Any]:
 
 
 def compute_primary_signal_h1(
-    df: pd.DataFrame,
+    df,
     params: Any | None = None,
     registry: SetupRegistry | None = None,
     ctx: TelemetryContext | None = None,
-) -> TechnicalSignal:
+):
     """Compute H1 EMA/RSI/ATR signal.
 
     Parameters
@@ -166,7 +164,7 @@ def compute_primary_signal_h1(
             drivers=drivers,
             meta=meta,
         )
-        reg.arm(p["timeframe"], idx, signal)
+        reg.arm(p["timeframe"], idx, signal, ctx=ctx)
 
     return TechnicalSignal(
         timeframe=p["timeframe"],
