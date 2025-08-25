@@ -73,6 +73,7 @@ class BaseStrategySettings(BaseModel):
     rsi_oversold: int = 30
     compat_int: int | None = None
     params: H1EmaRsiAtrParams | dict[str, Any] | None = None
+    patterns: PatternSettings = Field(default_factory=PatternSettings)
     tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
     setup_ttl_bars: int = 1
 

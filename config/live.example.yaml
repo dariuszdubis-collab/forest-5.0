@@ -16,6 +16,15 @@ ai:
   model: "gpt-4o-mini"
   max_tokens: 200
   context_file: "context.txt"  # use absolute path; on Windows/Wine use Z:\\path\\to\\context.txt
+strategy:
+  timeframe: "1m"
+  fast: 12
+  slow: 26
+  patterns:
+    enabled: true  # enable candlestick pattern boosts for strategy
+    min_strength: 0.0
+    boost_conf: 0.1
+    boost_score: 0.2
 decision:
   min_confluence: 0.0
   tie_epsilon: 0.05
