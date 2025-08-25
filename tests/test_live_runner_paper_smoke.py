@@ -43,7 +43,7 @@ def test_run_live_paper(tmp_path: Path, capfd):
     bridge = _mk_bridge(tmp_path)
     s = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=1),
+        decision=DecisionSettings(min_confluence=0.5),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
@@ -88,7 +88,7 @@ def test_triggered_setup_executes(tmp_path: Path, capfd, monkeypatch):
 
     s = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=1),
+        decision=DecisionSettings(min_confluence=0.5),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
@@ -135,7 +135,7 @@ def test_setup_expires_without_trigger(tmp_path: Path, capfd, monkeypatch):
 
     s = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=1),
+        decision=DecisionSettings(min_confluence=0.5),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
@@ -159,7 +159,7 @@ def test_setup_expires_without_trigger(tmp_path: Path, capfd, monkeypatch):
 def test_incremental_signal_perf():
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=".", symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=1),
+        decision=DecisionSettings(min_confluence=0.5),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),

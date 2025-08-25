@@ -17,7 +17,7 @@ class DummyTimeModel:
 
 def test_wait_short_circuit() -> None:
     tm = DummyTimeModel("WAIT")
-    agent = DecisionAgent(config=DecisionConfig(time_model=tm, min_confluence=2))
+    agent = DecisionAgent(config=DecisionConfig(time_model=tm, min_confluence=1.4))
     ts = datetime(2024, 1, 1)
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
@@ -29,7 +29,7 @@ def test_wait_short_circuit() -> None:
 
 def test_min_confluence_requires_both_votes() -> None:
     tm = DummyTimeModel("BUY")
-    agent = DecisionAgent(config=DecisionConfig(time_model=tm, min_confluence=2))
+    agent = DecisionAgent(config=DecisionConfig(time_model=tm, min_confluence=1.4))
     ts = datetime(2024, 1, 1)
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
@@ -48,7 +48,9 @@ def test_min_confluence_requires_both_votes() -> None:
 def test_min_confluence_sell_and_conflict_without_ai() -> None:
     ts = datetime(2024, 1, 1)
     tm_sell = DummyTimeModel("SELL")
-    agent_sell = DecisionAgent(config=DecisionConfig(time_model=tm_sell, min_confluence=2))
+    cfg_sell = DecisionConfig(time_model=tm_sell, min_confluence=1.0)
+    cfg_sell.weights.time = 0.5
+    agent_sell = DecisionAgent(config=cfg_sell)
     decision, votes, reason = agent_sell.decide(ts, tech_signal=-1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "SELL",
@@ -56,7 +58,9 @@ def test_min_confluence_sell_and_conflict_without_ai() -> None:
         "ok",
     )
     tm_buy = DummyTimeModel("BUY")
-    agent_conflict = DecisionAgent(config=DecisionConfig(time_model=tm_buy, min_confluence=2))
+    cfg_conflict = DecisionConfig(time_model=tm_buy, min_confluence=1.0)
+    cfg_conflict.weights.time = 0.5
+    agent_conflict = DecisionAgent(config=cfg_conflict)
     decision, votes, reason = agent_conflict.decide(ts, tech_signal=-1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
@@ -80,7 +84,7 @@ class DummyAI:
 
 def test_min_confluence_with_ai() -> None:
     ts = datetime(2024, 1, 1)
-    agent = DecisionAgent(config=DecisionConfig(use_ai=True, min_confluence=2))
+    agent = DecisionAgent(config=DecisionConfig(use_ai=True, min_confluence=1.0))
 
     agent.ai = DummyAI(1.0)
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")

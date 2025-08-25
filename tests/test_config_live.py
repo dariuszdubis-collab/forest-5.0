@@ -40,10 +40,10 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
     assert s.decision.tie_epsilon == 0.05  # nosec B101
     assert s.decision.weights.tech == 1.0  # nosec B101
-    assert s.decision.weights.ai == 1.0  # nosec B101
-    assert s.decision.tech.default_conf_int == 1.0  # nosec B101
-    assert s.decision.tech.conf_floor == 0.0  # nosec B101
-    assert s.decision.tech.conf_cap == 1.0  # nosec B101
+    assert s.decision.weights.ai == 0.5  # nosec B101
+    assert s.decision.tech.default_conf_int == 0.50  # nosec B101
+    assert s.decision.tech.conf_floor == 0.20  # nosec B101
+    assert s.decision.tech.conf_cap == 0.90  # nosec B101
     default_patterns = PatternSettings().model_dump()
     assert s.strategy.patterns.model_dump() == default_patterns  # nosec B101
     assert s.time.primary_signal.patterns.model_dump() == default_patterns  # nosec B101
