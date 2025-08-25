@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Protocol
+import math
+import uuid
 
 from ..utils.log import (
     E_ORDER_ACK,
@@ -59,11 +61,46 @@ def submit_order(
 ) -> OrderResult:
     """Submit a market order through ``broker`` logging the submission event."""
 
+    if client_order_id is None:
+        client_order_id = uuid.uuid4().hex
+
+    if qty <= 0:
+        log_event(
+            E_ORDER_REJECTED,
+            ctx,
+            side=side,
+            qty=qty,
+            price=price,
+            entry=entry,
+            sl=sl,
+            tp=tp,
+            client_order_id=client_order_id,
+            reason="invalid_qty",
+        )
+        return OrderResult(0, "rejected", 0.0, 0.0, "invalid_qty")
+
+    if any(
+        v is not None and not math.isfinite(v) for v in (entry, sl, tp)
+    ):
+        log_event(
+            E_ORDER_REJECTED,
+            ctx,
+            side=side,
+            qty=qty,
+            price=price,
+            entry=entry,
+            sl=sl,
+            tp=tp,
+            client_order_id=client_order_id,
+            reason="invalid_stops",
+        )
+        return OrderResult(0, "rejected", 0.0, 0.0, "invalid_stops")
+
     log_event(
         E_ORDER_SUBMITTED,
         ctx,
         side=side,
-        volume=qty,
+        qty=qty,
         price=price,
         entry=entry,
         sl=sl,
