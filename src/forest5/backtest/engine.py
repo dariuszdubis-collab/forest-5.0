@@ -12,6 +12,7 @@ from ..core.indicators import atr, ema, rsi
 from ..utils.log import (
     E_ORDER_ACK,
     E_ORDER_FILLED,
+    E_ORDER_REJECTED,
     E_ORDER_SUBMITTED,
     TelemetryContext,
     log_event,
@@ -255,6 +256,7 @@ class BacktestEngine:
     ) -> None:
         setup_id = getattr(cand, "setup_id", getattr(cand, "id", ""))
         meta = dict(getattr(cand, "meta", {}) or {})
+        qty = float(meta.get("qty", 1.0))
         client_id = new_id("cl")
         self._ticket_seq += 1
         ticket = self._ticket_seq
@@ -264,11 +266,19 @@ class BacktestEngine:
             setup_id=setup_id,
             order_id=client_id,
         )
+        if qty <= 0:
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_id,
+                reason="qty_zero",
+            )
+            return
         log_event(
             E_ORDER_SUBMITTED,
             ctx,
             side=cand.action,
-            volume=1.0,
+            volume=qty,
             price=entry,
             sl=float(cand.sl),
             tp=float(cand.tp),
@@ -281,7 +291,7 @@ class BacktestEngine:
             client_order_id=client_id,
             ticket=ticket,
             fill_price=entry,
-            fill_qty=1.0,
+            fill_qty=qty,
         )
         pos = {
             "id": setup_id,
@@ -298,6 +308,7 @@ class BacktestEngine:
             "meta": meta,
             "ticket": ticket,
             "client_order_id": client_id,
+            "qty": qty,
         }
         if "trailing_atr" in meta:
             pos["trailing_atr"] = float(meta["trailing_atr"])
@@ -306,6 +317,7 @@ class BacktestEngine:
     # ------------------------------------------------------------------
     def _close_position(self, pos: dict, price: float) -> None:
         side = "SELL" if pos["action"] == "BUY" else "BUY"
+        qty = float(pos.get("qty", 1.0))
         client_id = new_id("cl")
         self._ticket_seq += 1
         ticket = self._ticket_seq
@@ -315,11 +327,19 @@ class BacktestEngine:
             setup_id=str(pos.get("id", "")),
             order_id=client_id,
         )
+        if qty <= 0:
+            log_event(
+                E_ORDER_REJECTED,
+                ctx,
+                client_order_id=client_id,
+                reason="qty_zero",
+            )
+            return
         log_event(
             E_ORDER_SUBMITTED,
             ctx,
             side=side,
-            volume=1.0,
+            volume=qty,
             price=price,
             client_order_id=client_id,
         )
@@ -330,12 +350,12 @@ class BacktestEngine:
             client_order_id=client_id,
             ticket=ticket,
             fill_price=price,
-            fill_qty=1.0,
+            fill_qty=qty,
         )
         if pos["action"] == "BUY":
-            self.equity += price - pos["entry"]
+            self.equity += qty * (price - pos["entry"])
         else:
-            self.equity += pos["entry"] - price
+            self.equity += qty * (pos["entry"] - price)
 
     # ------------------------------------------------------------------
     def _update_open_positions(self, index: int, row: pd.Series) -> None:
