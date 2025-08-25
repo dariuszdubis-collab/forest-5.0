@@ -45,7 +45,7 @@ def test_live_timeonly_paper_smoke(tmp_path: Path, monkeypatch, capfd) -> None:
             timeframe="1m",
         ),
         strategy=StrategySettings(timeframe="1m"),
-        decision=DecisionSettings(min_confluence=1.0),
+        decision=DecisionSettings(min_confluence=0.5),
         time=TimeSettings(),
     )
 

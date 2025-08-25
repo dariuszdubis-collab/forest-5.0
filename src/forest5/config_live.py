@@ -34,14 +34,14 @@ class BrokerSettings(BaseModel):
 
 
 class DecisionTechSettings(BaseModel):
-    default_conf_int: float = 1.0
-    conf_floor: float = 0.0
-    conf_cap: float = 1.0
+    default_conf_int: float = 0.50
+    conf_floor: float = 0.20
+    conf_cap: float = 0.90
 
 
 class DecisionWeights(BaseModel):
     tech: float = 1.0
-    ai: float = 1.0
+    ai: float = 0.5
 
 
 class DecisionSettings(BaseModel):

@@ -19,7 +19,9 @@ def test_decision_agent_waits_when_time_model_waits() -> None:
 
 def test_decision_agent_majority_and_tie() -> None:
     time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
-    agent = DecisionAgent(config=DecisionConfig(time_model=time_model))
+    cfg = DecisionConfig(time_model=time_model)
+    cfg.weights.time = 0.5
+    agent = DecisionAgent(config=cfg)
     ts = datetime(2024, 1, 1)
 
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=2.0, symbol="EURUSD")
@@ -44,7 +46,7 @@ def test_decision_agent_majority_and_tie() -> None:
 
 def test_decision_agent_respects_confluence_threshold() -> None:
     ts = datetime(2024, 1, 1)
-    agent = DecisionAgent(config=DecisionConfig(min_confluence=2))
+    agent = DecisionAgent(config=DecisionConfig(min_confluence=1.4))
 
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
@@ -54,7 +56,7 @@ def test_decision_agent_respects_confluence_threshold() -> None:
     )
 
     time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
-    agent2 = DecisionAgent(config=DecisionConfig(time_model=time_model, min_confluence=2))
+    agent2 = DecisionAgent(config=DecisionConfig(time_model=time_model, min_confluence=1.4))
     decision, votes, reason = agent2.decide(ts, tech_signal=1, value=2.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "BUY",
@@ -73,7 +75,7 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
         "BUY",
         {"tech": 1},
         "ok",
-        1.0,
+        0.9,
     )
 
     sig = TechnicalSignal(action=-1, technical_score=-1.5, confidence_tech=1.0)
@@ -82,7 +84,7 @@ def test_decision_agent_accepts_mapping_and_dataclass() -> None:
         "SELL",
         {"tech": -1},
         "ok",
-        -1.0,
+        -0.9,
     )
 
 
@@ -96,7 +98,7 @@ def test_decision_agent_accepts_string_actions() -> None:
         "BUY",
         {"tech": 1},
         "ok",
-        1.0,
+        0.9,
     )
 
     sig = TechnicalSignal(action="SELL", technical_score=-3.0, confidence_tech=1.0)
@@ -105,7 +107,7 @@ def test_decision_agent_accepts_string_actions() -> None:
         "SELL",
         {"tech": -1},
         "ok",
-        -1.0,
+        -0.9,
     )
 
 
@@ -125,5 +127,5 @@ def test_decision_agent_handles_custom_dataclass_with_string_action() -> None:
         "BUY",
         {"tech": 1},
         "ok",
-        1.0,
+        0.9,
     )

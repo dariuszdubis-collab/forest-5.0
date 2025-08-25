@@ -86,10 +86,15 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
         data["ai"] = ai
 
     decision = data.get("decision")
-    if isinstance(decision, dict):
-        decision.setdefault("weights", {})
-        decision.setdefault("tech", {})
-        data["decision"] = decision
+    if not isinstance(decision, dict):
+        decision = {}
+    decision.setdefault("tie_epsilon", 0.05)
+    decision.setdefault("weights", {"tech": 1.0, "ai": 0.5})
+    decision.setdefault(
+        "tech",
+        {"conf_floor": 0.20, "conf_cap": 0.90, "default_conf_int": 0.50},
+    )
+    data["decision"] = decision
 
     time = data.get("time")
     if isinstance(time, dict):

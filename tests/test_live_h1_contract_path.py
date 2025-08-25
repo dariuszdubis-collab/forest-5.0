@@ -3,6 +3,8 @@ import json
 import threading
 import time
 
+import pytest
+
 import forest5.live.live_runner as live_runner
 from forest5.live.live_runner import run_live
 import forest5.live.router as router
@@ -112,7 +114,7 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
 
     s = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(bridge), symbol="EURUSD", volume=0.01),
-        decision=DecisionSettings(min_confluence=1),
+        decision=DecisionSettings(min_confluence=0.5),
         ai=AISettings(enabled=False, model="gpt-4o-mini", max_tokens=64, context_file=None),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
@@ -142,4 +144,4 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
     assert registry.arm_index == 1
     assert registry.check_indices == [0, 1]
     assert registry.trigger_index == 1
-    assert created.get("orders") == [("BUY", 0.01, 1.0)]
+    assert created.get("orders") == [("BUY", pytest.approx(0.009), 1.0)]

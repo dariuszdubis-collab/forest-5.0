@@ -32,7 +32,9 @@ def test_timeonly_decision_agent(time_sig: str, tech_sig: int, expected: str) ->
     assert res.decision == expected
     exp_weight = 0.0
     if expected == "BUY":
-        exp_weight = 2.0
+        exp_weight = 1.5
     elif expected == "SELL":
-        exp_weight = -2.0
+        exp_weight = -1.5
+    elif time_sig != "WAIT":
+        exp_weight = 0.5
     assert res.weight == pytest.approx(exp_weight)
