@@ -62,9 +62,7 @@ class SetupRegistry:
             execute upon breakout.
         """
 
-        self._setups[key] = _ArmedSetup(
-            signal=signal, expiry=index + self.ttl_bars, ctx=ctx
-        )
+        self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars, ctx=ctx)
         if ctx is not None:
             log_event(E_SETUP_ARM, ctx=ctx, key=key, index=index, action=signal.action)
 
