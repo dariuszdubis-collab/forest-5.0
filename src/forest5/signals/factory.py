@@ -15,12 +15,18 @@ def compute_signal(
     df,
     settings,
     price_col="close",
-    compat_int=False,
+    compat_int: bool = False,
     ctx: TelemetryContext | None = None,
 ):
-    """Generate trading signal without mutating the input settings."""
+    """Generate trading signal without mutating the input settings.
 
-    strategy = copy.deepcopy(settings.strategy)
+    ``settings`` may either be a complete settings object exposing a ``strategy``
+    attribute or the strategy instance itself.  Only when ``compat_int`` is set
+    to ``True`` will contract style signals be coerced to ``-1/0/1`` integers.
+    """
+
+    strategy_obj = getattr(settings, "strategy", settings)
+    strategy = copy.deepcopy(strategy_obj)
     name = getattr(strategy, "name", "ema_cross")
 
     if name in {"ema_rsi", "ema-cross+rsi"}:
