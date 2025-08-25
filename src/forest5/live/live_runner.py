@@ -198,6 +198,7 @@ def run_live(
     bar_sec = _TF_MINUTES[tf] * 60
 
     registry = SetupRegistry()
+    setup_registry = registry
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
@@ -371,7 +372,7 @@ def run_live(
                                     status=res.status,
                                     latency_ms=latency,
                                 )
-                    elif not getattr(registry, "_setups", {}) and bar_closed:
+                    elif not getattr(setup_registry, "_setups", {}) and bar_closed:
                         idx = pd.to_datetime(ts, unit="s")
                         dec = agent.decide(
                             idx,
