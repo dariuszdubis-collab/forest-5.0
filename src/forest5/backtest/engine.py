@@ -9,7 +9,7 @@ import pandas as pd
 from ..config import BacktestSettings
 from ..utils.debugger import DebugLogger
 from ..core.indicators import atr, ema, rsi
-from ..utils.log import setup_logger
+from ..utils.log import TelemetryContext, new_id, setup_logger
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from ..signals.contract import TechnicalSignal
@@ -64,7 +64,27 @@ def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: st
             vals.append(int(contract_to_int(contract)))
         sig = pd.Series(vals, index=df.index, dtype=int)
     else:
-        res = compute_signal(df, settings, price_col=price_col, compat_int=False)
+        run_ctx = TelemetryContext(
+            run_id=new_id("run"),
+            symbol=settings.symbol,
+            timeframe=settings.tf.name if hasattr(settings, "tf") else "H1",
+            strategy=settings.name if hasattr(settings, "name") else "unknown",
+        )
+        try:
+            res = compute_signal(
+                df,
+                settings,
+                price_col=price_col,
+                compat_int=False,
+                ctx=run_ctx,
+            )
+        except TypeError:
+            res = compute_signal(
+                df,
+                settings,
+                price_col=price_col,
+                compat_int=False,
+            )
         if isinstance(res, TechnicalSignal):
             from forest5.signals.compat import contract_to_int
 
