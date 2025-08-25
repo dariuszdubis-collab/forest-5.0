@@ -168,7 +168,9 @@ def compute_primary_signal_h1(
         confidence_tech = abs(technical_score)
 
         patterns_cfg = p.get("patterns", {}) or {}
+        pattern_ok = True
         if patterns_cfg.get("enabled"):
+            pattern_ok = False
             pattern = patterns.registry.best_pattern(df, atr_last, patterns_cfg)
             if pattern:
                 name = pattern.get("name") or pattern.get("type")
@@ -181,6 +183,16 @@ def compute_primary_signal_h1(
                     technical_score += boost_score if technical_score > 0 else -boost_score
                     drivers.append({"pattern": name, "strength": strength})
                     meta["pattern"] = name
+                    pattern_ok = True
+            if patterns_cfg.get("gate") and not pattern_ok:
+                return TechnicalSignal(
+                    timeframe=p["timeframe"],
+                    horizon_minutes=p["horizon_minutes"],
+                    technical_score=0.0,
+                    confidence_tech=0.0,
+                    drivers=[],
+                    meta=meta,
+                )
         signal = TechnicalSignal(
             timeframe=p["timeframe"],
             action=action,

@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from forest5.config.loader import load_live_settings
 from forest5.config_live import LiveTimeModelSettings
-from forest5.config.strategy import BaseStrategySettings
+from forest5.config.strategy import BaseStrategySettings, PatternSettings
 
 
 def test_live_settings_from_yaml(tmp_path: Path):
@@ -44,8 +44,11 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.decision.tech.default_conf_int == 1.0  # nosec B101
     assert s.decision.tech.conf_floor == 0.0  # nosec B101
     assert s.decision.tech.conf_cap == 1.0  # nosec B101
-    assert s.strategy.patterns.enabled is False  # nosec B101
-    assert s.time.primary_signal.patterns.enabled is False  # nosec B101
+    default_patterns = PatternSettings().model_dump()
+    assert s.strategy.patterns.model_dump() == default_patterns  # nosec B101
+    assert (
+        s.time.primary_signal.patterns.model_dump() == default_patterns
+    )  # nosec B101
 
 
 def test_live_settings_ai_context_file_resolved(tmp_path: Path):

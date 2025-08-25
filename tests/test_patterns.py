@@ -1,6 +1,8 @@
 import pandas as pd
+import pytest
 
 from forest5.signals.patterns import engulfing, pinbar, stars, registry
+from forest5.config.strategy import PatternSettings
 
 
 def test_engulfing_detects_positive():
@@ -79,3 +81,12 @@ def test_registry_best_pattern(monkeypatch):
 
     res = registry.best_pattern(pd.DataFrame(), 1.0, {"engulfing": True, "pinbar": False})
     assert res["type"] == "a"
+
+
+def test_pattern_settings_defaults():
+    cfg = PatternSettings()
+    assert cfg.enabled is True
+    assert cfg.min_strength == pytest.approx(0.6)
+    assert cfg.boost_conf == pytest.approx(0.20)
+    assert cfg.boost_score == pytest.approx(0.20)
+    assert cfg.gate is False
