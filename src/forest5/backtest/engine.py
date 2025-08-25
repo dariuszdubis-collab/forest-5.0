@@ -155,6 +155,7 @@ class BacktestEngine:
         self.positions: list[dict] = []
         self.equity: float = 0.0
         self.equity_curve: list[float] = []
+        self.run_id = new_id("run")
 
     # ------------------------------------------------------------------
     # Signal generation and setup handling
@@ -193,7 +194,13 @@ class BacktestEngine:
             else:
                 contract.meta = {}
             contract.meta.setdefault("id", setup_id)
-            self.setups.arm(setup_id, index, contract)
+            ctx = TelemetryContext(
+                run_id=self.run_id,
+                symbol=self.settings.symbol,
+                timeframe=self.settings.tf.name if hasattr(self.settings, "tf") else "H1",
+                setup_id=setup_id,
+            )
+            self.setups.arm(setup_id, index, contract, ctx=ctx)
 
         # Mark-to-market after bar close
         close_price = float(row[self.price_col])
