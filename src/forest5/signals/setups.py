@@ -48,6 +48,7 @@ class TriggeredSignal(TechnicalSignal):
     slippage: float = 0.0
     ctx: TelemetryContext | None = None
 
+
 class SetupRegistry:
     """Track armed trade setups and trigger on breakout.
 

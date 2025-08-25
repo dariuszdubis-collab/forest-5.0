@@ -242,6 +242,7 @@ def run_live(
             timeframe=tf,
             setup_id=setup_id,
         )
+
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 

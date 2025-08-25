@@ -227,8 +227,6 @@ class BacktestEngine:
 
         row = self.df.iloc[index]
         open_p = float(row["open"])
-        high = float(row["high"])
-        low = float(row["low"])
 
         while True:
             cand = self.setups.check(index=index, price=open_p)
