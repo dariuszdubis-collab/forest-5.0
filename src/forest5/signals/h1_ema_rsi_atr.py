@@ -27,9 +27,6 @@ from forest5.utils.log import TelemetryContext
 from . import patterns
 
 
-_REGISTRY = SetupRegistry()
-
-
 DEFAULT_PARAMS: dict[str, Any] = {
     "ema_fast": 21,
     "ema_slow": 55,
@@ -79,24 +76,38 @@ def compute_primary_signal_h1(
     """
 
     p = _to_params(params)
-    reg = registry or _REGISTRY
+    reg = registry or SetupRegistry()
 
     if df.empty:
-        return TechnicalSignal(timeframe=p["timeframe"], horizon_minutes=p["horizon_minutes"])
+        return TechnicalSignal(
+            timeframe=p["timeframe"],
+            horizon_minutes=p["horizon_minutes"],
+            technical_score=0.0,
+            confidence_tech=0.0,
+            drivers=[],
+            meta={},
+        )
 
     idx = len(df) - 1
     high = df["high"]
     low = df["low"]
 
-    triggered = reg.check(index=idx, price=float(df["high"].iloc[-1]))
+    triggered = reg.check(index=idx, price=float(df["high"].iloc[-1]), ctx=ctx)
     if not triggered:
-        triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]))
+        triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]), ctx=ctx)
     if triggered:
         return triggered
 
     lookback = max(p["ema_fast"], p["ema_slow"], p["atr_period"], p["rsi_period"]) + 2
     if len(df) < lookback:
-        return TechnicalSignal(timeframe=p["timeframe"], horizon_minutes=p["horizon_minutes"])
+        return TechnicalSignal(
+            timeframe=p["timeframe"],
+            horizon_minutes=p["horizon_minutes"],
+            technical_score=0.0,
+            confidence_tech=0.0,
+            drivers=[],
+            meta={},
+        )
 
     close = df["close"]
 
@@ -187,6 +198,9 @@ def compute_primary_signal_h1(
     return TechnicalSignal(
         timeframe=p["timeframe"],
         horizon_minutes=p["horizon_minutes"],
+        technical_score=0.0,
+        confidence_tech=0.0,
+        drivers=[],
         meta=meta,
     )
 
