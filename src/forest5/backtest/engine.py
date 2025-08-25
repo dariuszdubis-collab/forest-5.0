@@ -9,7 +9,15 @@ import pandas as pd
 from ..config import BacktestSettings
 from ..utils.debugger import DebugLogger
 from ..core.indicators import atr, ema, rsi
-from ..utils.log import TelemetryContext, new_id, setup_logger
+from ..utils.log import (
+    E_ORDER_ACK,
+    E_ORDER_FILLED,
+    E_ORDER_SUBMITTED,
+    TelemetryContext,
+    log_event,
+    new_id,
+    setup_logger,
+)
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from ..signals.contract import TechnicalSignal
@@ -156,6 +164,7 @@ class BacktestEngine:
         self.equity: float = 0.0
         self.equity_curve: list[float] = []
         self.run_id = new_id("run")
+        self._ticket_seq = 0
 
     # ------------------------------------------------------------------
     # Signal generation and setup handling
@@ -247,6 +256,34 @@ class BacktestEngine:
     def _open_position(self, cand: TechnicalSignal, entry: float, index: int) -> None:
         meta = dict(cand.meta) if cand.meta else {}
         setup_id = str(meta.get("id", ""))
+        client_id = new_id("cl")
+        self._ticket_seq += 1
+        ticket = self._ticket_seq
+        ctx = TelemetryContext(
+            run_id=self.run_id,
+            symbol=self.settings.symbol,
+            setup_id=setup_id,
+            order_id=client_id,
+        )
+        log_event(
+            E_ORDER_SUBMITTED,
+            ctx,
+            side=cand.action,
+            volume=1.0,
+            price=entry,
+            sl=float(cand.sl),
+            tp=float(cand.tp),
+            client_order_id=client_id,
+        )
+        log_event(E_ORDER_ACK, ctx, client_order_id=client_id, ticket=ticket)
+        log_event(
+            E_ORDER_FILLED,
+            ctx,
+            client_order_id=client_id,
+            ticket=ticket,
+            fill_price=entry,
+            fill_qty=1.0,
+        )
         pos = {
             "id": setup_id,
             "action": cand.action,
@@ -260,6 +297,8 @@ class BacktestEngine:
             "open_index": index,
             "horizon": int(getattr(cand, "horizon_minutes", 0)),
             "meta": meta,
+            "ticket": ticket,
+            "client_order_id": client_id,
         }
         if "trailing_atr" in meta:
             pos["trailing_atr"] = float(meta["trailing_atr"])
@@ -267,6 +306,33 @@ class BacktestEngine:
 
     # ------------------------------------------------------------------
     def _close_position(self, pos: dict, price: float) -> None:
+        side = "SELL" if pos["action"] == "BUY" else "BUY"
+        client_id = new_id("cl")
+        self._ticket_seq += 1
+        ticket = self._ticket_seq
+        ctx = TelemetryContext(
+            run_id=self.run_id,
+            symbol=self.settings.symbol,
+            setup_id=str(pos.get("id", "")),
+            order_id=client_id,
+        )
+        log_event(
+            E_ORDER_SUBMITTED,
+            ctx,
+            side=side,
+            volume=1.0,
+            price=price,
+            client_order_id=client_id,
+        )
+        log_event(E_ORDER_ACK, ctx, client_order_id=client_id, ticket=ticket)
+        log_event(
+            E_ORDER_FILLED,
+            ctx,
+            client_order_id=client_id,
+            ticket=ticket,
+            fill_price=price,
+            fill_qty=1.0,
+        )
         if pos["action"] == "BUY":
             self.equity += price - pos["entry"]
         else:

@@ -18,8 +18,14 @@ E_SETUP_EXPIRE = "setup_expire"
 E_SETUP_DONE = "setup_done"
 
 # Trading related events.
-E_ORDER_PLACED = "order_placed"
+E_ORDER_SUBMITTED = "order_submitted"
+E_ORDER_ACK = "order_ack"
 E_ORDER_FILLED = "order_filled"
+E_ORDER_REJECTED = "order_rejected"
+E_ORDER_TIMEOUT = "order_timeout"
+E_ORDER_RETRY = "order_retry"
+# Legacy event names kept for backward compatibility.
+E_ORDER_PLACED = "order_placed"
 E_ORDER_CANCELLED = "order_cancelled"
 
 # Generic error/diagnostics events.
