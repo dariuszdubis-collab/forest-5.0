@@ -17,7 +17,14 @@ from ..signals.compat import compute_signal_compat
 from ..signals import SetupRegistry, compute_signal
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import setup_logger, TelemetryContext, new_id, log_event, E_SETUP_ARM
+from ..utils.log import (
+    setup_logger,
+    TelemetryContext,
+    new_id,
+    log_event,
+    E_SETUP_ARM,
+    E_SETUP_TRIGGER,
+)
 from ..utils.debugger import DebugLogger
 import forest5.live.router as router
 from .risk_guard import should_halt_for_drawdown
@@ -227,6 +234,15 @@ def run_live(
     run_id = new_id("run")
     registry = SetupRegistry()
     setup_registry = registry
+
+    def mk_ctx(setup_id: str | None = None) -> TelemetryContext:
+        return TelemetryContext(
+            run_id=run_id,
+            symbol=settings.broker.symbol,
+            timeframe=tf,
+            setup_id=setup_id,
+        )
+
     tick_file = tick_dir / "tick.json"
     last_mtime = 0.0
 
@@ -332,13 +348,31 @@ def run_live(
                         }
                         bar_closed = True
 
-                    triggered = registry.check(
-                        settings.broker.symbol,
-                        len(df),
-                        current_bar["high"],
-                        current_bar["low"],
-                    )
+                    triggered = None
+                    if bar_closed:
+                        triggered = setup_registry.check(
+                            index=len(df) - 1,
+                            price=price,
+                            ctx=mk_ctx(),
+                        )
                     if triggered:
+                        slippage = (
+                            price - float(getattr(triggered, "entry", price))
+                            if getattr(triggered, "action", "BUY").upper() == "BUY"
+                            else float(getattr(triggered, "entry", price)) - price
+                        )
+                        log_event(
+                            E_SETUP_TRIGGER,
+                            ctx=mk_ctx(getattr(triggered, "id", None)),
+                            trigger_price=price,
+                            fill_price=price,
+                            slippage=slippage,
+                            setup_id=getattr(triggered, "id", None),
+                            action=getattr(triggered, "action", ""),
+                            entry=float(getattr(triggered, "entry", price)),
+                            sl=float(getattr(triggered, "sl", 0.0)),
+                            tp=float(getattr(triggered, "tp", 0.0)),
+                        )
                         idx = pd.to_datetime(ts, unit="s")
                         dec: DecisionResult = agent.decide(
                             idx,
@@ -382,6 +416,7 @@ def run_live(
                                 decision,
                                 settings.broker.volume * weight,
                                 price,
+                                entry=getattr(triggered, "entry", None),
                                 sl=getattr(triggered, "sl", None),
                                 tp=getattr(triggered, "tp", None),
                             )

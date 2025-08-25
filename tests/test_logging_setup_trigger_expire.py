@@ -31,12 +31,12 @@ def test_setup_trigger_and_expire_logging(caplog):
     ctx = TelemetryContext(run_id="run1", symbol="EURUSD", timeframe="H1", setup_id="s1")
     sig = SetupCandidate(action="BUY", entry=1.0, sl=0.9, tp=1.1, id="s1")
     reg.arm("EURUSD", 0, sig, ctx=ctx)
-    reg.check("EURUSD", 0, high=1.2, low=0.8)
+    reg.check(index=0, price=1.2)
 
     ctx2 = TelemetryContext(run_id="run1", symbol="EURUSD", timeframe="H1", setup_id="s2")
     sig2 = SetupCandidate(action="BUY", entry=1.0, sl=0.9, tp=1.1, id="s2")
     reg.arm("EURUSD", 1, sig2, ctx=ctx2)
-    reg.check("EURUSD", 2, high=0.95, low=0.85)
+    reg.check(index=2, price=0.95)
 
     records = [json.loads(r.message) for r in caplog.records]
 

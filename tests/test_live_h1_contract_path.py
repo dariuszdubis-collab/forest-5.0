@@ -54,7 +54,7 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
         def arm(self, key, index, signal, *, ctx=None):
             self.armed = True
 
-        def check(self, key, index, high, low):
+        def check(self, *, index, price, ctx=None):
             if self.armed:
                 self.armed = False
                 return TechnicalSignal(
@@ -86,7 +86,7 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
         def set_price(self, price: float) -> None:  # pragma: no cover - interface
             pass
 
-        def market_order(self, side, qty, price, *, sl=None, tp=None):
+        def market_order(self, side, qty, price, *, entry=None, sl=None, tp=None):
             return router.OrderResult(1, "filled", qty, price)
 
         def position_qty(self):

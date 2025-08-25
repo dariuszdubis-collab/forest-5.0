@@ -227,14 +227,11 @@ class BacktestEngine:
 
         row = self.df.iloc[index]
         open_p = float(row["open"])
-        high = float(row["high"])
-        low = float(row["low"])
 
-        keys = list(getattr(self.setups, "_setups", {}).keys())
-        for key in keys:
-            cand = self.setups.check(key, index, high, low)
+        while True:
+            cand = self.setups.check(index=index, price=open_p)
             if cand is None:
-                continue
+                break
 
             # Gap fill: choose best fill price respecting direction
             entry = float(cand.entry)

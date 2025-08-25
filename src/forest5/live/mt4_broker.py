@@ -189,6 +189,7 @@ class MT4Broker(OrderRouter):
         qty: float,
         price: Optional[float] = None,
         *,
+        entry: Optional[float] = None,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
         ctx: TelemetryContext | None = None,

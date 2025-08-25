@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 from .contract import TechnicalSignal
 from forest5.utils.log import (
@@ -31,6 +31,21 @@ class SetupCandidate(TechnicalSignal):
 class _ArmedSetup:
     signal: TechnicalSignal
     expiry: int
+    ctx: TelemetryContext | None = None
+
+
+@dataclass
+class TriggeredSignal(TechnicalSignal):
+    """Signal emitted when a setup is triggered.
+
+    It extends :class:`TechnicalSignal` with execution details. Existing code
+    that expects :class:`TechnicalSignal` continues to work.
+    """
+
+    key: str = ""
+    trigger_price: float = 0.0
+    fill_price: float = 0.0
+    slippage: float = 0.0
     ctx: TelemetryContext | None = None
 
 
@@ -83,75 +98,98 @@ class SetupRegistry:
                 tp=float(signal.tp),
             )
 
-    def check(self, key: str, index: int, high: float, low: float) -> TechnicalSignal | None:
-        """Check for triggered or expired setups.
+    def check(
+        self,
+        *,
+        index: int,
+        price: float,
+        ctx: TelemetryContext | None = None,
+    ) -> Optional[TriggeredSignal]:
+        """Check all armed setups for a trigger or expiry.
 
         Parameters
         ----------
-        key:
-            Identifier used when arming the setup.
         index:
             Index of the bar to evaluate.
-        high, low:
-            High and low price of the current bar used to detect breakouts.
+        price:
+            Current price used to detect breakouts.
+        ctx:
+            Optional context used when logging expiry events if the setup did
+            not specify its own.
         """
 
-        setup = self._setups.get(key)
-        if setup is None:
-            return None
+        for key, setup in list(self._setups.items()):
+            setup_ctx = setup.ctx or ctx
 
-        # Expire old setups
-        if index > setup.expiry:
-            del self._setups[key]
-            if setup.ctx is not None:
-                log_event(
-                    E_SETUP_EXPIRE,
-                    ctx=setup.ctx,
+            # Expire old setups
+            if index > setup.expiry:
+                del self._setups[key]
+                if setup_ctx is not None:
+                    log_event(
+                        E_SETUP_EXPIRE,
+                        ctx=setup_ctx,
+                        key=key,
+                        index=index,
+                        reason=R_TIMEOUT,
+                    )
+                continue
+
+            sig = setup.signal
+            triggered = (sig.action == "BUY" and price >= sig.entry) or (
+                sig.action == "SELL" and price <= sig.entry
+            )
+
+            if triggered:
+                del self._setups[key]
+                trigger_price = price
+                fill_price = price
+                if sig.action == "BUY":
+                    slippage = fill_price - float(sig.entry)
+                else:
+                    slippage = float(sig.entry) - fill_price
+                if setup_ctx is not None:
+                    log_event(
+                        E_SETUP_TRIGGER,
+                        ctx=setup_ctx,
+                        trigger_price=trigger_price,
+                        fill_price=fill_price,
+                        slippage=slippage,
+                        setup_id=getattr(sig, "id", None),
+                        action=sig.action,
+                        entry=float(sig.entry),
+                        sl=float(sig.sl),
+                        tp=float(sig.tp),
+                    )
+                return TriggeredSignal(
+                    timeframe=sig.timeframe,
+                    action=sig.action,
+                    entry=sig.entry,
+                    sl=sig.sl,
+                    tp=sig.tp,
+                    horizon_minutes=sig.horizon_minutes,
+                    technical_score=sig.technical_score,
+                    confidence_tech=sig.confidence_tech,
+                    drivers=sig.drivers,
+                    meta=sig.meta,
                     key=key,
-                    index=index,
-                    reason=R_TIMEOUT,
-                )
-            return None
-
-        sig = setup.signal
-        triggered = (sig.action == "BUY" and high >= sig.entry) or (
-            sig.action == "SELL" and low <= sig.entry
-        )
-
-        if triggered:
-            del self._setups[key]
-            trigger_price = high if sig.action == "BUY" else low
-            fill_price = trigger_price
-            if sig.action == "BUY":
-                slippage = fill_price - float(sig.entry)
-            else:
-                slippage = float(sig.entry) - fill_price
-            if setup.ctx is not None:
-                log_event(
-                    E_SETUP_TRIGGER,
-                    ctx=setup.ctx,
                     trigger_price=trigger_price,
                     fill_price=fill_price,
                     slippage=slippage,
-                    setup_id=getattr(sig, "id", None),
-                    action=sig.action,
-                    entry=float(sig.entry),
-                    sl=float(sig.sl),
-                    tp=float(sig.tp),
+                    ctx=setup_ctx,
                 )
-            return sig
 
-        if index >= setup.expiry:
-            del self._setups[key]
-            if setup.ctx is not None:
-                log_event(
-                    E_SETUP_EXPIRE,
-                    ctx=setup.ctx,
-                    key=key,
-                    index=index,
-                    reason=R_TIMEOUT,
-                )
+            if index >= setup.expiry:
+                del self._setups[key]
+                if setup_ctx is not None:
+                    log_event(
+                        E_SETUP_EXPIRE,
+                        ctx=setup_ctx,
+                        key=key,
+                        index=index,
+                        reason=R_TIMEOUT,
+                    )
+
         return None
 
 
-__all__ = ["SetupRegistry", "SetupCandidate"]
+__all__ = ["SetupRegistry", "SetupCandidate", "TriggeredSignal"]

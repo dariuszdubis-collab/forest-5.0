@@ -88,7 +88,9 @@ def compute_primary_signal_h1(
     high = df["high"]
     low = df["low"]
 
-    triggered = reg.check(p["timeframe"], idx, high.iloc[-1], low.iloc[-1])
+    triggered = reg.check(index=idx, price=float(df["high"].iloc[-1]))
+    if not triggered:
+        triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]))
     if triggered:
         return triggered
 
