@@ -236,7 +236,18 @@ def run_live(
                         current_bar["close"] = price
                     else:
                         idx = pd.to_datetime(current_bar["start"], unit="s")
-                        sig = append_bar_and_signal(df, current_bar, settings)
+                        setup_registry = registry
+                        ctx = None
+                        try:
+                            sig = append_bar_and_signal(
+                                df,
+                                current_bar,
+                                settings,
+                                setup_registry=setup_registry,
+                                ctx=ctx,
+                            )
+                        except TypeError:
+                            sig = append_bar_and_signal(df, current_bar, settings)
                         log.info("candle_closed", **current_bar)
                         last_candle_ts = time.time()
 
