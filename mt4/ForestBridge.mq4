@@ -62,17 +62,28 @@ string fn=StringFormat("position_%s.json",_Symbol);
 WriteJson(Join(Join(BridgeRoot,"state"),fn), StringFormat("{\"qty\":%.2f}",qty));
 }
 
-void NormalizeStopsForBuy(const string symbol,double ask,double &sl,double &tp){
+void NormalizeStops(const string symbol,bool is_buy,double price,double &sl,double &tp){
  int digits=(int)MarketInfo(symbol,MODE_DIGITS);
  double point=MarketInfo(symbol,MODE_POINT);
  double mindist=MarketInfo(symbol,MODE_STOPLEVEL)*point;
- if(sl>0){
-   if(ask-sl<mindist) sl=ask-mindist;
-   sl=NormalizeDouble(sl,digits);
- }
- if(tp>0){
-   if(tp-ask<mindist) tp=ask+mindist;
-   tp=NormalizeDouble(tp,digits);
+ if(is_buy){
+   if(sl>0){
+     if(price-sl<mindist) sl=price-mindist;
+     sl=NormalizeDouble(sl,digits);
+   }
+   if(tp>0){
+     if(tp-price<mindist) tp=price+mindist;
+     tp=NormalizeDouble(tp,digits);
+   }
+ } else {
+   if(sl>0){
+     if(sl-price<mindist) sl=price+mindist;
+     sl=NormalizeDouble(sl,digits);
+   }
+   if(tp>0){
+     if(price-tp<mindist) tp=price-mindist;
+     tp=NormalizeDouble(tp,digits);
+   }
  }
 }
 
@@ -80,12 +91,28 @@ string ExecuteCommand(const string id,const string action,const string symbol,do
  RefreshRates(); int ticket=-1; double price=0.0; bool ok=false; string err="";
  if(action=="BUY"){
    double lots=volume; double ask=NormalizeDouble(Ask,Digits);
-   double _sl=sl; double _tp=tp;
-   NormalizeStopsForBuy(symbol,ask,_sl,_tp);
-   if(LogDebug && (_sl>0 || _tp>0))
-     Log("BUY stops sl="+DoubleToString(_sl,Digits)+" tp="+DoubleToString(_tp,Digits));
-   ticket=OrderSend(symbol,OP_BUY,lots,ask,Slippage,_sl,_tp,"FOREST",Magic,0,clrGreen);
-   if(ticket>0){ ok=true; price=ask; } else { err=ErrToStr(GetLastError()); }
+   if(!MathIsValidNumber(sl) || !MathIsValidNumber(tp) || sl<=0 || tp<=0){
+     err="invalid_stops";
+   } else {
+     double point=MarketInfo(symbol,MODE_POINT);
+     double mindist=MarketInfo(symbol,MODE_STOPLEVEL)*point;
+     if(ask-sl<mindist || tp-ask<mindist){
+       err="invalid_stops";
+     } else {
+       double _sl=sl; double _tp=tp;
+       NormalizeStops(symbol,true,ask,_sl,_tp);
+       bool adjusted = (_sl!=sl) || (_tp!=tp);
+       if(LogDebug && (_sl>0 || _tp>0)){
+         if(adjusted)
+           Log("BUY stops adjusted sl="+DoubleToString(sl,Digits)+"->"+DoubleToString(_sl,Digits)+
+               " tp="+DoubleToString(tp,Digits)+"->"+DoubleToString(_tp,Digits));
+         else
+           Log("BUY stops sl="+DoubleToString(_sl,Digits)+" tp="+DoubleToString(_tp,Digits));
+       }
+       ticket=OrderSend(symbol,OP_BUY,lots,ask,Slippage,_sl,_tp,"FOREST",Magic,0,clrGreen);
+       if(ticket>0){ ok=true; price=ask; } else { err=ErrToStr(GetLastError()); }
+     }
+   }
  } else if(action=="SELL"){
    double toclose=volume; ok=true;
    for(int i=OrdersTotal()-1;i>=0 && toclose>0;i--){
