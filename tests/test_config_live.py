@@ -46,9 +46,7 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.decision.tech.conf_cap == 1.0  # nosec B101
     default_patterns = PatternSettings().model_dump()
     assert s.strategy.patterns.model_dump() == default_patterns  # nosec B101
-    assert (
-        s.time.primary_signal.patterns.model_dump() == default_patterns
-    )  # nosec B101
+    assert s.time.primary_signal.patterns.model_dump() == default_patterns  # nosec B101
 
 
 def test_live_settings_ai_context_file_resolved(tmp_path: Path):

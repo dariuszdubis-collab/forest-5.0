@@ -186,9 +186,7 @@ def test_h1_signal_patterns_gate(monkeypatch, base_params):
     monkeypatch.setattr("forest5.signals.h1_ema_rsi_atr.ema", fake_ema)
     monkeypatch.setattr("forest5.signals.h1_ema_rsi_atr.atr", fake_atr)
     monkeypatch.setattr("forest5.signals.h1_ema_rsi_atr.rsi", fake_rsi)
-    monkeypatch.setattr(
-        "forest5.signals.h1_ema_rsi_atr.patterns.registry.best_pattern", no_pattern
-    )
+    monkeypatch.setattr("forest5.signals.h1_ema_rsi_atr.patterns.registry.best_pattern", no_pattern)
 
     reg = SetupRegistry()
     compute_primary_signal_h1(df, params, registry=reg)
