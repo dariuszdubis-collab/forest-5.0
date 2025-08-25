@@ -6,7 +6,6 @@ import time
 import forest5.live.live_runner as live_runner
 from forest5.live.live_runner import run_live
 import forest5.live.router as router
-from forest5.signals.contract import TechnicalSignal
 from forest5.signals.setups import TriggeredSignal
 from forest5.live.settings import (
     LiveSettings,

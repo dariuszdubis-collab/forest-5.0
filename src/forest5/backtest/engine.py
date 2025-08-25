@@ -250,7 +250,9 @@ class BacktestEngine:
             self._open_position(cand, entry, index)
 
     # ------------------------------------------------------------------
-    def _open_position(self, cand: TriggeredSignal | TechnicalSignal, entry: float, index: int) -> None:
+    def _open_position(
+        self, cand: TriggeredSignal | TechnicalSignal, entry: float, index: int
+    ) -> None:
         setup_id = getattr(cand, "setup_id", getattr(cand, "id", ""))
         meta = dict(getattr(cand, "meta", {}) or {})
         client_id = new_id("cl")

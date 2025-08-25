@@ -10,7 +10,6 @@ import pandas as pd
 import forest5.live.live_runner as live_runner
 from forest5.live.live_runner import run_live, _append_bar_and_signal
 from forest5.signals.compat import compute_signal_compat
-from forest5.signals.contract import TechnicalSignal
 from forest5.signals.setups import TriggeredSignal
 from forest5.live.settings import (
     LiveSettings,
