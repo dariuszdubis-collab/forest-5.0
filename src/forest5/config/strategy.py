@@ -30,10 +30,11 @@ class H1EmaRsiAtrParams(BaseModel):
 
 
 class PatternSettings(BaseModel):
-    enabled: bool = False
-    min_strength: float = 0.0
-    boost_conf: float = 0.0
-    boost_score: float = 0.0
+    enabled: bool = True
+    min_strength: float = 0.6
+    boost_conf: float = 0.20
+    boost_score: float = 0.20
+    gate: bool = False
 
 
 class ProfileSettings(BaseModel):

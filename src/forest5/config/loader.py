@@ -7,6 +7,8 @@ import yaml
 
 from typing import Any, TYPE_CHECKING, Type
 
+from .strategy import PatternSettings
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..config_live import LiveSettings
 
@@ -48,6 +50,9 @@ def _pydantic_validate(model_cls: Type, data: dict) -> Any:
     return model_cls(**data)
 
 
+DEFAULT_PATTERNS = PatternSettings().model_dump()
+
+
 def load_live_settings(path: str | Path) -> "LiveSettings":
     from ..config_live import LiveSettings
 
@@ -58,7 +63,7 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
 
     strategy = data.get("strategy")
     if isinstance(strategy, dict):
-        strategy.setdefault("patterns", {})
+        strategy.setdefault("patterns", dict(DEFAULT_PATTERNS))
         data["strategy"] = strategy
 
     broker = data.get("broker")
@@ -99,7 +104,7 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
 
         primary_signal = time.get("primary_signal")
         if isinstance(primary_signal, dict):
-            primary_signal.setdefault("patterns", {})
+            primary_signal.setdefault("patterns", dict(DEFAULT_PATTERNS))
             time["primary_signal"] = primary_signal
         data["time"] = time
     return _pydantic_validate(LiveSettings, data)
