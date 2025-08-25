@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import pandas as pd
 
 from ..core.indicators import rsi
 from .candles import candles_signal
@@ -9,17 +8,16 @@ from .combine import apply_rsi_filter, confirm_with_candles
 from .ema import ema_cross_signal
 from .macd import macd_cross_signal
 from .h1_ema_rsi_atr import compute_primary_signal_h1
-from .contract import TechnicalSignal
 from ..utils.log import TelemetryContext
 
 
 def compute_signal(
-    df: pd.DataFrame,
+    df,
     settings,
-    price_col: str = "close",
-    compat_int: bool = False,
+    price_col="close",
+    compat_int=False,
     ctx: TelemetryContext | None = None,
-) -> pd.Series | TechnicalSignal:
+):
     """Generate trading signal without mutating the input settings."""
 
     strategy = copy.deepcopy(settings.strategy)
@@ -59,7 +57,7 @@ def compute_signal(
         return confirm_with_candles(base, candles)
     if name == "h1_ema_rsi_atr":
         params = getattr(strategy, "params", None)
-        res = compute_primary_signal_h1(df, params)
+        res = compute_primary_signal_h1(df, params, ctx=ctx)
         if compat_int:
             from .compat import contract_to_int
 
