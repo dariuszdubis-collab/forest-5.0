@@ -69,7 +69,7 @@ def test_triggered_setup_executes(tmp_path: Path, capfd, monkeypatch):
         def __init__(self, *args, **kwargs):
             self.armed = False
 
-        def arm(self, signal, *, expiry=None, ctx=None):
+        def arm(self, key, index, signal, *, ctx=None):
             self.armed = True
 
         def check(self, key, index, high, low):
@@ -126,7 +126,7 @@ def test_setup_expires_without_trigger(tmp_path: Path, capfd, monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        def arm(self, signal, *, expiry=None, ctx=None):
+        def arm(self, key, index, signal, *, ctx=None):
             pass
 
         def check(self, key, index, high, low):

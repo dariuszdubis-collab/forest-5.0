@@ -18,7 +18,7 @@ from ..signals.h1_ema_rsi_atr import compute_primary_signal_h1
 from ..signals import SetupRegistry
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import setup_logger, TelemetryContext
+from ..utils.log import setup_logger, TelemetryContext, new_id
 from ..utils.debugger import DebugLogger
 import forest5.live.router as router
 from .risk_guard import should_halt_for_drawdown
@@ -197,6 +197,7 @@ def run_live(
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60
 
+    run_id = new_id("run")
     registry = SetupRegistry()
     setup_registry = registry
     tick_file = tick_dir / "tick.json"
@@ -250,7 +251,11 @@ def run_live(
                     else:
                         idx = pd.to_datetime(current_bar["start"], unit="s")
                         setup_registry = registry
-                        ctx = None
+                        ctx = TelemetryContext(
+                            run_id=run_id,
+                            symbol=settings.broker.symbol,
+                            timeframe=tf,
+                        )
                         try:
                             sig = append_bar_and_signal(
                                 df,
@@ -274,18 +279,22 @@ def run_live(
 
                         if sig != 0:
                             action = "BUY" if sig > 0 else "SELL"
-                            registry.arm(
-                                TechnicalSignal(
-                                    timeframe=tf,
-                                    action=action,
-                                    entry=current_bar["close"],
-                                    horizon_minutes=_TF_MINUTES[tf],
-                                    technical_score=1.0 if action == "BUY" else -1.0,
-                                    confidence_tech=1.0,
-                                ),
-                                expiry=len(df),
-                                ctx=None,
+                            setup_id = new_id("setup")
+                            signal = TechnicalSignal(
+                                timeframe=tf,
+                                action=action,
+                                entry=current_bar["close"],
+                                horizon_minutes=_TF_MINUTES[tf],
+                                technical_score=1.0 if action == "BUY" else -1.0,
+                                confidence_tech=1.0,
                             )
+                            ctx_setup = TelemetryContext(
+                                run_id=run_id,
+                                symbol=settings.broker.symbol,
+                                timeframe=tf,
+                                setup_id=setup_id,
+                            )
+                            registry.arm(setup_id, len(df), signal, ctx=ctx_setup)
 
                         current_bar = {
                             "start": bar_start,

@@ -45,5 +45,40 @@
     "latency_ms",
     "error",
     "context"
-  ]
+  ],
+  "definitions": {
+    "setup_trigger": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "setup_trigger"},
+        "trigger_price": {"type": "number"},
+        "fill_price": {"type": "number"},
+        "slippage": {"type": "number"},
+        "setup_id": {"type": "string"},
+        "action": {"type": "string"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"}
+      },
+      "required": [
+        "event",
+        "trigger_price",
+        "fill_price",
+        "slippage",
+        "setup_id",
+        "action",
+        "entry",
+        "sl",
+        "tp"
+      ]
+    },
+    "setup_expire": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "setup_expire"},
+        "reason": {"type": "string"}
+      },
+      "required": ["event", "reason"]
+    }
+  }
 }
