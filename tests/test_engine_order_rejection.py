@@ -8,12 +8,14 @@ from forest5.utils.log import E_ORDER_REJECTED
 
 
 def _make_engine() -> BacktestEngine:
-    df = pd.DataFrame({
-        "open": [1.0],
-        "high": [1.0],
-        "low": [1.0],
-        "close": [1.0],
-    })
+    df = pd.DataFrame(
+        {
+            "open": [1.0],
+            "high": [1.0],
+            "low": [1.0],
+            "close": [1.0],
+        }
+    )
     settings = BacktestSettings()
     return BacktestEngine(df, settings)
 
@@ -65,4 +67,3 @@ def test_close_order_rejected_logs_event():
     assert kwargs["reason"] == "qty_zero"
     assert kwargs["client_order_id"]
     assert ctx.setup_id == "s1"
-
