@@ -11,13 +11,14 @@ from pathlib import Path
 from ..config_live import LiveSettings
 from ..decision import DecisionAgent, DecisionConfig, DecisionResult
 from ..time_only import TimeOnlyModel
-from ..signals.factory import compute_signal
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
+from ..signals.compat import compute_signal_compat, contract_to_int
+from ..signals.h1_ema_rsi_atr import compute_primary_signal_h1
 from ..signals import SetupRegistry
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
-from ..utils.log import setup_logger
+from ..utils.log import setup_logger, TelemetryContext
 from ..utils.debugger import DebugLogger
 from .router import OrderRouter
 from .risk_guard import should_halt_for_drawdown
@@ -41,7 +42,14 @@ def _read_context(path: str | Path, max_bytes: int = 16_384) -> str:
         return ""
 
 
-def append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) -> int:
+def append_bar_and_signal(
+    df: pd.DataFrame,
+    bar: dict,
+    settings: LiveSettings,
+    *,
+    setup_registry: SetupRegistry | None = None,
+    ctx: TelemetryContext | None = None,
+) -> int:
     """Append ``bar`` to ``df`` and return only the latest signal.
 
     This updates EMA values incrementally so indicator calculations scale
@@ -55,10 +63,14 @@ def append_bar_and_signal(df: pd.DataFrame, bar: dict, settings: LiveSettings) -
         bar["close"],
     ]
 
-    # Only the EMA cross strategy is used in tests; fall back to the original
-    # implementation for anything else.
-    if getattr(settings.strategy, "name", "ema_cross") != "ema_cross":
-        return int(compute_signal(df, settings, "close").iloc[-1])
+    name = getattr(settings.strategy, "name", "ema_cross")
+    if name == "h1_ema_rsi_atr":
+        params = getattr(settings.strategy, "params", None)
+        contract = compute_primary_signal_h1(df, params=params, registry=setup_registry, ctx=ctx)
+        return contract_to_int(contract)
+
+    if name != "ema_cross":
+        return int(compute_signal_compat(df, settings, "close").iloc[-1])
 
     close = float(bar["close"])
     fast = settings.strategy.fast
