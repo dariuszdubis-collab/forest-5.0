@@ -22,8 +22,8 @@ def contract_to_int(signal: Any) -> int:
     """
 
     action: Any
-    if isinstance(signal, TechnicalSignal):
-        action = signal.action
+    if isinstance(signal, TechnicalSignal) or hasattr(signal, "action"):
+        action = getattr(signal, "action")
     elif isinstance(signal, Mapping):
         action = signal.get("action", 0)
     else:

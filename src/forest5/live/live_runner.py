@@ -357,21 +357,21 @@ def run_live(
                         )
                     if triggered:
                         slippage = (
-                            price - float(getattr(triggered, "entry", price))
-                            if getattr(triggered, "action", "BUY").upper() == "BUY"
-                            else float(getattr(triggered, "entry", price)) - price
+                            price - float(triggered.entry)
+                            if triggered.action.upper() == "BUY"
+                            else float(triggered.entry) - price
                         )
                         log_event(
                             E_SETUP_TRIGGER,
-                            ctx=mk_ctx(getattr(triggered, "id", None)),
+                            ctx=mk_ctx(triggered.setup_id),
                             trigger_price=price,
                             fill_price=price,
                             slippage=slippage,
-                            setup_id=getattr(triggered, "id", None),
-                            action=getattr(triggered, "action", ""),
-                            entry=float(getattr(triggered, "entry", price)),
-                            sl=float(getattr(triggered, "sl", 0.0)),
-                            tp=float(getattr(triggered, "tp", 0.0)),
+                            setup_id=triggered.setup_id,
+                            action=triggered.action,
+                            entry=float(triggered.entry),
+                            sl=float(triggered.sl),
+                            tp=float(triggered.tp),
                         )
                         idx = pd.to_datetime(ts, unit="s")
                         dec: DecisionResult = agent.decide(
@@ -416,9 +416,9 @@ def run_live(
                                 decision,
                                 settings.broker.volume * weight,
                                 price,
-                                entry=getattr(triggered, "entry", None),
-                                sl=getattr(triggered, "sl", None),
-                                tp=getattr(triggered, "tp", None),
+                                entry=triggered.entry,
+                                sl=triggered.sl,
+                                tp=triggered.tp,
                             )
                             latency = (time.time() - start_ts) * 1000.0
                             log.info(

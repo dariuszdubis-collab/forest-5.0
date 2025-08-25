@@ -21,7 +21,7 @@ from ..utils.log import (
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from ..signals.contract import TechnicalSignal
-from ..signals.setups import SetupRegistry
+from ..signals.setups import SetupRegistry, TriggeredSignal
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
@@ -250,9 +250,9 @@ class BacktestEngine:
             self._open_position(cand, entry, index)
 
     # ------------------------------------------------------------------
-    def _open_position(self, cand: TechnicalSignal, entry: float, index: int) -> None:
-        meta = dict(cand.meta) if cand.meta else {}
-        setup_id = str(meta.get("id", ""))
+    def _open_position(self, cand: TriggeredSignal | TechnicalSignal, entry: float, index: int) -> None:
+        setup_id = getattr(cand, "setup_id", getattr(cand, "id", ""))
+        meta = dict(getattr(cand, "meta", {}) or {})
         client_id = new_id("cl")
         self._ticket_seq += 1
         ticket = self._ticket_seq
@@ -292,7 +292,7 @@ class BacktestEngine:
             "orig_sl": float(cand.sl),
             "orig_tp": float(cand.tp),
             "open_index": index,
-            "horizon": int(getattr(cand, "horizon_minutes", 0)),
+            "horizon": 0,
             "meta": meta,
             "ticket": ticket,
             "client_order_id": client_id,

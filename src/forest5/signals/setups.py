@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
-from .contract import TechnicalSignal
+from .contract import TechnicalSignal, Action
 from forest5.utils.log import (
     E_SETUP_ARM,
     E_SETUP_EXPIRE,
@@ -19,7 +19,7 @@ class SetupCandidate(TechnicalSignal):
     """Candidate trade setup derived from :class:`TechnicalSignal`.
 
     It extends :class:`TechnicalSignal` with an identifier so that backtest
-    engines can track which setup resulted in an opened position.  Existing
+    engines can track which setup resulted in an opened position. Existing
     code that expects a :class:`TechnicalSignal` continues to work because
     :class:`SetupCandidate` subclasses it.
     """
@@ -35,33 +35,30 @@ class _ArmedSetup:
 
 
 @dataclass
-class TriggeredSignal(TechnicalSignal):
-    """Signal emitted when a setup is triggered.
+class TriggeredSignal:
+    """Signal emitted when a setup is triggered."""
 
-    It extends :class:`TechnicalSignal` with execution details. Existing code
-    that expects :class:`TechnicalSignal` continues to work.
-    """
-
-    key: str = ""
-    trigger_price: float = 0.0
-    fill_price: float = 0.0
+    setup_id: str
+    action: Action
+    entry: float
+    sl: float
+    tp: float
+    fill_price: float | None = None
     slippage: float = 0.0
-    ctx: TelemetryContext | None = None
+    meta: dict[str, object] | None = None
+    technical_score: float = 0.0
+    confidence_tech: float = 1.0
+    drivers: list[object] = field(default_factory=list)
 
 
 class SetupRegistry:
-    """Track armed trade setups and trigger on breakout.
-
-    Setups are stored with a time-to-live (TTL) measured in bars. Each armed
-    setup is valid for exactly one subsequent bar. If a breakout beyond the
-    entry price occurs within that bar the stored :class:`TechnicalSignal` is
-    emitted. Otherwise the setup is discarded after the bar completes.
-    """
+    """Track armed trade setups and trigger on breakout."""
 
     def __init__(self, ttl_bars: int = 1) -> None:
         self.ttl_bars = ttl_bars
         self._setups: Dict[str, _ArmedSetup] = {}
 
+    # ------------------------------------------------------------------
     def arm(
         self,
         key: str,
@@ -69,22 +66,17 @@ class SetupRegistry:
         signal: TechnicalSignal,
         *,
         ctx: TelemetryContext | None = None,
-    ) -> None:
+    ) -> str:
         """Store ``signal`` and arm it for the next bar.
 
-        Parameters
-        ----------
-        key:
-            Identifier for the setup (e.g. symbol or timeframe).
-        index:
-            Index of the current bar.  The setup will expire after
-            ``index + ttl_bars``.
-        signal:
-            Fully populated :class:`TechnicalSignal` describing the trade to
-            execute upon breakout.
+        Returns
+        -------
+        setup_id:
+            Identifier associated with the armed setup.
         """
 
         self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars, ctx=ctx)
+        setup_id = getattr(signal, "id", key)
         if ctx is not None:
             log_event(
                 E_SETUP_ARM,
@@ -92,36 +84,20 @@ class SetupRegistry:
                 key=key,
                 index=index,
                 action=signal.action,
-                setup_id=getattr(signal, "id", None),
+                setup_id=setup_id,
                 entry=float(signal.entry),
                 sl=float(signal.sl),
                 tp=float(signal.tp),
             )
+        return setup_id
 
-    def check(
-        self,
-        *,
-        index: int,
-        price: float,
-        ctx: TelemetryContext | None = None,
+    # ------------------------------------------------------------------
+    def _check_price(
+        self, *, index: int, price: float, ctx: TelemetryContext | None
     ) -> Optional[TriggeredSignal]:
-        """Check all armed setups for a trigger or expiry.
-
-        Parameters
-        ----------
-        index:
-            Index of the bar to evaluate.
-        price:
-            Current price used to detect breakouts.
-        ctx:
-            Optional context used when logging expiry events if the setup did
-            not specify its own.
-        """
-
         for key, setup in list(self._setups.items()):
             setup_ctx = setup.ctx or ctx
 
-            # Expire old setups
             if index > setup.expiry:
                 del self._setups[key]
                 if setup_ctx is not None:
@@ -141,41 +117,38 @@ class SetupRegistry:
 
             if triggered:
                 del self._setups[key]
-                trigger_price = price
                 fill_price = price
-                if sig.action == "BUY":
-                    slippage = fill_price - float(sig.entry)
-                else:
-                    slippage = float(sig.entry) - fill_price
+                slippage = (
+                    fill_price - float(sig.entry)
+                    if sig.action == "BUY"
+                    else float(sig.entry) - fill_price
+                )
+                setup_id = getattr(sig, "id", key)
                 if setup_ctx is not None:
                     log_event(
                         E_SETUP_TRIGGER,
                         ctx=setup_ctx,
-                        trigger_price=trigger_price,
+                        trigger_price=price,
                         fill_price=fill_price,
                         slippage=slippage,
-                        setup_id=getattr(sig, "id", None),
+                        setup_id=setup_id,
                         action=sig.action,
                         entry=float(sig.entry),
                         sl=float(sig.sl),
                         tp=float(sig.tp),
                     )
                 return TriggeredSignal(
-                    timeframe=sig.timeframe,
+                    setup_id=setup_id,
                     action=sig.action,
-                    entry=sig.entry,
-                    sl=sig.sl,
-                    tp=sig.tp,
-                    horizon_minutes=sig.horizon_minutes,
-                    technical_score=sig.technical_score,
-                    confidence_tech=sig.confidence_tech,
-                    drivers=sig.drivers,
-                    meta=sig.meta,
-                    key=key,
-                    trigger_price=trigger_price,
+                    entry=float(sig.entry),
+                    sl=float(sig.sl),
+                    tp=float(sig.tp),
                     fill_price=fill_price,
                     slippage=slippage,
-                    ctx=setup_ctx,
+                    meta=getattr(sig, "meta", None),
+                    technical_score=getattr(sig, "technical_score", 0.0),
+                    confidence_tech=getattr(sig, "confidence_tech", 1.0),
+                    drivers=list(getattr(sig, "drivers", [])),
                 )
 
             if index >= setup.expiry:
@@ -188,8 +161,34 @@ class SetupRegistry:
                         index=index,
                         reason=R_TIMEOUT,
                     )
-
         return None
+
+    # ------------------------------------------------------------------
+    def check(
+        self,
+        *,
+        index: int,
+        price: float | None = None,
+        high: float | None = None,
+        low: float | None = None,
+        ctx: TelemetryContext | None = None,
+    ) -> Optional[TriggeredSignal]:
+        """Check armed setups for a trigger or expiry.
+
+        For backward compatibility ``high``/``low`` may be supplied instead of
+        ``price``. In that case ``high`` is evaluated first and ``low`` is only
+        checked if ``high`` did not trigger a setup.
+        """
+
+        if price is not None:
+            return self._check_price(index=index, price=price, ctx=ctx)
+
+        triggered = None
+        if high is not None:
+            triggered = self._check_price(index=index, price=high, ctx=ctx)
+        if triggered is None and low is not None:
+            triggered = self._check_price(index=index, price=low, ctx=ctx)
+        return triggered
 
 
 __all__ = ["SetupRegistry", "SetupCandidate", "TriggeredSignal"]
