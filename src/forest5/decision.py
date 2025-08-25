@@ -228,13 +228,9 @@ class DecisionConfig:
     # Technical signal always contributes at least 1.
     min_confluence: float = 0.0
     tie_epsilon: float = 0.05
-    weights: Any = field(
-        default_factory=lambda: SimpleNamespace(tech=1.0, ai=0.5, time=1.0)
-    )
+    weights: Any = field(default_factory=lambda: SimpleNamespace(tech=1.0, ai=0.5, time=1.0))
     tech: Any = field(
-        default_factory=lambda: SimpleNamespace(
-            default_conf_int=0.5, conf_floor=0.2, conf_cap=0.9
-        )
+        default_factory=lambda: SimpleNamespace(default_conf_int=0.5, conf_floor=0.2, conf_cap=0.9)
     )
 
 
