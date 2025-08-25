@@ -28,3 +28,6 @@ def test_config_from_yaml(tmp_path: Path):
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
     assert s.tp_sl_priority == "TP_FIRST"
     assert s.setup_ttl_bars == 2
+    pats = s.strategy.patterns
+    assert pats.enabled is False  # nosec B101
+    assert pats.min_strength == 0.0  # nosec B101

@@ -38,6 +38,14 @@ def test_live_settings_from_yaml(tmp_path: Path):
     assert s.time.model.enabled is True  # nosec B101
     assert s.time.model.path == p.parent / "model.onnx"  # nosec B101
     assert s.risk.on_drawdown.action == "halt"  # nosec B101
+    assert s.decision.tie_epsilon == 0.05  # nosec B101
+    assert s.decision.weights.tech == 1.0  # nosec B101
+    assert s.decision.weights.ai == 1.0  # nosec B101
+    assert s.decision.tech.default_conf_int == 1.0  # nosec B101
+    assert s.decision.tech.conf_floor == 0.0  # nosec B101
+    assert s.decision.tech.conf_cap == 1.0  # nosec B101
+    assert s.strategy.patterns.enabled is False  # nosec B101
+    assert s.time.primary_signal.patterns.enabled is False  # nosec B101
 
 
 def test_live_settings_ai_context_file_resolved(tmp_path: Path):

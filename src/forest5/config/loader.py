@@ -56,6 +56,11 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
     text = p.read_text(encoding="utf-8")
     data = yaml.safe_load(text) or {}
 
+    strategy = data.get("strategy")
+    if isinstance(strategy, dict):
+        strategy.setdefault("patterns", {})
+        data["strategy"] = strategy
+
     broker = data.get("broker")
     if isinstance(broker, dict):
         b_raw = broker.get("bridge_dir")
@@ -75,6 +80,12 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
             ai["context_file"] = ""
         data["ai"] = ai
 
+    decision = data.get("decision")
+    if isinstance(decision, dict):
+        decision.setdefault("weights", {})
+        decision.setdefault("tech", {})
+        data["decision"] = decision
+
     time = data.get("time")
     if isinstance(time, dict):
         model = time.get("model")
@@ -85,5 +96,10 @@ def load_live_settings(path: str | Path) -> "LiveSettings":
             else:
                 model["path"] = ""
             time["model"] = model
+
+        primary_signal = time.get("primary_signal")
+        if isinstance(primary_signal, dict):
+            primary_signal.setdefault("patterns", {})
+            time["primary_signal"] = primary_signal
         data["time"] = time
     return _pydantic_validate(LiveSettings, data)
