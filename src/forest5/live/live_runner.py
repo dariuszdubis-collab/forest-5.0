@@ -13,7 +13,7 @@ from ..decision import DecisionAgent, DecisionConfig, DecisionResult
 from ..time_only import TimeOnlyModel
 from ..signals.candles import candles_signal
 from ..signals.combine import confirm_with_candles
-from ..signals.compat import compute_signal_compat, contract_to_int
+from ..signals.compat import compute_signal_compat
 from ..signals import SetupRegistry, compute_signal
 from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
