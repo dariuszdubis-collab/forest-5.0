@@ -73,7 +73,9 @@ def append_bar_and_signal(
 
     name = getattr(settings.strategy, "name", "ema_cross")
     if name == "h1_ema_rsi_atr":
-        contract = compute_signal(df, settings.strategy, ctx=ctx)
+        # For the H1 strategy we work with rich contract objects.  Compute the
+        # signal directly without going through the compatibility shim.
+        contract = compute_signal(df, settings, ctx=ctx)
         if (
             isinstance(contract, TechnicalSignal)
             and contract.action in ("BUY", "SELL")

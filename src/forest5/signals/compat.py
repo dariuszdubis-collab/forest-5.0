@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 import pandas as pd
+import numpy as np
 
 from .factory import compute_signal
 from .contract import TechnicalSignal
@@ -57,12 +58,9 @@ def compute_signal_compat(
     if isinstance(res, pd.Series):
         return res.astype("int8")
 
-    import numpy as np
-
-    if isinstance(res, (TechnicalSignal, Mapping)):
-        arr = np.zeros(len(df), dtype=np.int8)
-        if len(df):
-            arr[-1] = contract_to_int(res)
-        return pd.Series(arr, index=df.index, dtype="int8")
-
-    return pd.Series([contract_to_int(res)], index=df.index[-1:], dtype="int8")
+    # Legacy paths may return a single contract or mapping-like object.  Convert
+    # only the latest value to an integer signal for backward compatibility.
+    arr = np.zeros(len(df), dtype=np.int8)
+    if len(df):
+        arr[-1] = contract_to_int(res)
+    return pd.Series(arr, index=df.index, dtype="int8")
