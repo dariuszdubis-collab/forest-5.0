@@ -14,6 +14,7 @@ import structlog
 # Application setup and lifecycle.
 E_SETUP_ARM = "setup_arm"
 E_SETUP_DONE = "setup_done"
+E_SETUP_TRIGGER = "setup_trigger"
 
 # Trading related events.
 E_ORDER_PLACED = "order_placed"

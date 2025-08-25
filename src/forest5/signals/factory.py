@@ -19,8 +19,7 @@ def compute_signal(
     ctx: TelemetryContext | None = None,
 ):
     """Generate trading signal without mutating the input settings."""
-
-    strategy = copy.deepcopy(settings.strategy)
+    strategy = copy.deepcopy(getattr(settings, "strategy", settings))
     name = getattr(strategy, "name", "ema_cross")
 
     if name in {"ema_rsi", "ema-cross+rsi"}:
