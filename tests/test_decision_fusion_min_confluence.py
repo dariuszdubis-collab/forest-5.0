@@ -37,7 +37,8 @@ def test_min_confluence_requires_both_votes() -> None:
         {"tech": 1, "time": 1},
         "ok",
     )
-    decision, votes, reason = agent.decide(ts, tech_signal=0, value=1.0, symbol="EURUSD")
+    agent2 = DecisionAgent(config=DecisionConfig(min_confluence=1.4))
+    decision, votes, reason = agent2.decide(ts, tech_signal=1, value=1.0, symbol="EURUSD")
     assert (decision, votes, reason) == (
         "WAIT",
         {},

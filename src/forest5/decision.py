@@ -266,6 +266,11 @@ class DecisionAgent:
         votes: list[DecisionVote] = []
         cfg = SimpleNamespace(decision=self.config)
 
+        tech_vote = _normalize_tech_input(tech_signal, cfg)
+        if tech_vote.direction == 0:
+            return DecisionResult("WAIT", 0.0, "no_tech_signal")
+        votes.append(tech_vote)
+
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
             if isinstance(tm_res, tuple):
@@ -283,8 +288,6 @@ class DecisionAgent:
                     score=float(tm_weight),
                 )
             )
-
-        votes.append(_normalize_tech_input(tech_signal, cfg))
 
         if self.ai:
             ai_sent = self.ai.analyse(context_text, symbol)

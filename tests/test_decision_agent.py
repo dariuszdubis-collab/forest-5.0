@@ -17,6 +17,19 @@ def test_decision_agent_waits_when_time_model_waits() -> None:
     assert reason == "timeonly_wait"
 
 
+class _DummyTimeModel:
+    def decide(self, ts, value: float) -> str:  # pragma: no cover - simple stub
+        return "BUY"
+
+
+def test_decision_agent_waits_without_tech_signal() -> None:
+    ts = datetime(2024, 1, 1)
+    agent = DecisionAgent(config=DecisionConfig(time_model=_DummyTimeModel()))
+    for sig in ("KEEP", None):
+        decision, votes, reason = agent.decide(ts, tech_signal=sig, value=1.0, symbol="EURUSD")
+        assert (decision, votes, reason) == ("WAIT", {}, "no_tech_signal")
+
+
 def test_decision_agent_majority_and_tie() -> None:
     time_model = TimeOnlyModel({0: (-1.0, 1.0)}, q_low=-1.0, q_high=1.0)
     cfg = DecisionConfig(time_model=time_model)
