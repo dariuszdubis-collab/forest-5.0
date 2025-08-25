@@ -44,6 +44,9 @@ class TelemetryContext:
     run_id: str | None = None
     strategy_id: str | None = None
     order_id: str | None = None
+    symbol: str | None = None
+    timeframe: str | None = None
+    strategy: str | None = None
 
 
 def new_id(prefix: str) -> str:
