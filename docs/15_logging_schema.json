@@ -51,22 +51,21 @@
       "type": "object",
       "properties": {
         "event": {"const": "setup_trigger"},
-        "trigger_price": {"type": "number"},
-        "fill_price": {"type": "number"},
-        "slippage": {"type": "number"},
         "setup_id": {"type": "string"},
         "action": {"type": "string"},
+        "trigger_price": {"type": "number"},
         "entry": {"type": "number"},
         "sl": {"type": "number"},
-        "tp": {"type": "number"}
+        "tp": {"type": "number"},
+        "fill_price": {"type": "number"},
+        "slippage": {"type": "number"},
+        "reason": {"type": "string"}
       },
       "required": [
         "event",
-        "trigger_price",
-        "fill_price",
-        "slippage",
         "setup_id",
         "action",
+        "trigger_price",
         "entry",
         "sl",
         "tp"
@@ -76,9 +75,17 @@
       "type": "object",
       "properties": {
         "event": {"const": "setup_expire"},
+        "setup_id": {"type": "string"},
+        "action": {"type": "string"},
+        "trigger_price": {"type": "number"},
+        "entry": {"type": "number"},
+        "sl": {"type": "number"},
+        "tp": {"type": "number"},
+        "fill_price": {"type": "number"},
+        "slippage": {"type": "number"},
         "reason": {"type": "string"}
       },
-      "required": ["event", "reason"]
+      "required": ["event"]
     }
   }
 }
