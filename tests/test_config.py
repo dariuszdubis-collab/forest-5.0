@@ -29,5 +29,8 @@ def test_config_from_yaml(tmp_path: Path):
     assert s.tp_sl_priority == "TP_FIRST"
     assert s.setup_ttl_bars == 2
     pats = s.strategy.patterns
-    assert pats.enabled is False  # nosec B101
-    assert pats.min_strength == 0.0  # nosec B101
+    assert pats.enabled is True  # nosec B101
+    assert pats.min_strength == 0.6  # nosec B101
+    assert pats.boost_conf == 0.2  # nosec B101
+    assert pats.boost_score == 0.2  # nosec B101
+    assert pats.gate is False  # nosec B101
