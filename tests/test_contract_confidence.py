@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from forest5.decision import _normalize_tech_input
 from forest5.signals.contract import TechnicalSignal
 
@@ -29,3 +31,13 @@ def test_int_legacy_path_unchanged() -> None:
     assert vote.direction == 1
     assert vote.weight == 1.0
     assert vote.meta == {"mode": "int"}
+
+
+def test_weight_clamped_to_cap() -> None:
+    cfg = DummyCfg()
+    cfg.decision.tech.conf_cap = 0.7
+    cfg.decision.weights.tech = 2.0
+    sig = TechnicalSignal(action="BUY", technical_score=1.0, confidence_tech=1.0)
+    vote = _normalize_tech_input(sig, cfg)
+
+    assert vote.weight == pytest.approx(0.7)
