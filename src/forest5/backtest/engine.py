@@ -13,7 +13,7 @@ from ..utils.log import TelemetryContext, new_id, setup_logger
 from ..utils.validate import ensure_backtest_ready
 from forest5.signals.factory import compute_signal
 from ..signals.contract import TechnicalSignal
-from ..signals.setups import SetupRegistry, SetupCandidate
+from ..signals.setups import SetupRegistry
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
@@ -186,9 +186,14 @@ class BacktestEngine:
 
         contract = self._compute_signal_contract(index)
         if contract.action in {"BUY", "SELL"}:
-            setup_id = contract.meta.get("id", str(index))
-            candidate = SetupCandidate(id=setup_id, **contract.__dict__)
-            self.setups.arm(setup_id, index, candidate)
+            setup_id = str(index)
+            if contract.meta:
+                setup_id = str(contract.meta.get("id", setup_id))
+                contract.meta = dict(contract.meta)
+            else:
+                contract.meta = {}
+            contract.meta.setdefault("id", setup_id)
+            self.setups.arm(setup_id, index, contract)
 
         # Mark-to-market after bar close
         close_price = float(row[self.price_col])
@@ -232,10 +237,11 @@ class BacktestEngine:
             self._open_position(cand, entry, index)
 
     # ------------------------------------------------------------------
-    def _open_position(self, cand: SetupCandidate, entry: float, index: int) -> None:
+    def _open_position(self, cand: TechnicalSignal, entry: float, index: int) -> None:
         meta = dict(cand.meta) if cand.meta else {}
+        setup_id = str(meta.get("id", ""))
         pos = {
-            "id": cand.id,
+            "id": setup_id,
             "action": cand.action,
             "entry": float(entry),
             # Preserve original SL/TP from the signal so risk logic doesn't
