@@ -10,6 +10,7 @@ from .ema import ema_cross_signal
 from .macd import macd_cross_signal
 from .h1_ema_rsi_atr import compute_primary_signal_h1
 from .contract import TechnicalSignal
+from ..utils.log import TelemetryContext
 
 
 def compute_signal(
@@ -17,6 +18,7 @@ def compute_signal(
     settings,
     price_col: str = "close",
     compat_int: bool = False,
+    ctx: TelemetryContext | None = None,
 ) -> pd.Series | TechnicalSignal:
     """Generate trading signal without mutating the input settings."""
 
