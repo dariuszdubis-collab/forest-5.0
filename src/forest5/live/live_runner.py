@@ -20,8 +20,10 @@ from ..signals.contract import TechnicalSignal
 from ..utils.timeframes import _TF_MINUTES
 from ..utils.log import setup_logger, TelemetryContext
 from ..utils.debugger import DebugLogger
-from .router import OrderRouter
+import forest5.live.router as router
 from .risk_guard import should_halt_for_drawdown
+
+OrderRouter = router.OrderRouter
 
 
 log = setup_logger()
@@ -144,9 +146,7 @@ def run_live(
         broker = MT4Broker(settings.broker.bridge_dir, symbol=settings.broker.symbol)
         tick_dir = broker.ticks_dir
     elif btype == "paper":
-        from .router import PaperBroker
-
-        broker = PaperBroker()
+        broker = router.PaperBroker()
         if settings.broker.bridge_dir is None:
             raise ValueError("bridge_dir required for paper broker")
         tick_dir = Path(settings.broker.bridge_dir) / "ticks"
