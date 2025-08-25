@@ -144,7 +144,7 @@ def test_compute_signal_passes_contract(monkeypatch):
     s.strategy.name = "h1_ema_rsi_atr"
     fake = TechnicalSignal(action="BUY", entry=1.0, sl=0.5, tp=1.5)
 
-    def _fake(df, params):
+    def _fake(df, params, ctx=None):
         return fake
 
     monkeypatch.setattr("forest5.signals.factory.compute_primary_signal_h1", _fake)

@@ -25,6 +25,7 @@ import pandas as pd
 from forest5.core.indicators import atr, ema, rsi
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
+from ..utils.log import TelemetryContext
 
 
 _REGISTRY = SetupRegistry()
@@ -65,6 +66,7 @@ def compute_primary_signal_h1(
     df: pd.DataFrame,
     params: Any | None = None,
     registry: SetupRegistry | None = None,
+    ctx: TelemetryContext | None = None,
 ) -> TechnicalSignal:
     """Compute H1 EMA/RSI/ATR signal.
 
