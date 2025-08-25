@@ -79,9 +79,7 @@ def submit_order(
         )
         return OrderResult(0, "rejected", 0.0, 0.0, "invalid_qty")
 
-    if any(
-        v is not None and not math.isfinite(v) for v in (entry, sl, tp)
-    ):
+    if any(v is not None and not math.isfinite(v) for v in (entry, sl, tp)):
         log_event(
             E_ORDER_REJECTED,
             ctx,
