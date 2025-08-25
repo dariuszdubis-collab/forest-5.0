@@ -68,6 +68,23 @@ class MT4Broker(OrderRouter):
         self.ticks_dir = self.bridge_dir / "ticks"
 
     # ------------------------------------------------------------------
+    def _load_stop_level(self) -> float | None:
+        """Return minimum stop distance in price units if available."""
+        path = self.state_dir / f"stop_level_{self.symbol}.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            val = float(data.get("stop_level"))
+            return val if val > 0 else None
+        except FileNotFoundError:
+            return None
+        except json.JSONDecodeError:
+            log.warning("stop_level_invalid_json", path=str(path))
+            return None
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            log.warning("stop_level_invalid_value", path=str(path))
+            return None
+
+    # ------------------------------------------------------------------
     def _load_bridge_dir_from_yaml(self, path: str | Path) -> Path:
         p = Path(path)
         if not p.exists():
@@ -127,6 +144,8 @@ class MT4Broker(OrderRouter):
                     ticket = data.get("ticket", 0)
                     err = data.get("error")
                     filled = qty if status == "filled" else 0.0
+                    adj_sl = data.get("sl") or data.get("new_sl")
+                    adj_tp = data.get("tp") or data.get("new_tp")
                     log_event(
                         E_ORDER_ACK,
                         ctx,
@@ -150,9 +169,21 @@ class MT4Broker(OrderRouter):
                             ticket=ticket,
                             reason=err,
                         )
-                    return OrderResult(
+                    res = OrderResult(
                         int(ticket) if isinstance(ticket, int) else 0, status, filled, price, err
                     )
+                    if adj_sl is not None or adj_tp is not None:
+                        try:
+                            if adj_sl is not None:
+                                setattr(res, "sl", float(adj_sl))
+                        except (TypeError, ValueError):  # pragma: no cover - defensive
+                            pass
+                        try:
+                            if adj_tp is not None:
+                                setattr(res, "tp", float(adj_tp))
+                        except (TypeError, ValueError):  # pragma: no cover - defensive
+                            pass
+                    return res
                 except json.JSONDecodeError:
                     attempt += 1
                     log_event(
@@ -226,6 +257,37 @@ class MT4Broker(OrderRouter):
 
         start_ts = time.time()
         uid = uuid.uuid4().hex
+        # stop-level enforcement -------------------------------------------------
+        price_for_stops = entry if entry is not None else price
+        if price_for_stops is None:
+            tick_path = self.ticks_dir / "tick.json"
+            try:
+                tick = json.loads(tick_path.read_text(encoding="utf-8"))
+                if side.upper() == "BUY":
+                    price_for_stops = float(tick.get("ask"))
+                else:
+                    price_for_stops = float(tick.get("bid"))
+            except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError):
+                price_for_stops = None
+
+        stop_level = self._load_stop_level()
+        if stop_level is not None and price_for_stops is not None and side.upper() == "BUY":
+            old_sl, old_tp = sl, tp
+            new_sl, new_tp = sl, tp
+            if sl is not None and price_for_stops - sl < stop_level:
+                new_sl = price_for_stops - stop_level
+            if tp is not None and tp - price_for_stops < stop_level:
+                new_tp = price_for_stops + stop_level
+            if new_sl != old_sl or new_tp != old_tp:
+                log.info(
+                    "broker_adjusted_stops",
+                    old_sl=old_sl,
+                    old_tp=old_tp,
+                    new_sl=new_sl,
+                    new_tp=new_tp,
+                )
+                sl, tp = new_sl, new_tp
+
         cmd = {
             "id": uid,
             "action": side.upper(),
