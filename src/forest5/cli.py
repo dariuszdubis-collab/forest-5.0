@@ -322,6 +322,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
     # run grid for remaining combos
     new_results: list[pd.DataFrame] = []
     import inspect
+
     for _, row in combos.iterrows():
         kw = base_kwargs.copy()
         kw["fast_values"] = [int(row["fast"])]
