@@ -90,13 +90,13 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     combos = captured["combos"]
     settings = captured["settings"]
 
-    risk_vals = sorted(set(combos["risk"]))
+    risk_vals = sorted(combos["risk"].unique())
     if all(isinstance(x, numbers.Real) for x in risk_vals):
         assert risk_vals == pytest.approx([0.01, 0.02])
     else:
         assert risk_vals == [0.01, 0.02]
 
-    max_dd_vals = sorted(set(combos["max_dd"]))
+    max_dd_vals = sorted(combos["max_dd"].unique())
     if all(isinstance(x, numbers.Real) for x in max_dd_vals):
         assert max_dd_vals == pytest.approx([0.2, 0.3])
     else:
