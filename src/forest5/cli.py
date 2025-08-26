@@ -754,7 +754,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--out", "--export", dest="out", default=None, help="Zapis do CSV/Parquet")
     p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
-    p_gr.add_argument("--resume", dest="resume", action="store_true", help="Wznów z istniejącego results.csv")
+    p_gr.add_argument(
+        "--resume", dest="resume", action="store_true", help="Wznów z istniejącego results.csv"
+    )
     p_gr.add_argument("--no-resume", dest="resume", action="store_false", help="Nie wznawiaj")
     p_gr.set_defaults(func=cmd_grid, resume=None)
 
