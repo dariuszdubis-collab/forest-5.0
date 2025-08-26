@@ -104,6 +104,6 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     assert kw["atr_multiple"] == 3
     assert kw["time_model"] == model_path
     assert kw["min_confluence"] == pytest.approx(2.0)
-    assert kw["resume"] == "true"
+    assert kw["resume"] is True
     assert kw["chunks"] == 3
     assert kw["chunk_id"] == 2
