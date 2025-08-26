@@ -245,7 +245,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
         combos.to_csv("plan.csv", index=False)
         from datetime import datetime, timezone
-        import subprocess, json
+        import json
+        import subprocess
 
         git_rev = "unknown"
         try:  # pragma: no cover - best effort
