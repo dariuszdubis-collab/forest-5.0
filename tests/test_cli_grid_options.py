@@ -81,18 +81,40 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
 
     def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
         captured["kwargs"] = kwargs
-        return pd.DataFrame(
-            [{"fast": 2, "slow": 5, "equity_end": 1.0, "max_dd": 0.0, "cagr": 0.0, "rar": 0.0}]
+        combos = pd.DataFrame(
+            [
+                {
+                    "fast": 2,
+                    "slow": 5,
+                    "equity_end": 1.0,
+                    "risk": 0.01,
+                    "max_dd": 0.2,
+                    "cagr": 0.0,
+                    "rar": 0.0,
+                },
+                {
+                    "fast": 2,
+                    "slow": 5,
+                    "equity_end": 1.0,
+                    "risk": 0.02,
+                    "max_dd": 0.3,
+                    "cagr": 0.0,
+                    "rar": 0.0,
+                },
+            ]
         )
+        captured["combos"] = combos
+        return combos
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
 
     cmd_grid(args)
 
     kw = captured["kwargs"]
+    combos = captured["combos"]
     assert kw["strategy"] == "macd_cross"
-    assert kw["risk_values"] == pytest.approx([0.01, 0.02])
-    assert kw["max_dd_values"] == pytest.approx([0.2, 0.3])
+    assert sorted(combos["risk"].unique()) == pytest.approx([0.01, 0.02])
+    assert sorted(combos["max_dd"].unique()) == pytest.approx([0.2, 0.3])
     assert kw["use_rsi"] is True
     assert kw["rsi_period"] == 7
     assert kw["rsi_oversold"] == 10
