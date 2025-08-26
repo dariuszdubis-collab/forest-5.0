@@ -8,8 +8,8 @@ import json
 import random
 from copy import deepcopy
 import time
-import math
 from datetime import timedelta
+import math
 
 import numpy as np
 import pandas as pd
@@ -25,8 +25,6 @@ def build_combo_id(params: Mapping[str, Any]) -> str:
     """Return a stable unique id for a parameter set."""
 
     def norm(v: Any) -> str:
-        import math
-
         if v is None:
             return "null"
         if isinstance(v, bool):
