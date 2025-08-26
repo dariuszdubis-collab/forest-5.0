@@ -326,9 +326,7 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
             policy=args.h1_policy,
         )
     else:
-        df, meta = load_symbol_csv(
-            args.symbol, data_dir=args.data_dir, policy=args.h1_policy
-        )
+        df, meta = load_symbol_csv(args.symbol, data_dir=args.data_dir, policy=args.h1_policy)
 
     def _single_val(spec: str) -> int:
         vals = span_or_list(spec, int)
