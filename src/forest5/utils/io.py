@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..config import get_data_dir
+from .timeindex import ensure_h1
 
 DATA_DIR = get_data_dir()
 
@@ -283,7 +284,7 @@ def read_ohlc_csv(
     return df
 
 
-def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataFrame:
+def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> tuple[pd.DataFrame, dict]:
     """Load OHLC data for ``symbol`` from ``data_dir``.
 
     Parameters
@@ -299,8 +300,9 @@ def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataF
 
     Returns
     -------
-    pd.DataFrame
-        Data loaded via :func:`read_ohlc_csv`.
+    tuple
+        ``(df, meta)`` where ``df`` is the loaded data and ``meta`` contains
+        gap information from :func:`~forest5.utils.timeindex.ensure_h1`.
 
     Raises
     ------
@@ -324,4 +326,6 @@ def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataF
     except csv.Error:
         pass
 
-    return read_ohlc_csv(path, has_header=has_header)
+    df = read_ohlc_csv(path, has_header=has_header)
+    df, meta = ensure_h1(df)
+    return df, meta
