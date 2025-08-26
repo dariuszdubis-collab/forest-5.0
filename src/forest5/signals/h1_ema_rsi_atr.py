@@ -40,6 +40,7 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "rr": 2.0,  # risk–reward ratio
     "timeframe": "H1",
     "horizon_minutes": 240,
+    "ttl_minutes": None,
 }
 
 
@@ -82,6 +83,7 @@ def compute_primary_signal_h1(
         return TechnicalSignal(
             timeframe=p["timeframe"],
             horizon_minutes=p["horizon_minutes"],
+            ttl_minutes=p.get("ttl_minutes"),
             technical_score=0.0,
             confidence_tech=0.0,
             drivers=[],
@@ -103,6 +105,7 @@ def compute_primary_signal_h1(
         return TechnicalSignal(
             timeframe=p["timeframe"],
             horizon_minutes=p["horizon_minutes"],
+            ttl_minutes=p.get("ttl_minutes"),
             technical_score=0.0,
             confidence_tech=0.0,
             drivers=[],
@@ -188,6 +191,7 @@ def compute_primary_signal_h1(
                 return TechnicalSignal(
                     timeframe=p["timeframe"],
                     horizon_minutes=p["horizon_minutes"],
+                    ttl_minutes=p.get("ttl_minutes"),
                     technical_score=0.0,
                     confidence_tech=0.0,
                     drivers=[],
@@ -200,6 +204,7 @@ def compute_primary_signal_h1(
             sl=sl,
             tp=tp,
             horizon_minutes=p["horizon_minutes"],
+            ttl_minutes=p.get("ttl_minutes"),
             technical_score=technical_score,
             confidence_tech=confidence_tech,
             drivers=drivers,
@@ -210,6 +215,7 @@ def compute_primary_signal_h1(
     return TechnicalSignal(
         timeframe=p["timeframe"],
         horizon_minutes=p["horizon_minutes"],
+        ttl_minutes=p.get("ttl_minutes"),
         technical_score=0.0,
         confidence_tech=0.0,
         drivers=[],
