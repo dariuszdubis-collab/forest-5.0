@@ -32,9 +32,6 @@ from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import PercentAction, span_or_list
 from forest5.utils.log import (
     setup_logger,
-    log_event,
-    E_DATA_CSV_SCHEMA,
-    E_DATA_TIME_GAPS,
 )
 
 
@@ -100,13 +97,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
-    log_event(E_DATA_CSV_SCHEMA, path=str(csv_path), notes=df.attrs.get("notes", []))
     df, meta = ensure_h1(df, policy=args.h1_policy)
-    gaps = [
-        {"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing}
-        for g in meta.get("gaps", [])
-    ]
-    log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -183,13 +174,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
-    log_event(E_DATA_CSV_SCHEMA, path=str(csv_path), notes=df.attrs.get("notes", []))
     df, meta = ensure_h1(df, policy=args.h1_policy)
-    gaps = [
-        {"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing}
-        for g in meta.get("gaps", [])
-    ]
-    log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 

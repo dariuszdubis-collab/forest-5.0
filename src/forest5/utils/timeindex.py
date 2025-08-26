@@ -5,6 +5,8 @@ from typing import List, Tuple
 
 import pandas as pd
 
+from .log import E_DATA_TIME_GAPS, log_event
+
 
 @dataclass
 class GapInfo:
@@ -74,6 +76,7 @@ def ensure_h1(df: pd.DataFrame, policy: str = "strict") -> Tuple[pd.DataFrame, d
         raise ValueError("Index must be DatetimeIndex with 1H step")
 
     if df.empty:
+        log_event(E_DATA_TIME_GAPS, policy=policy, count=0, gaps_preview=[])
         return df.copy(), {"gaps": []}
 
     df = df.copy()
@@ -82,6 +85,16 @@ def ensure_h1(df: pd.DataFrame, policy: str = "strict") -> Tuple[pd.DataFrame, d
     deltas = pd.Series(idx_utc[1:] - idx_utc[:-1])
     irregular = (deltas != step).any()
     gaps = report_gaps(idx_utc, "1h")
+    gaps_preview = [
+        {
+            "start": g.start.isoformat(),
+            "end": g.end.isoformat(),
+            "delta": str(g.end - g.start),
+            "bars_missing": g.missing,
+        }
+        for g in gaps[:3]
+    ]
+    log_event(E_DATA_TIME_GAPS, policy=policy, count=len(gaps), gaps_preview=gaps_preview)
     median_minutes = float(deltas.median() / pd.Timedelta(minutes=1)) if not deltas.empty else 60.0
 
     if irregular:
