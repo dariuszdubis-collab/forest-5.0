@@ -26,6 +26,7 @@ def test_ensure_h1_pad_reports_gap():
     out, meta = ensure_h1(_sample_df(), policy="pad")
     assert len(out) == 4
     assert len(meta["gaps"]) == 1
+    assert meta["median_bar_minutes"] == 180.0
     gap = meta["gaps"][0]
     assert gap.missing == 2
     assert gap.start == pd.Timestamp("2020-01-01 00:00", tz="UTC")
