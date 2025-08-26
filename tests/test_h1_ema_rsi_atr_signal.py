@@ -198,3 +198,11 @@ def test_h1_signal_patterns_gate(monkeypatch, base_params):
     res = compute_primary_signal_h1(df2, params, registry=reg)
     assert res.action == "KEEP"
     assert not reg._setups
+
+
+def test_h1_signal_ttl_passthrough(base_params):
+    params = {**base_params, "ttl_minutes": 30}
+    df = _make_df()
+    reg = SetupRegistry()
+    res = compute_primary_signal_h1(df, params, registry=reg)
+    assert res.ttl_minutes == 30
