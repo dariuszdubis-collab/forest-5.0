@@ -60,6 +60,21 @@ def test_read_ohlc_csv_without_header(tmp_path):
     assert len(out) == 2
 
 
+def test_read_ohlc_csv_auto_dialect(tmp_path):
+    csv_text = "\n".join(
+        [
+            "timestamp;O;H;L;C",
+            "2020-01-01 00:00;1,1;2,2;0,0;1,5",
+        ]
+    )
+    path = tmp_path / "dialect.csv"
+    path.write_text(csv_text)
+
+    out = read_ohlc_csv(path)
+    assert list(out.columns) == ["open", "high", "low", "close"]
+    assert float(out.iloc[0, 0]) == 1.1
+
+
 def test_load_ohlc_csv_rejects_non_hourly_index(tmp_path):
     df = pd.DataFrame(
         {
