@@ -82,9 +82,7 @@ def ensure_h1(df: pd.DataFrame, policy: str = "strict") -> Tuple[pd.DataFrame, d
     deltas = pd.Series(idx_utc[1:] - idx_utc[:-1])
     irregular = (deltas != step).any()
     gaps = report_gaps(idx_utc, "1h")
-    median_minutes = (
-        float(deltas.median() / pd.Timedelta(minutes=1)) if not deltas.empty else 60.0
-    )
+    median_minutes = float(deltas.median() / pd.Timedelta(minutes=1)) if not deltas.empty else 60.0
 
     if irregular:
         if policy == "strict":
