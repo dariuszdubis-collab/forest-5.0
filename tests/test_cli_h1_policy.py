@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from types import SimpleNamespace
 
-from forest5.cli import build_parser, cmd_backtest, cmd_grid
+from forest5.cli import build_parser, cmd_backtest, cmd_grid, cmd_walkforward
 
 
 def _write_gap_csv(path):
@@ -55,6 +55,50 @@ def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected_len, expecte
     cmd_backtest(args)
 
     assert captured["len"] == expected_len
+    assert captured["ttl"] == expected_ttl
+
+
+@pytest.mark.parametrize(
+    "policy, expected_ttl",
+    [("pad", None), ("drop", 120)],
+)
+def test_walkforward_h1_policy(tmp_path, monkeypatch, policy, expected_ttl):
+    csv_path = _write_gap_csv(tmp_path / "data.csv")
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "walkforward",
+            "--csv",
+            str(csv_path),
+            "--symbol",
+            "EURUSD",
+            "--h1-policy",
+            policy,
+            "--ema-fast",
+            "2",
+            "--ema-slow",
+            "5",
+            "--train",
+            "1",
+            "--test",
+            "1",
+        ]
+    )
+
+    captured = {}
+
+    def fake_run_backtest(df, settings):
+        captured["ttl"] = settings.setup_ttl_minutes
+        return SimpleNamespace(
+            equity_curve=pd.Series([1.0]),
+            max_dd=0.0,
+            trades=SimpleNamespace(trades=[]),
+        )
+
+    monkeypatch.setattr("forest5.cli.run_backtest", fake_run_backtest)
+
+    cmd_walkforward(args)
+
     assert captured["ttl"] == expected_ttl
 
 

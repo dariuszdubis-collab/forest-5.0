@@ -284,7 +284,12 @@ def read_ohlc_csv(
     return df
 
 
-def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> tuple[pd.DataFrame, dict]:
+def load_symbol_csv(
+    symbol: str,
+    data_dir: Path | str | None = None,
+    *,
+    policy: str = "strict",
+) -> tuple[pd.DataFrame, dict]:
     """Load OHLC data for ``symbol`` from ``data_dir``.
 
     Parameters
@@ -297,6 +302,9 @@ def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> tuple[pd
         location is resolved via :func:`forest5.config.get_data_dir`.
         The file is inspected for a header row and the result forwarded to
         :func:`read_ohlc_csv`.
+    policy:
+        Handling of missing bars passed to
+        :func:`~forest5.utils.timeindex.ensure_h1`.
 
     Returns
     -------
@@ -327,5 +335,5 @@ def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> tuple[pd
         pass
 
     df = read_ohlc_csv(path, has_header=has_header)
-    df, meta = ensure_h1(df)
+    df, meta = ensure_h1(df, policy=policy)
     return df, meta
