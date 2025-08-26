@@ -22,6 +22,29 @@
     "latency_ms": {"type": "number"},
     "error": {"type": ["string", "null"]},
     "context": {"type": ["object", "null"]},
+    "path": {"type": "string"},
+    "separator": {"type": "string"},
+    "decimal": {"type": "string"},
+    "has_header": {"type": "boolean"},
+    "aliases": {"type": "object"},
+    "rows": {"type": "integer"},
+    "from": {"type": ["string", "null"]},
+    "to": {"type": ["string", "null"]},
+    "policy": {"type": "string"},
+    "count": {"type": "integer"},
+    "gaps_preview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "start": {"type": "string"},
+          "end": {"type": "string"},
+          "delta": {"type": "string"},
+          "bars_missing": {"type": "integer"}
+        },
+        "required": ["start", "end", "delta", "bars_missing"]
+      }
+    },
     "decision": {
       "type": ["object", "null"],
       "properties": {
@@ -220,6 +243,43 @@
         "qty": {"type": "number"},
         "reason": {"type": "string"},
         "ts": {"type": "number"}
+      },
+      "required": ["event"]
+    },
+    "data_csv_schema": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "data_csv_schema"},
+        "path": {"type": "string"},
+        "separator": {"type": "string"},
+        "decimal": {"type": "string"},
+        "has_header": {"type": "boolean"},
+        "aliases": {"type": "object"},
+        "rows": {"type": "integer"},
+        "from": {"type": ["string", "null"]},
+        "to": {"type": ["string", "null"]}
+      },
+      "required": ["event"]
+    },
+    "data_time_gaps": {
+      "type": "object",
+      "properties": {
+        "event": {"const": "data_time_gaps"},
+        "policy": {"type": "string"},
+        "count": {"type": "integer"},
+        "gaps_preview": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start": {"type": "string"},
+              "end": {"type": "string"},
+              "delta": {"type": "string"},
+              "bars_missing": {"type": "integer"}
+            },
+            "required": ["start", "end", "delta", "bars_missing"]
+          }
+        }
       },
       "required": ["event"]
     }
