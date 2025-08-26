@@ -69,10 +69,10 @@ def test_triggered_setup_executes(tmp_path: Path, capfd, monkeypatch):
         def __init__(self, *args, **kwargs):
             self.armed = False
 
-        def arm(self, key, index, signal, *, ctx=None):
+        def arm(self, key, index, signal, *, bar_time, ttl_minutes=None, ctx=None):
             self.armed = True
 
-        def check(self, *, index, price, ctx=None):
+        def check(self, *, index, price, now, ctx=None):
             if self.armed:
                 self.armed = False
                 return TriggeredSignal(
@@ -125,10 +125,10 @@ def test_setup_expires_without_trigger(tmp_path: Path, capfd, monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        def arm(self, key, index, signal, *, ctx=None):
+        def arm(self, key, index, signal, *, bar_time, ttl_minutes=None, ctx=None):
             pass
 
-        def check(self, *, index, price, ctx=None):
+        def check(self, *, index, price, now, ctx=None):
             return None
 
     monkeypatch.setattr(live_runner, "SetupRegistry", NoTriggerRegistry)

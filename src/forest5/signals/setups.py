@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Dict, Optional
 
 from .contract import TechnicalSignal, Action
@@ -28,9 +29,11 @@ class SetupCandidate(TechnicalSignal):
 
 
 @dataclass
-class _ArmedSetup:
+class SetupRecord:
     signal: TechnicalSignal
-    expiry: int
+    expiry_index: int
+    arm_time: datetime
+    ttl_minutes: int | None = None
     ctx: TelemetryContext | None = None
 
 
@@ -56,7 +59,7 @@ class SetupRegistry:
 
     def __init__(self, ttl_bars: int = 1) -> None:
         self.ttl_bars = ttl_bars
-        self._setups: Dict[str, _ArmedSetup] = {}
+        self._setups: Dict[str, SetupRecord] = {}
 
     # ------------------------------------------------------------------
     def arm(
@@ -65,6 +68,8 @@ class SetupRegistry:
         index: int,
         signal: TechnicalSignal,
         *,
+        bar_time: datetime,
+        ttl_minutes: int | None = None,
         ctx: TelemetryContext | None = None,
     ) -> str:
         """Store ``signal`` and arm it for the next bar.
@@ -75,7 +80,14 @@ class SetupRegistry:
             Identifier associated with the armed setup.
         """
 
-        self._setups[key] = _ArmedSetup(signal=signal, expiry=index + self.ttl_bars, ctx=ctx)
+        ttl = ttl_minutes if ttl_minutes is not None else getattr(signal, "ttl_minutes", None)
+        self._setups[key] = SetupRecord(
+            signal=signal,
+            expiry_index=index + self.ttl_bars,
+            arm_time=bar_time,
+            ttl_minutes=ttl,
+            ctx=ctx,
+        )
         setup_id = getattr(signal, "id", key)
         if ctx is not None:
             log_event(
@@ -93,12 +105,33 @@ class SetupRegistry:
 
     # ------------------------------------------------------------------
     def _check_price(
-        self, *, index: int, price: float, ctx: TelemetryContext | None
+        self,
+        *,
+        index: int,
+        price: float,
+        now: datetime | None,
+        ctx: TelemetryContext | None,
     ) -> Optional[TriggeredSignal]:
         for key, setup in list(self._setups.items()):
             setup_ctx = setup.ctx or ctx
 
-            if index > setup.expiry:
+            if (
+                now is not None
+                and setup.ttl_minutes is not None
+                and (now - setup.arm_time).total_seconds() / 60.0 >= setup.ttl_minutes
+            ):
+                del self._setups[key]
+                if setup_ctx is not None:
+                    log_event(
+                        E_SETUP_EXPIRE,
+                        ctx=setup_ctx,
+                        key=key,
+                        index=index,
+                        reason=R_TIMEOUT,
+                    )
+                continue
+
+            if index > setup.expiry_index:
                 del self._setups[key]
                 if setup_ctx is not None:
                     log_event(
@@ -151,7 +184,7 @@ class SetupRegistry:
                     drivers=list(getattr(sig, "drivers", [])),
                 )
 
-            if index >= setup.expiry:
+            if index >= setup.expiry_index:
                 del self._setups[key]
                 if setup_ctx is not None:
                     log_event(
@@ -168,6 +201,7 @@ class SetupRegistry:
         self,
         *,
         index: int,
+        now: datetime | None = None,
         price: float | None = None,
         high: float | None = None,
         low: float | None = None,
@@ -181,13 +215,13 @@ class SetupRegistry:
         """
 
         if price is not None:
-            return self._check_price(index=index, price=price, ctx=ctx)
+            return self._check_price(index=index, price=price, now=now, ctx=ctx)
 
         triggered = None
         if high is not None:
-            triggered = self._check_price(index=index, price=high, ctx=ctx)
+            triggered = self._check_price(index=index, price=high, now=now, ctx=ctx)
         if triggered is None and low is not None:
-            triggered = self._check_price(index=index, price=low, ctx=ctx)
+            triggered = self._check_price(index=index, price=low, now=now, ctx=ctx)
         return triggered
 
 

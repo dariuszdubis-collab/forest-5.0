@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 import numpy as np
@@ -210,7 +211,10 @@ class BacktestEngine:
                 timeframe=self.settings.tf.name if hasattr(self.settings, "tf") else "H1",
                 setup_id=setup_id,
             )
-            self.setups.arm(setup_id, index, contract, ctx=ctx)
+            bar_time = self.df.index[index]
+            if not isinstance(bar_time, datetime):
+                bar_time = pd.Timestamp(bar_time).to_pydatetime()
+            self.setups.arm(setup_id, index, contract, bar_time=bar_time, ctx=ctx)
 
         # Mark-to-market after bar close
         close_price = float(row[self.price_col])
@@ -228,9 +232,12 @@ class BacktestEngine:
 
         row = self.df.iloc[index]
         open_p = float(row["open"])
+        now = self.df.index[index]
+        if not isinstance(now, datetime):
+            now = pd.Timestamp(now).to_pydatetime()
 
         while True:
-            cand = self.setups.check(index=index, price=open_p)
+            cand = self.setups.check(index=index, price=open_p, now=now)
             if cand is None:
                 break
 

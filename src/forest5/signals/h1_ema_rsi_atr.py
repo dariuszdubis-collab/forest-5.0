@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+import pandas as pd
+
 from forest5.core.indicators import atr, ema, rsi
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
@@ -94,9 +96,12 @@ def compute_primary_signal_h1(
     high = df["high"]
     low = df["low"]
 
-    triggered = reg.check(index=idx, price=float(df["high"].iloc[-1]), ctx=ctx)
+    now = df.index[idx]
+    if not isinstance(now, pd.Timestamp):
+        now = pd.Timestamp(now)
+    triggered = reg.check(index=idx, price=float(df["high"].iloc[-1]), now=now, ctx=ctx)
     if not triggered:
-        triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]), ctx=ctx)
+        triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]), now=now, ctx=ctx)
     if triggered:
         return triggered
 
@@ -210,7 +215,7 @@ def compute_primary_signal_h1(
             drivers=drivers,
             meta=meta,
         )
-        reg.arm(p["timeframe"], idx, signal, ctx=ctx)
+        reg.arm(p["timeframe"], idx, signal, bar_time=now, ctx=ctx)
 
     return TechnicalSignal(
         timeframe=p["timeframe"],

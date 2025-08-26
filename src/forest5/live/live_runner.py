@@ -94,7 +94,7 @@ def append_bar_and_signal(
                 meta=contract.meta,
             )
             key = getattr(settings.broker, "symbol", "")
-            setup_registry.arm(key, len(df), signal, ctx=ctx)
+            setup_registry.arm(key, len(df), signal, bar_time=idx, ctx=ctx)
             log_event(
                 E_SETUP_ARM,
                 ctx=ctx,
@@ -339,7 +339,13 @@ def run_live(
                                 timeframe=tf,
                                 setup_id=setup_id,
                             )
-                            registry.arm(setup_id, len(df), signal, ctx=ctx_setup)
+                            registry.arm(
+                                setup_id,
+                                len(df),
+                                signal,
+                                bar_time=pd.to_datetime(bar_start, unit="s"),
+                                ctx=ctx_setup,
+                            )
 
                         current_bar = {
                             "start": bar_start,
@@ -355,6 +361,7 @@ def run_live(
                         triggered = setup_registry.check(
                             index=len(df) - 1,
                             price=price,
+                            now=pd.to_datetime(ts, unit="s"),
                             ctx=mk_ctx(),
                         )
                     if triggered:
