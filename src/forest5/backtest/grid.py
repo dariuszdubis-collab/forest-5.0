@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
-from typing import Iterable, Any, Dict, List
+from typing import Iterable, Any, Dict, List, Mapping
 import json
 import random
 from copy import deepcopy
@@ -19,6 +19,30 @@ from rich.progress import Progress, BarColumn, TextColumn
 
 from ..config import BacktestSettings
 from .engine import run_backtest
+
+
+def build_combo_id(params: Mapping[str, Any]) -> str:
+    """Return a stable unique id for a parameter set."""
+
+    def norm(v: Any) -> str:
+        import math
+
+        if v is None:
+            return "null"
+        if isinstance(v, bool):
+            return "1" if v else "0"
+        if isinstance(v, (int,)):
+            return str(v)
+        if isinstance(v, float):
+            vv = 0.0 if abs(v) < 1e-15 else round(v, 10)
+            s = f"{vv:.10f}"
+            return s.rstrip("0").rstrip(".") if "." in s else s
+        if isinstance(v, (list, tuple)):
+            return ",".join(norm(x) for x in v)
+        return str(v)
+
+    items = sorted((k, params[k]) for k in params.keys())
+    return "|".join(f"{k}={norm(v)}" for k, v in items)
 
 
 def _compute_metrics(equity: pd.Series) -> tuple[float, float, float]:

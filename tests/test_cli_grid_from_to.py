@@ -44,11 +44,12 @@ def test_cli_grid_respects_from_to(tmp_path, monkeypatch):
 
     captured_df = {}
 
-    def fake_run_grid(df, **kwargs):
+    def fake_run_grid(df, combos, settings, **kwargs):
         captured_df["df"] = df
-        return pd.DataFrame(
-            [{"fast": 1, "slow": 2, "equity_end": 0.0, "max_dd": 0.0, "cagr": 0.0, "rar": 0.0}]
-        )
+        # Return a minimal DataFrame preserving expected columns
+        row = combos.iloc[0].to_dict()
+        row.update({"equity_end": 0.0, "dd": 0.0, "cagr": 0.0, "rar": 0.0})
+        return pd.DataFrame([row])
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
 

@@ -54,6 +54,8 @@ def test_cli_grid_dry_run(tmp_path, monkeypatch, capsys):
     assert called is False
     out = capsys.readouterr().out.strip().splitlines()
     assert out[-1] == "4"
-    assert (tmp_path / "plan.csv").exists()
-    meta = json.loads((tmp_path / "meta.json").read_text())
+    plan_path = tmp_path / "out" / "plan.csv"
+    meta_path = tmp_path / "out" / "meta.json"
+    assert plan_path.exists()
+    meta = json.loads(meta_path.read_text())
     assert meta["total_combos"] == 4

@@ -5,8 +5,10 @@ import os
 import re
 import sys
 import random
+import json
+import math
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -19,8 +21,8 @@ from forest5.config import (
     load_live_settings,
 )
 from forest5.backtest.engine import run_backtest
-from forest5.backtest.grid import run_grid
-from forest5.grid.engine import plan_param_grid
+from forest5.backtest.grid import build_combo_id
+from forest5.grid.engine import plan_param_grid, run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import (
     read_ohlc_csv,
@@ -29,7 +31,13 @@ from forest5.utils.io import (
     sniff_csv_dialect,
 )
 from forest5.utils.timeindex import ensure_h1
-from forest5.utils.argparse_ext import PercentAction, span_or_list, EnumAction, positive_int
+from forest5.utils.argparse_ext import (
+    PercentAction,
+    span_or_list,
+    enum_bool,
+    positive_int,
+    validate_chunks,
+)
 from forest5.utils.log import (
     setup_logger,
 )
@@ -163,6 +171,12 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 
 def cmd_grid(args: argparse.Namespace) -> int:
+    try:
+        validate_chunks(args.chunks, args.chunk_id)
+    except argparse.ArgumentTypeError as exc:  # pragma: no cover - argparse style
+        print(str(exc), file=sys.stderr)
+        return 2
+
     if args.csv:
         csv_path = Path(args.csv)
     else:
@@ -178,11 +192,6 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
-    fast_vals = [int(v) for v in args.fast_values]
-    slow_vals = [int(v) for v in args.slow_values]
-    risk_vals = [float(v) for v in args.risk_values] if args.risk_values else None
-    max_dd_vals = [float(v) for v in args.max_dd_values] if args.max_dd_values else None
-
     if args.seed is not None:
         random.seed(args.seed)
         np.random.seed(args.seed)
@@ -191,118 +200,129 @@ def cmd_grid(args: argparse.Namespace) -> int:
         print(f"Plik modelu czasu nie istnieje: {args.time_model}")
         sys.exit(1)
 
-    kwargs = dict(
-        symbol=args.symbol,
-        fast_values=fast_vals,
-        slow_values=slow_vals,
-        capital=float(args.capital),
-        risk=float(args.risk),
-        max_dd=float(args.max_dd),
-        fee=float(args.fee),
-        slippage=float(args.slippage),
-        atr_period=int(args.atr_period[0]),
-        atr_multiple=float(args.atr_multiple),
-        use_rsi=bool(args.use_rsi),
-        rsi_period=int(args.rsi_period[0]),
-        rsi_oversold=int(args.rsi_oversold),
-        rsi_overbought=int(args.rsi_overbought),
-        t_sep_atr=float(args.t_sep_atr[0]),
-        pullback_atr=float(args.pullback_atr[0]),
-        entry_buffer_atr=float(args.entry_buffer_atr[0]),
-        sl_atr=float(args.sl_atr),
-        sl_min_atr=float(args.sl_min_atr[0]),
-        rr=float(args.rr[0]),
-        q_low=float(args.q_low[0]),
-        q_high=float(args.q_high[0]),
-        time_model=args.time_model,
-        min_confluence=float(args.min_confluence),
-        n_jobs=int(args.jobs),
-        resume=args.resume,
-        chunks=int(args.chunks),
-    )
-    if args.chunk_id is not None:
-        kwargs["chunk_id"] = int(args.chunk_id)
-    kwargs["strategy"] = args.strategy
-    kwargs["patterns"] = {
-        "engulf": {"enabled": bool(args.pat_engulf)},
-        "pinbar": {"enabled": bool(args.pat_pinbar)},
-        "star": {"enabled": bool(args.pat_star)},
-    }
-    if args.h1_policy == "drop":
-        step = meta.get("median_bar_minutes")
-        if step:
-            kwargs["setup_ttl_minutes"] = int(step)
-    if risk_vals:
-        kwargs["risk_values"] = risk_vals
-    if max_dd_vals:
-        kwargs["max_dd_values"] = max_dd_vals
+    fast_vals = [int(v) for v in args.fast_values]
+    slow_vals = [int(v) for v in args.slow_values]
+    param_ranges: Dict[str, list[Any]] = {"fast": fast_vals, "slow": slow_vals}
+    if args.risk_values:
+        param_ranges["risk"] = [float(v) for v in args.risk_values]
+    if args.max_dd_values:
+        param_ranges["max_dd"] = [float(v) for v in args.max_dd_values]
     if len(args.rsi_period) > 1:
-        kwargs.pop("rsi_period", None)
-        kwargs["rsi_period_values"] = [int(v) for v in args.rsi_period]
-    if args.debug_dir:
-        kwargs["debug_dir"] = args.debug_dir
-    if args.seed is not None:
-        kwargs["seed"] = int(args.seed)
+        param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+
+    combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
+    combos = combos_all
+    if args.chunks is not None and args.chunk_id is not None:
+        size = math.ceil(len(combos_all) / args.chunks)
+        start = (args.chunk_id - 1) * size
+        end = args.chunk_id * size
+        combos = combos_all.iloc[start:end]
+        if args.dry_run:
+            out_dir = Path(args.out or "out").resolve()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            combos.to_csv(
+                out_dir
+                / f"plan_shard_{args.chunk_id:02d}of{args.chunks:02d}.csv",
+                index=False,
+            )
+
+    out_dir = Path(args.out or "out").resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.csv"
+    meta_path = out_dir / "meta.json"
 
     if args.dry_run:
-        param_ranges = {"fast": fast_vals, "slow": slow_vals}
-        if risk_vals:
-            param_ranges["risk"] = risk_vals
-        if max_dd_vals:
-            param_ranges["max_dd"] = max_dd_vals
-        if len(args.rsi_period) > 1:
-            param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
-        combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
-        combos.to_csv("plan.csv", index=False)
-        from datetime import datetime, timezone
-        import json
-        import subprocess
-
-        git_rev = "unknown"
-        try:  # pragma: no cover - best effort
-            git_rev = (
-                subprocess.check_output(
-                    ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
-                )
-                .decode()
-                .strip()
-            )
-        except Exception:  # pragma: no cover
-            pass
-
+        combos_all.to_csv(out_dir / "plan.csv", index=False)
         meta = {
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "git": git_rev,
             "symbol": args.symbol,
-            "period": {
-                "start": df.index[0].isoformat(),
-                "end": df.index[-1].isoformat(),
-            },
-            "seed": int(args.seed) if args.seed is not None else None,
-            "total_combos": int(len(combos)),
+            "seed": args.seed,
+            "total_combos": int(len(combos_all)),
         }
-        Path("meta.json").write_text(json.dumps(meta))
-        print(len(combos))
+        meta_path.write_text(json.dumps(meta, indent=2))
+        print(len(combos_all))
         return 0
 
-    out = run_grid(df, **kwargs)
+    done_df = None
+    if args.resume in ("auto", True) and results_path.exists():
+        done_df = pd.read_csv(results_path)
+        param_names = list(param_ranges.keys())
+        if "combo_id" not in done_df.columns:
+            done_df["combo_id"] = [
+                build_combo_id({k: row.get(k) for k in param_names if k in row})
+                for row in done_df.to_dict("records")
+            ]
+        done_ids = set(done_df["combo_id"].astype(str))
+        pre = len(combos)
+        combos = combos[~combos["combo_id"].astype(str).isin(done_ids)]
+        print(f"[resume] skipping {pre - len(combos)} of {pre} combos already in results.csv")
 
-    # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
-    sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
-    if sort_cols:
-        out = out.sort_values(by=sort_cols, ascending=False)
+    settings = BacktestSettings(
+        symbol=args.symbol,
+        timeframe="1h",
+        strategy=dict(
+            name=args.strategy,
+            fast=fast_vals[0],
+            slow=slow_vals[0],
+            use_rsi=bool(args.use_rsi),
+            rsi_period=int(args.rsi_period[0]),
+            rsi_oversold=int(args.rsi_oversold),
+            rsi_overbought=int(args.rsi_overbought),
+            t_sep_atr=float(args.t_sep_atr[0]),
+            pullback_atr=float(args.pullback_atr[0]),
+            entry_buffer_atr=float(args.entry_buffer_atr[0]),
+            sl_atr=float(args.sl_atr),
+            sl_min_atr=float(args.sl_min_atr[0]),
+            rr=float(args.rr[0]),
+            patterns={
+                "engulf": {"enabled": bool(args.pat_engulf)},
+                "pinbar": {"enabled": bool(args.pat_pinbar)},
+                "star": {"enabled": bool(args.pat_star)},
+            },
+        ),
+        risk=dict(
+            initial_capital=float(args.capital),
+            risk_per_trade=float(args.risk),
+            max_drawdown=float(args.max_dd),
+            fee_perc=float(args.fee),
+            slippage_perc=float(args.slippage),
+        ),
+        atr_period=int(args.atr_period[0]),
+        atr_multiple=float(args.atr_multiple),
+        debug_dir=args.debug_dir,
+    )
+    settings.time.q_low = float(args.q_low[0])
+    settings.time.q_high = float(args.q_high[0])
+    settings.time.model.enabled = bool(args.time_model)
+    settings.time.model.path = args.time_model
+    settings.time.fusion_min_confluence = float(args.min_confluence)
+    if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
+        step = meta.get("median_bar_minutes")
+        if step:
+            settings.setup_ttl_minutes = int(step)
 
-    head = out.head(args.top)
-    print(head)
+    new_results = run_grid(df, combos, settings, jobs=int(args.jobs), seed=args.seed)
 
-    if args.out:
-        out_path = Path(args.out)
-        if out_path.suffix.lower() in (".parquet", ".pq"):
-            out.to_parquet(out_path, index=False)
-        else:
-            out.to_csv(out_path, index=False)
-        print(f"Zapisano wyniki grid do: {out_path.resolve()}")
+    if done_df is not None:
+        merged = pd.concat([done_df, new_results], ignore_index=True)
+        merged = merged.drop_duplicates(subset=["combo_id"], keep="last")
+    else:
+        merged = new_results
 
+    sort_keys = [c for c in ["rar", "sharpe", "equity_end", "pnl_net"] if c in merged.columns]
+    merged = merged.sort_values(by=sort_keys, ascending=[False] * len(sort_keys))
+    merged.to_csv(results_path, index=False)
+
+    topn = int(args.top or 20)
+    merged.head(topn).to_csv(out_dir / "results_top.csv", index=False)
+    print("\n=== TOP", topn, "===\n", merged.head(topn).to_string(index=False))
+
+    meta = {
+        "symbol": args.symbol,
+        "seed": getattr(args, "seed", None),
+        "total_combos": int(len(combos_all)),
+        "completed_combos": int(len(merged)),
+    }
+    meta_path.write_text(json.dumps(meta, indent=2))
     return 0
 
 
@@ -696,15 +716,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gr.add_argument(
         "--resume",
-        action=EnumAction,
-        choices={"auto": "auto", "true": True, "false": False},
+        type=enum_bool,
         default="auto",
         help="Wznów poprzedni bieg (auto korzysta z istniejących wyników)",
     )
     p_gr.add_argument(
         "--chunks",
         type=positive_int,
-        default=1,
+        default=None,
         help="Podziel siatkę parametrów na N części",
     )
     p_gr.add_argument(
