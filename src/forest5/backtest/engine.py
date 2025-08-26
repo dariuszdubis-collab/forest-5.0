@@ -159,9 +159,7 @@ class BacktestEngine:
             "setup_ttl_minutes",
             getattr(getattr(settings, "strategy", object()), "setup_ttl_minutes", None),
         )
-        self._setup_ttl_minutes = (
-            int(ttl_minutes) if ttl_minutes is not None else None
-        )
+        self._setup_ttl_minutes = int(ttl_minutes) if ttl_minutes is not None else None
 
         self.time_model: TimeOnlyModel | None = None
         if settings.time.model.enabled and settings.time.model.path:
