@@ -29,6 +29,46 @@ class PercentAction(argparse.Action):
         setattr(namespace, self.dest, val)
 
 
+class EnumAction(argparse.Action):
+    """Map string choices to canonical values.
+
+    Parameters
+    ----------
+    choices:
+        Mapping of accepted strings to canonical values. Matching is
+        case-insensitive.
+    """
+
+    def __init__(self, option_strings, dest, *, choices: dict[str, object], **kwargs):
+        self._mapping = {str(k).lower(): v for k, v in choices.items()}
+        if "default" in kwargs:
+            default = kwargs["default"]
+            if isinstance(default, str):
+                kwargs["default"] = self._mapping.get(default.lower(), default)
+        kwargs.setdefault("choices", tuple(self._mapping.keys()))
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_string=None):
+        key = str(value).lower()
+        if key not in self._mapping:
+            parser.error(
+                f"{option_string} must be one of {', '.join(sorted(self._mapping.keys()))}"
+            )
+        setattr(namespace, self.dest, self._mapping[key])
+
+
+def positive_int(value: str) -> int:
+    """Parse a positive integer (>= 1)."""
+
+    try:
+        iv = int(value)
+    except ValueError as ex:  # pragma: no cover - argparse handles message
+        raise argparse.ArgumentTypeError("must be an integer") from ex
+    if iv < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return iv
+
+
 def span_or_list(spec: str, type_fn: type | None = None) -> list:
     """Parse a numeric span or comma separated list.
 

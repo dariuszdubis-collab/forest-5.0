@@ -29,7 +29,7 @@ from forest5.utils.io import (
     sniff_csv_dialect,
 )
 from forest5.utils.timeindex import ensure_h1
-from forest5.utils.argparse_ext import PercentAction, span_or_list
+from forest5.utils.argparse_ext import PercentAction, span_or_list, EnumAction, positive_int
 from forest5.utils.log import (
     setup_logger,
 )
@@ -51,13 +51,6 @@ class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawText
         # '%(foo)s', which argparse uses to inject defaults.
         help_text = re.sub(r"%(?!\()", "%%", help_text)
         return help_text % params
-
-
-def _positive_int(value: str) -> int:
-    iv = int(value)
-    if iv < 1:
-        raise argparse.ArgumentTypeError("must be >= 1")
-    return iv
 
 
 # ---------------------------- CSV loading helpers ----------------------------
@@ -703,19 +696,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gr.add_argument(
         "--resume",
-        choices=("auto", "true", "false"),
+        action=EnumAction,
+        choices={"auto": "auto", "true": True, "false": False},
         default="auto",
         help="Wznów poprzedni bieg (auto korzysta z istniejących wyników)",
     )
     p_gr.add_argument(
         "--chunks",
-        type=_positive_int,
+        type=positive_int,
         default=1,
         help="Podziel siatkę parametrów na N części",
     )
     p_gr.add_argument(
         "--chunk-id",
-        type=_positive_int,
+        type=positive_int,
         default=None,
         help="Uruchom tylko wybrany fragment siatki (1-indexed)",
     )
