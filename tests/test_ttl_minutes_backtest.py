@@ -15,10 +15,12 @@ def test_ttl_minutes_expires_over_weekend():
             "low": [1.0, 1.0],
             "close": [1.0, 1.0],
         },
-        index=pd.to_datetime([
-            "2024-01-05 21:00",  # Friday
-            "2024-01-08 00:00",  # Monday
-        ]),
+        index=pd.to_datetime(
+            [
+                "2024-01-05 21:00",  # Friday
+                "2024-01-08 00:00",  # Monday
+            ]
+        ),
     )
     settings = BacktestSettings(setup_ttl_minutes=60)
     eng = BacktestEngine(df, settings)
