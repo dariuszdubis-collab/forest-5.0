@@ -94,7 +94,14 @@ def append_bar_and_signal(
                 meta=contract.meta,
             )
             key = getattr(settings.broker, "symbol", "")
-            setup_registry.arm(key, len(df), signal, bar_time=idx, ctx=ctx)
+            setup_registry.arm(
+                key,
+                len(df),
+                signal,
+                bar_time=idx,
+                ttl_minutes=getattr(settings.strategy, "setup_ttl_minutes", None),
+                ctx=ctx,
+            )
             log_event(
                 E_SETUP_ARM,
                 ctx=ctx,

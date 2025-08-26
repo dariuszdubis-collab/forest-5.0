@@ -115,6 +115,7 @@ class BacktestSettings(BaseModel):
     atr_multiple: float = 2.0
     tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
     setup_ttl_bars: int = 1
+    setup_ttl_minutes: int | None = None
     debug_dir: Path | None = None
 
     @field_validator("timeframe")
