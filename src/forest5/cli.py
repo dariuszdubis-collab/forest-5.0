@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import random
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -184,7 +185,6 @@ def cmd_grid(args: argparse.Namespace) -> int:
     df, meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
-
     fast_vals = [int(v) for v in args.fast_values]
     slow_vals = [int(v) for v in args.slow_values]
     risk_vals = [float(v) for v in args.risk_values] if args.risk_values else None
@@ -198,10 +198,77 @@ def cmd_grid(args: argparse.Namespace) -> int:
         print(f"Plik modelu czasu nie istnieje: {args.time_model}")
         sys.exit(1)
 
-    kwargs = dict(
+    # build parameter ranges and full combination plan
+    param_ranges: dict[str, list[float | int]] = {"fast": fast_vals, "slow": slow_vals}
+    if risk_vals:
+        param_ranges["risk"] = risk_vals
+    if max_dd_vals:
+        param_ranges["max_dd"] = max_dd_vals
+    if len(args.rsi_period) > 1:
+        param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+
+    combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
+    combos = combos_all.copy()
+
+    # handle chunking
+    if int(args.chunks) > 1:
+        if args.chunk_id is None or not (1 <= int(args.chunk_id) <= int(args.chunks)):
+            print("--chunk-id must be between 1 and --chunks", file=sys.stderr)
+            return 1
+        splits = np.array_split(combos_all, int(args.chunks))
+        combos = splits[int(args.chunk_id) - 1].reset_index(drop=True)
+        shard_name = f"plan_shard_{int(args.chunk_id):02d}of{int(args.chunks):02d}.csv"
+    else:
+        shard_name = "plan.csv"
+
+    # total combos before filtering for resume
+    total_combos = len(combos)
+
+    # dry run simply outputs plan and meta
+    if args.dry_run:
+        combos.to_csv(shard_name, index=False)
+        from datetime import datetime, timezone
+        import subprocess
+
+        git_rev = "unknown"
+        try:  # pragma: no cover - best effort
+            git_rev = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+                )
+                .decode()
+                .strip()
+            )
+        except Exception:  # pragma: no cover
+            pass
+
+        meta = {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "git": git_rev,
+            "symbol": args.symbol,
+            "period": {"start": df.index[0].isoformat(), "end": df.index[-1].isoformat()},
+            "seed": int(args.seed) if args.seed is not None else None,
+            "total_combos": int(total_combos),
+            "completed_combos": 0,
+        }
+        Path("meta.json").write_text(json.dumps(meta))
+        print(total_combos)
+        return 0
+
+    # determine results path
+    if args.out:
+        out_path = Path(args.out)
+        if out_path.is_dir():
+            results_path = out_path / "results.csv"
+        else:
+            results_path = out_path
+    else:
+        results_path = Path("results.csv")
+    results_top_path = results_path.with_name("results_top.csv")
+
+    # prepare base kwargs for run_grid
+    base_kwargs: dict[str, object] = dict(
         symbol=args.symbol,
-        fast_values=fast_vals,
-        slow_values=slow_vals,
         capital=float(args.capital),
         risk=float(args.risk),
         max_dd=float(args.max_dd),
@@ -224,13 +291,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
         time_model=args.time_model,
         min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
-        resume=args.resume,
-        chunks=int(args.chunks),
     )
-    if args.chunk_id is not None:
-        kwargs["chunk_id"] = int(args.chunk_id)
-    kwargs["strategy"] = args.strategy
-    kwargs["patterns"] = {
+    base_kwargs["strategy"] = args.strategy
+    base_kwargs["patterns"] = {
         "engulf": {"enabled": bool(args.pat_engulf)},
         "pinbar": {"enabled": bool(args.pat_pinbar)},
         "star": {"enabled": bool(args.pat_star)},
@@ -238,77 +301,72 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.h1_policy == "drop":
         step = meta.get("median_bar_minutes")
         if step:
-            kwargs["setup_ttl_minutes"] = int(step)
-    if risk_vals:
-        kwargs["risk_values"] = risk_vals
-    if max_dd_vals:
-        kwargs["max_dd_values"] = max_dd_vals
-    if len(args.rsi_period) > 1:
-        kwargs.pop("rsi_period", None)
-        kwargs["rsi_period_values"] = [int(v) for v in args.rsi_period]
+            base_kwargs["setup_ttl_minutes"] = int(step)
     if args.debug_dir:
-        kwargs["debug_dir"] = args.debug_dir
-    if args.seed is not None:
-        kwargs["seed"] = int(args.seed)
+        base_kwargs["debug_dir"] = args.debug_dir
 
-    if args.dry_run:
-        param_ranges = {"fast": fast_vals, "slow": slow_vals}
-        if risk_vals:
-            param_ranges["risk"] = risk_vals
-        if max_dd_vals:
-            param_ranges["max_dd"] = max_dd_vals
-        if len(args.rsi_period) > 1:
-            param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
-        combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
-        combos.to_csv("plan.csv", index=False)
-        from datetime import datetime, timezone
-        import json
-        import subprocess
+    seed_base = int(args.seed) if args.seed is not None else None
 
-        git_rev = "unknown"
-        try:  # pragma: no cover - best effort
-            git_rev = (
-                subprocess.check_output(
-                    ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
-                )
-                .decode()
-                .strip()
-            )
-        except Exception:  # pragma: no cover
-            pass
+    # resume previous results if requested
+    prev = pd.DataFrame()
+    if args.resume != "false" and results_path.exists():
+        prev = pd.read_csv(results_path)
+        if "combo_id" not in prev.columns:
+            param_cols = [c for c in combos_all.columns if c != "combo_id"]
+            prev = prev.merge(combos_all, on=param_cols, how="left")
+        done_ids = set(prev["combo_id"].dropna().astype(int))
+        combos = combos[~combos["combo_id"].isin(done_ids)]
+    else:
+        done_ids = set()
 
-        meta = {
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "git": git_rev,
-            "symbol": args.symbol,
-            "period": {
-                "start": df.index[0].isoformat(),
-                "end": df.index[-1].isoformat(),
-            },
-            "seed": int(args.seed) if args.seed is not None else None,
-            "total_combos": int(len(combos)),
-        }
-        Path("meta.json").write_text(json.dumps(meta))
-        print(len(combos))
-        return 0
+    # run grid for remaining combos
+    new_results: list[pd.DataFrame] = []
+    import inspect
+    for _, row in combos.iterrows():
+        kw = base_kwargs.copy()
+        kw["fast_values"] = [int(row["fast"])]
+        kw["slow_values"] = [int(row["slow"])]
+        if "risk" in row:
+            kw["risk_values"] = [float(row["risk"])]
+        if "max_dd" in row:
+            kw["max_dd_values"] = [float(row["max_dd"])]
+        if "rsi_period" in row:
+            kw["rsi_period_values"] = [int(row["rsi_period"])]
+            kw.pop("rsi_period", None)
+        if seed_base is not None:
+            kw["seed"] = seed_base + int(row["combo_id"])
+        if "return_all_metrics" in inspect.signature(run_grid).parameters:
+            kw["return_all_metrics"] = True
+        res_df = run_grid(df, **kw)
+        if not res_df.empty:
+            res_df["combo_id"] = int(row["combo_id"])
+            new_results.append(res_df)
 
-    out = run_grid(df, **kwargs)
+    if new_results:
+        new_df = pd.concat(new_results, ignore_index=True)
+    else:
+        new_df = pd.DataFrame()
 
-    # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
+    out = pd.concat([prev, new_df], ignore_index=True)
+    if not out.empty and "combo_id" in out.columns:
+        out = out.drop_duplicates(subset=["combo_id"], keep="last")
+
+    # sort and save results
     sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
     if sort_cols:
         out = out.sort_values(by=sort_cols, ascending=False)
 
+    out.to_csv(results_path, index=False)
     head = out.head(args.top)
     print(head)
+    head.to_csv(results_top_path, index=False)
 
-    if args.out:
-        out_path = Path(args.out)
-        if out_path.suffix.lower() in (".parquet", ".pq"):
-            out.to_parquet(out_path, index=False)
-        else:
-            out.to_csv(out_path, index=False)
-        print(f"Zapisano wyniki grid do: {out_path.resolve()}")
+    meta = {
+        "seed": seed_base,
+        "total_combos": int(total_combos),
+        "completed_combos": int(out["combo_id"].nunique() if "combo_id" in out.columns else 0),
+    }
+    Path("meta.json").write_text(json.dumps(meta))
 
     return 0
 
