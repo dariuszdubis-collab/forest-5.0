@@ -598,11 +598,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
     p_gr.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
 
-    p_gr.add_argument("--atr-len", "--atr-period", dest="atr_period", type=span_or_list, default=[14])
+    p_gr.add_argument(
+        "--atr-len", "--atr-period", dest="atr_period", type=span_or_list, default=[14]
+    )
     p_gr.add_argument("--atr-multiple", type=float, default=2.0)
 
     p_gr.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
-    p_gr.add_argument("--rsi-len", "--rsi-period", dest="rsi_period", type=span_or_list, default=[14])
+    p_gr.add_argument(
+        "--rsi-len", "--rsi-period", dest="rsi_period", type=span_or_list, default=[14]
+    )
     p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
     p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
@@ -614,7 +618,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=span_or_list,
         default=[0.5],
     )
-    p_gr.add_argument("--entry-buffer-atr", dest="entry_buffer_atr", type=span_or_list, default=[0.1])
+    p_gr.add_argument(
+        "--entry-buffer-atr", dest="entry_buffer_atr", type=span_or_list, default=[0.1]
+    )
     p_gr.add_argument("--sl-atr", dest="sl_atr", type=float, default=1.0)
     p_gr.add_argument("--sl-min-atr", dest="sl_min_atr", type=span_or_list, default=[0.0])
     p_gr.add_argument("--rr", dest="rr", type=span_or_list, default=[2.0])
