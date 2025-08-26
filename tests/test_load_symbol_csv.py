@@ -15,7 +15,7 @@ def test_load_symbol_csv_no_header(tmp_path):
         )
     )
 
-    df = load_symbol_csv("eurusd", data_dir=data_dir)
+    df, meta = load_symbol_csv("eurusd", data_dir=data_dir)
     expected = pd.to_datetime(
         [
             "2020-01-01 00:00",
@@ -26,6 +26,7 @@ def test_load_symbol_csv_no_header(tmp_path):
     assert isinstance(df.index, pd.DatetimeIndex)
     assert df.index.equals(expected)
     assert len(df) == 2
+    assert meta["gaps"] == []
 
 
 def test_load_symbol_csv_rejects_unknown_symbol(tmp_path):

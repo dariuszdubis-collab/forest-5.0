@@ -22,6 +22,7 @@ from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import read_ohlc_csv, load_symbol_csv
+from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import PercentAction, span_or_list
 from forest5.utils.log import setup_logger
 
@@ -47,45 +48,18 @@ class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawText
 # ---------------------------- CSV loading helpers ----------------------------
 
 
-def assert_h1_ohlc(df: pd.DataFrame) -> None:
-    """Ensure ``df`` contains hourly OHLC data.
-
-    Parameters
-    ----------
-    df:
-        Data indexed by :class:`~pandas.DatetimeIndex`.
-
-    Raises
-    ------
-    ValueError
-        If the index step is not 1 hour or columns differ from the
-        expected ``open/high/low/close`` set with optional ``volume``.
-    """
-
-    expected = ["open", "high", "low", "close"]
-    allowed = expected + ["volume"]
-
-    cols = list(df.columns)
-    if cols not in (expected, allowed):
-        raise ValueError(
-            "Data must contain columns 'open', 'high', 'low', 'close'" " with optional 'volume'"
-        )
-
-    if not isinstance(df.index, pd.DatetimeIndex):
-        raise ValueError("Index must be DatetimeIndex with 1H step")
-
-    if len(df.index) > 1:
-        deltas = df.index.to_series().diff().dropna()
-        if not (deltas == pd.Timedelta(hours=1)).all():
-            raise ValueError("Index must have 1H frequency")
-
-
 def load_ohlc_csv(
     path: str | Path, time_col: Optional[str] = None, sep: Optional[str] = None
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, dict]:
+    """Read OHLC CSV and ensure a 1H time index.
+
+    Returns the loaded DataFrame together with metadata describing any gaps
+    detected in the index.
+    """
+
     df = read_ohlc_csv(path, time_col=time_col, sep=sep)
-    assert_h1_ohlc(df)
-    return df
+    df, meta = ensure_h1(df)
+    return df, meta
 
 
 # ------------------------------- CLI commands --------------------------------
@@ -102,7 +76,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         print(f"CSV file not found: {csv_path}", file=sys.stderr)
         return 1
 
-    df = load_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
+    df, _meta = load_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -162,11 +136,9 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 def cmd_grid(args: argparse.Namespace) -> int:
     if args.csv:
-        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+        df, _meta = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
     else:
-        df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
-
-    assert_h1_ohlc(df)
+        df, _meta = load_symbol_csv(args.symbol, data_dir=args.data_dir)
 
     fast_vals = span_or_list(args.fast_values, int)
     slow_vals = span_or_list(args.slow_values, int)
@@ -250,11 +222,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
 def cmd_walkforward(args: argparse.Namespace) -> int:
     if args.csv:
-        df = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+        df, _meta = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
     else:
-        df = load_symbol_csv(args.symbol, data_dir=args.data_dir)
-
-    assert_h1_ohlc(df)
+        df, _meta = load_symbol_csv(args.symbol, data_dir=args.data_dir)
 
     def _single_val(spec: str) -> int:
         vals = span_or_list(spec, int)
