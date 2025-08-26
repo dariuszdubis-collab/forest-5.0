@@ -477,7 +477,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub_data = p_data.add_subparsers(dest="data_cmd")
     sub_data.required = True
 
-    p_ins = sub_data.add_parser("inspect", help="Pokaż informacje o CSV", formatter_class=SafeHelpFormatter)
+    p_ins = sub_data.add_parser(
+        "inspect", help="Pokaż informacje o CSV", formatter_class=SafeHelpFormatter
+    )
     p_ins.add_argument("--csv", required=True, help="Plik CSV do analizy")
     p_ins.add_argument("--time-col", default=None, help="Nazwa kolumny czasu")
     p_ins.add_argument("--sep", default=None, help="Separator CSV")

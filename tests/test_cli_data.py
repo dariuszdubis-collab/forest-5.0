@@ -45,9 +45,7 @@ def test_data_pad_h1(tmp_path):
     in_dir.mkdir()
     pad = in_dir / "pad.csv"
     pad.write_text(
-        "time,open,high,low,close\n"
-        "2020-01-01 00:00,1,1,1,1\n"
-        "2020-01-01 02:00,1,1,1,1\n",
+        "time,open,high,low,close\n" "2020-01-01 00:00,1,1,1,1\n" "2020-01-01 02:00,1,1,1,1\n",
         encoding="utf-8",
     )
 
@@ -56,4 +54,3 @@ def test_data_pad_h1(tmp_path):
     df = pd.read_csv(out_dir / "pad.csv")
     assert len(df) == 3
     assert "2020-01-01 01:00:00" in df["time"].tolist()
-
