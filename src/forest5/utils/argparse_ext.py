@@ -69,6 +69,28 @@ def positive_int(value: str) -> int:
     return iv
 
 
+def enum_bool(value: str) -> bool | str | None:
+    """Parse boolean values including an 'auto' sentinel."""
+
+    v = str(value).strip().lower()
+    if v == "auto":
+        return "auto"
+    if v in {"true", "t", "1", "yes", "y"}:
+        return True
+    if v in {"false", "f", "0", "no", "n"}:
+        return False
+    raise argparse.ArgumentTypeError("must be one of: auto,true,false")
+
+
+def validate_chunks(chunks: int | None, chunk_id: int | None) -> None:
+    """Ensure chunk arguments are either both set or both omitted."""
+
+    if (chunks is None) ^ (chunk_id is None):
+        raise argparse.ArgumentTypeError("--chunks and --chunk-id must be used together")
+    if chunks is not None and (chunk_id < 1 or chunk_id > chunks):
+        raise argparse.ArgumentTypeError("--chunk-id must be between 1 and --chunks")
+
+
 def span_or_list(spec: str, type_fn: type | None = None) -> list:
     """Parse a numeric span or comma separated list.
 

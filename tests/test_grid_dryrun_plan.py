@@ -42,8 +42,8 @@ def test_grid_dryrun_plan(tmp_path, monkeypatch, capsys):
     assert rc == 0
     out_lines = capsys.readouterr().out.strip().splitlines()
     assert out_lines[-1] == "4"
-    plan_path = tmp_path / "plan.csv"
-    meta_path = tmp_path / "meta.json"
+    plan_path = tmp_path / "out" / "plan.csv"
+    meta_path = tmp_path / "out" / "meta.json"
     assert plan_path.exists()
     assert meta_path.exists()
     df_plan = pd.read_csv(plan_path)
