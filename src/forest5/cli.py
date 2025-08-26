@@ -175,10 +175,10 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
-    fast_vals = span_or_list(args.fast_values, int)
-    slow_vals = span_or_list(args.slow_values, int)
-    risk_vals = args.risk_values if args.risk_values else None
-    max_dd_vals = args.max_dd_values if args.max_dd_values else None
+    fast_vals = [int(v) for v in args.fast_values]
+    slow_vals = [int(v) for v in args.slow_values]
+    risk_vals = [float(v) for v in args.risk_values] if args.risk_values else None
+    max_dd_vals = [float(v) for v in args.max_dd_values] if args.max_dd_values else None
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -197,20 +197,20 @@ def cmd_grid(args: argparse.Namespace) -> int:
         max_dd=float(args.max_dd),
         fee=float(args.fee),
         slippage=float(args.slippage),
-        atr_period=int(args.atr_period),
+        atr_period=int(args.atr_period[0]),
         atr_multiple=float(args.atr_multiple),
         use_rsi=bool(args.use_rsi),
-        rsi_period=int(args.rsi_period),
+        rsi_period=int(args.rsi_period[0]),
         rsi_oversold=int(args.rsi_oversold),
         rsi_overbought=int(args.rsi_overbought),
-        t_sep_atr=float(args.t_sep_atr),
-        pullback_atr=float(args.pullback_atr),
-        entry_buffer_atr=float(args.entry_buffer_atr),
+        t_sep_atr=float(args.t_sep_atr[0]),
+        pullback_atr=float(args.pullback_atr[0]),
+        entry_buffer_atr=float(args.entry_buffer_atr[0]),
         sl_atr=float(args.sl_atr),
-        sl_min_atr=float(args.sl_min_atr),
-        rr=float(args.rr),
-        q_low=float(args.q_low),
-        q_high=float(args.q_high),
+        sl_min_atr=float(args.sl_min_atr[0]),
+        rr=float(args.rr[0]),
+        q_low=float(args.q_low[0]),
+        q_high=float(args.q_high[0]),
         time_model=args.time_model,
         min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
@@ -225,6 +225,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
         kwargs["risk_values"] = risk_vals
     if max_dd_vals:
         kwargs["max_dd_values"] = max_dd_vals
+    if len(args.rsi_period) > 1:
+        kwargs.pop("rsi_period", None)
+        kwargs["rsi_period_values"] = [int(v) for v in args.rsi_period]
     if args.debug_dir:
         kwargs["debug_dir"] = args.debug_dir
     if args.seed is not None:
@@ -557,14 +560,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument(
         "--ema-fast",
         "--fast-values",
+        "--fast",
         dest="fast_values",
+        type=span_or_list,
         required=True,
         help="Np. 5:20:1 lub 5,8,13",
     )
     p_gr.add_argument(
         "--ema-slow",
         "--slow-values",
+        "--slow",
         dest="slow_values",
+        type=span_or_list,
         required=True,
         help="Np. 10:60:2 lub 12,26",
     )
@@ -575,13 +582,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_gr.add_argument(
         "--risk-values",
-        type=lambda s: span_or_list(s, float),
+        type=span_or_list,
         default=None,
         help="Lista wartości ryzyka, np. 0.01,0.02",
     )
     p_gr.add_argument(
         "--max-dd-values",
-        type=lambda s: span_or_list(s, float),
+        type=span_or_list,
         default=None,
         help="Lista wartości max DD, np. 0.2,0.3",
     )
@@ -591,28 +598,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--fee", action=PercentAction, default=0.0005, help="Prowizja %")
     p_gr.add_argument("--slippage", action=PercentAction, default=0.0, help="Poślizg %")
 
-    p_gr.add_argument("--atr-len", "--atr-period", dest="atr_period", type=int, default=14)
+    p_gr.add_argument(
+        "--atr-len", "--atr-period", dest="atr_period", type=span_or_list, default=[14]
+    )
     p_gr.add_argument("--atr-multiple", type=float, default=2.0)
 
     p_gr.add_argument("--use-rsi", action="store_true", help="Włącz filtr RSI")
-    p_gr.add_argument("--rsi-len", "--rsi-period", dest="rsi_period", type=int, default=14)
+    p_gr.add_argument(
+        "--rsi-len", "--rsi-period", dest="rsi_period", type=span_or_list, default=[14]
+    )
     p_gr.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
     p_gr.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
 
-    p_gr.add_argument("--t-sep-atr", dest="t_sep_atr", type=float, default=0.5)
+    p_gr.add_argument("--t-sep-atr", dest="t_sep_atr", type=span_or_list, default=[0.5])
     p_gr.add_argument(
         "--pullback-atr",
         "--pullback-to-ema-fast-atr",
         dest="pullback_atr",
-        type=float,
-        default=0.5,
+        type=span_or_list,
+        default=[0.5],
     )
-    p_gr.add_argument("--entry-buffer-atr", dest="entry_buffer_atr", type=float, default=0.1)
+    p_gr.add_argument(
+        "--entry-buffer-atr", dest="entry_buffer_atr", type=span_or_list, default=[0.1]
+    )
     p_gr.add_argument("--sl-atr", dest="sl_atr", type=float, default=1.0)
-    p_gr.add_argument("--sl-min-atr", dest="sl_min_atr", type=float, default=0.0)
-    p_gr.add_argument("--rr", dest="rr", type=float, default=2.0)
-    p_gr.add_argument("--q-low", dest="q_low", type=float, default=0.1)
-    p_gr.add_argument("--q-high", dest="q_high", type=float, default=0.9)
+    p_gr.add_argument("--sl-min-atr", dest="sl_min_atr", type=span_or_list, default=[0.0])
+    p_gr.add_argument("--rr", dest="rr", type=span_or_list, default=[2.0])
+    p_gr.add_argument("--trailing-atr", dest="trailing_atr", type=span_or_list, default=[0.0])
+    p_gr.add_argument("--q-low", dest="q_low", type=span_or_list, default=[0.1])
+    p_gr.add_argument("--q-high", dest="q_high", type=span_or_list, default=[0.9])
     p_gr.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
     p_gr.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
     p_gr.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
