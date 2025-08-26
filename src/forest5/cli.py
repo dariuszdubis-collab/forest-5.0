@@ -10,6 +10,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import json
 
 from forest5.config import (
     ALLOWED_SYMBOLS,
@@ -244,8 +245,12 @@ def cmd_grid(args: argparse.Namespace) -> int:
             param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
         combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
         combos.to_csv("plan.csv", index=False)
+        if int(args.jobs) > 1:
+            chunks = np.array_split(combos, int(args.jobs))
+            for i, chunk in enumerate(chunks):
+                if not chunk.empty:
+                    chunk.to_csv(f"plan_{i}.csv", index=False)
         from datetime import datetime, timezone
-        import json
         import subprocess
 
         git_rev = "unknown"
@@ -275,22 +280,91 @@ def cmd_grid(args: argparse.Namespace) -> int:
         print(len(combos))
         return 0
 
-    out = run_grid(df, **kwargs)
+    # run mode with resume support
+    plan_path = Path("plan.csv")
+    if plan_path.exists():
+        plan_df = pd.read_csv(plan_path)
+    else:
+        param_ranges = {"fast": fast_vals, "slow": slow_vals}
+        if risk_vals:
+            param_ranges["risk"] = risk_vals
+        if max_dd_vals:
+            param_ranges["max_dd"] = max_dd_vals
+        if len(args.rsi_period) > 1:
+            param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+        plan_df = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
 
-    # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
-    sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
+    resume = args.resume
+    results_path = Path("results.csv")
+    if resume is None:
+        resume = results_path.exists()
+
+    if resume and results_path.exists() and "combo_id" in plan_df.columns:
+        done_ids = set(pd.read_csv(results_path)["combo_id"].astype(int))
+        plan_df = plan_df[~plan_df["combo_id"].isin(done_ids)]
+
+    if plan_df.empty:
+        all_results = pd.read_csv(results_path) if results_path.exists() else pd.DataFrame()
+        sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in all_results.columns]
+        if sort_cols:
+            all_results = all_results.sort_values(by=sort_cols, ascending=False)
+        head = all_results.head(args.top)
+        print(head)
+        head.to_csv("results_top.csv", index=False)
+        meta_path = Path("meta.json")
+        meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+        meta["seed"] = int(args.seed) if args.seed is not None else None
+        meta_path.write_text(json.dumps(meta))
+        return 0
+
+    from joblib import Parallel, delayed
+
+    def _run_single(row: pd.Series) -> pd.DataFrame:
+        local_kwargs = kwargs.copy()
+        local_kwargs["fast_values"] = [int(row["fast"])]
+        local_kwargs["slow_values"] = [int(row["slow"])]
+        if "risk" in row and not pd.isna(row["risk"]):
+            local_kwargs["risk_values"] = [float(row["risk"])]
+        else:
+            local_kwargs.pop("risk_values", None)
+        if "rsi_period" in row and not pd.isna(row["rsi_period"]):
+            local_kwargs["rsi_period_values"] = [int(row["rsi_period"])]
+        if "max_dd" in row and not pd.isna(row["max_dd"]):
+            local_kwargs["max_dd_values"] = [float(row["max_dd"])]
+        local_kwargs["n_jobs"] = 1
+        if args.seed is not None and "combo_id" in row:
+            local_kwargs["seed"] = int(args.seed) + int(row["combo_id"])
+        res = run_grid(df, **local_kwargs)
+        res.insert(0, "combo_id", int(row["combo_id"]))
+        return res
+
+    results_list = Parallel(n_jobs=int(args.jobs))(
+        delayed(_run_single)(r) for _, r in plan_df.iterrows()
+    )
+    new_results = pd.concat(results_list, ignore_index=True) if results_list else pd.DataFrame()
+
+    existing = pd.read_csv(results_path) if results_path.exists() else pd.DataFrame()
+    all_results = pd.concat([existing, new_results], ignore_index=True)
+    all_results.to_csv(results_path, index=False)
+
+    sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in all_results.columns]
     if sort_cols:
-        out = out.sort_values(by=sort_cols, ascending=False)
-
-    head = out.head(args.top)
+        all_results = all_results.sort_values(by=sort_cols, ascending=False)
+    head = all_results.head(args.top)
     print(head)
+    head.to_csv("results_top.csv", index=False)
+
+    meta_path = Path("meta.json")
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+    meta["seed"] = int(args.seed) if args.seed is not None else None
+    meta_path.write_text(json.dumps(meta))
 
     if args.out:
         out_path = Path(args.out)
         if out_path.suffix.lower() in (".parquet", ".pq"):
-            out.to_parquet(out_path, index=False)
+            all_results.to_parquet(out_path, index=False)
         else:
-            out.to_csv(out_path, index=False)
+            all_results.to_csv(out_path, index=False)
         print(f"Zapisano wyniki grid do: {out_path.resolve()}")
 
     return 0
@@ -680,7 +754,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
     p_gr.add_argument("--out", "--export", dest="out", default=None, help="Zapis do CSV/Parquet")
     p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
-    p_gr.set_defaults(func=cmd_grid)
+    p_gr.add_argument("--resume", dest="resume", action="store_true", help="Wznów z istniejącego results.csv")
+    p_gr.add_argument("--no-resume", dest="resume", action="store_false", help="Nie wznawiaj")
+    p_gr.set_defaults(func=cmd_grid, resume=None)
 
     # walkforward
     p_wf = sub.add_parser(
