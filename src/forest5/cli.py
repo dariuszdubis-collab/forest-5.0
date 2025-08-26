@@ -122,6 +122,11 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         debug_dir=args.debug_dir,
     )
 
+    if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
+        step = meta.get("median_bar_minutes")
+        if step:
+            settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
+
     settings.time.model.enabled = bool(args.time_model)
     settings.time.model.path = args.time_model
     settings.time.fusion_min_confluence = float(args.min_confluence)
@@ -222,6 +227,10 @@ def cmd_grid(args: argparse.Namespace) -> int:
         "pinbar": {"enabled": bool(args.pat_pinbar)},
         "star": {"enabled": bool(args.pat_star)},
     }
+    if args.h1_policy == "drop":
+        step = meta.get("median_bar_minutes")
+        if step:
+            kwargs["setup_ttl_minutes"] = int(step)
     if risk_vals:
         kwargs["risk_values"] = risk_vals
     if max_dd_vals:

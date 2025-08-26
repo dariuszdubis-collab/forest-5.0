@@ -154,6 +154,12 @@ class BacktestEngine:
             getattr(getattr(settings, "strategy", object()), "setup_ttl_bars", 1),
         )
         self.setups = SetupRegistry(ttl_bars=int(ttl))
+        ttl_minutes = getattr(
+            settings,
+            "setup_ttl_minutes",
+            getattr(getattr(settings, "strategy", object()), "setup_ttl_minutes", None),
+        )
+        self._setup_ttl_minutes = int(ttl_minutes) if ttl_minutes is not None else None
 
         self.time_model: TimeOnlyModel | None = None
         if settings.time.model.enabled and settings.time.model.path:
@@ -214,7 +220,14 @@ class BacktestEngine:
             bar_time = self.df.index[index]
             if not isinstance(bar_time, datetime):
                 bar_time = pd.Timestamp(bar_time).to_pydatetime()
-            self.setups.arm(setup_id, index, contract, bar_time=bar_time, ctx=ctx)
+            self.setups.arm(
+                setup_id,
+                index,
+                contract,
+                bar_time=bar_time,
+                ttl_minutes=self._setup_ttl_minutes,
+                ctx=ctx,
+            )
 
         # Mark-to-market after bar close
         close_price = float(row[self.price_col])

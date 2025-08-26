@@ -101,6 +101,7 @@ def run_grid(
     cache_dir: str = ".cache/forest5-grid",
     debug_dir: Path | None = None,
     seed: int | None = None,
+    setup_ttl_minutes: int | None = None,
 ) -> pd.DataFrame:
 
     mem = Memory(cache_dir, verbose=0)
@@ -185,6 +186,7 @@ def run_grid(
             atr_period=atr_period,
             atr_multiple=atr_multiple,
             debug_dir=run_debug,
+            setup_ttl_minutes=setup_ttl_minutes,
         )
         settings.time.model.enabled = bool(time_model)
         settings.time.model.path = time_model

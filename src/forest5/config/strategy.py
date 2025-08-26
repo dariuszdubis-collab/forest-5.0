@@ -57,6 +57,7 @@ class H1EmaRsiAtrSettings(BaseModel):
     time: TimeModelQuantiles = Field(default_factory=TimeModelQuantiles)
     tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
     setup_ttl_bars: int = 1
+    setup_ttl_minutes: int | None = None
 
 
 class BaseStrategySettings(BaseModel):
@@ -77,6 +78,7 @@ class BaseStrategySettings(BaseModel):
     patterns: PatternSettings = Field(default_factory=PatternSettings)
     tp_sl_priority: Literal["SL_FIRST", "TP_FIRST"] = "SL_FIRST"
     setup_ttl_bars: int = 1
+    setup_ttl_minutes: int | None = None
 
     # Optional overrides for ``h1_ema_rsi_atr`` parameters from CLI/ENV
     ema_fast: int | None = None

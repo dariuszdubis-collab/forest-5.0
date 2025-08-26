@@ -20,8 +20,11 @@ def _write_gap_csv(path):
     return path
 
 
-@pytest.mark.parametrize("policy, expected", [("pad", 3), ("drop", 2)])
-def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected):
+@pytest.mark.parametrize(
+    "policy, expected_len, expected_ttl",
+    [("pad", 3, None), ("drop", 2, 120)],
+)
+def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected_len, expected_ttl):
     csv_path = _write_gap_csv(tmp_path / "data.csv")
     parser = build_parser()
     args = parser.parse_args(
@@ -40,6 +43,7 @@ def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected):
 
     def fake_run_backtest(df, settings, symbol, price_col, atr_period, atr_multiple):
         captured["len"] = len(df)
+        captured["ttl"] = settings.setup_ttl_minutes
         return SimpleNamespace(
             equity_curve=pd.Series([1.0]),
             max_dd=0.0,
@@ -50,11 +54,15 @@ def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected):
 
     cmd_backtest(args)
 
-    assert captured["len"] == expected
+    assert captured["len"] == expected_len
+    assert captured["ttl"] == expected_ttl
 
 
-@pytest.mark.parametrize("policy, expected", [("pad", 3), ("drop", 2)])
-def test_grid_h1_policy(tmp_path, monkeypatch, policy, expected):
+@pytest.mark.parametrize(
+    "policy, expected_len, expected_ttl",
+    [("pad", 3, None), ("drop", 2, 120)],
+)
+def test_grid_h1_policy(tmp_path, monkeypatch, policy, expected_len, expected_ttl):
     csv_path = _write_gap_csv(tmp_path / "data.csv")
     parser = build_parser()
     args = parser.parse_args(
@@ -77,10 +85,12 @@ def test_grid_h1_policy(tmp_path, monkeypatch, policy, expected):
 
     def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
         captured["len"] = len(df)
+        captured["ttl"] = kwargs.get("setup_ttl_minutes")
         return pd.DataFrame([])
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
 
     cmd_grid(args)
 
-    assert captured["len"] == expected
+    assert captured["len"] == expected_len
+    assert captured["ttl"] == expected_ttl
