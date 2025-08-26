@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import pytest
 from forest5.signals.compat import contract_to_int
 from forest5.signals.contract import TechnicalSignal
@@ -10,3 +12,9 @@ def test_contract_to_int_handles_strings(action: str, expected: int) -> None:
     assert contract_to_int(action) == expected
     assert contract_to_int(mapping) == expected
     assert contract_to_int(sig) == expected
+
+
+def test_serialization_includes_ttl() -> None:
+    sig = TechnicalSignal(action="BUY", ttl_minutes=15)
+    data = asdict(sig)
+    assert data["ttl_minutes"] == 15
