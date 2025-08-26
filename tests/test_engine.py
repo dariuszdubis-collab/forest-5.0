@@ -65,7 +65,7 @@ def test_gap_fill_trailing_and_priority():
         tp=110.0,
         meta={"trailing_atr": 0.5},
     )
-    eng.setups.arm("s1", 0, cand)
+    eng.setups.arm("s1", 0, cand, bar_time=pd.Timestamp("2024-01-01"))
 
     eng.on_bar_open(1)
     assert eng.positions and eng.positions[0]["entry"] == 104.0

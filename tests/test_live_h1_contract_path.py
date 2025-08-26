@@ -63,11 +63,11 @@ def test_h1_contract_arm_and_trigger(tmp_path: Path, monkeypatch):
             self.check_indices: list[int] = []
             TriggerRegistry.last = self
 
-        def arm(self, key, index, signal, *, ctx=None):
+        def arm(self, key, index, signal, *, bar_time, ttl_minutes=None, ctx=None):
             self.armed = True
             self.arm_index = index
 
-        def check(self, *, index, price, ctx=None):
+        def check(self, *, index, price, now, ctx=None):
             self.check_indices.append(index)
             if self.armed and index >= (self.arm_index or 0):
                 self.armed = False
