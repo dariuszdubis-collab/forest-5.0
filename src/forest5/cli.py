@@ -21,7 +21,12 @@ from forest5.config import (
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
-from forest5.utils.io import read_ohlc_csv, load_symbol_csv, read_ohlc_csv_smart
+from forest5.utils.io import (
+    read_ohlc_csv,
+    load_symbol_csv,
+    read_ohlc_csv_smart,
+    sniff_csv_dialect,
+)
 from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import PercentAction, span_or_list
 from forest5.utils.log import (
@@ -363,6 +368,56 @@ def cmd_live(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_data_inspect(args: argparse.Namespace) -> int:
+    path = Path(args.csv)
+    sep, dec, has_header = sniff_csv_dialect(path)
+    header = "yes" if has_header else "no"
+    print(f"dialect: sep='{sep}' decimal='{dec}' header={header}")
+    df = read_ohlc_csv_smart(path, time_col=args.time_col, sep=args.sep, decimal=args.decimal)
+    print(f"schema: {', '.join(df.columns)}")
+    if df.empty:
+        print("no data")
+        return 0
+    start, end = df.index[0], df.index[-1]
+    print(f"date range: {start} -> {end} ({len(df)} rows)")
+    _, meta = ensure_h1(df, policy="pad")
+    gaps = meta.get("gaps", [])
+    if not gaps:
+        print("gaps: none")
+    else:
+        print("gaps preview:")
+        for g in gaps[:5]:
+            print(f"  {g.start} -> {g.end} (missing {g.missing})")
+        if len(gaps) > 5:
+            print(f"  ... {len(gaps) - 5} more")
+    return 0
+
+
+def cmd_data_normalize(args: argparse.Namespace) -> int:
+    in_dir = Path(args.input_dir)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for path in sorted(in_dir.glob("*.csv")):
+        df = read_ohlc_csv_smart(path)
+        out_path = out_dir / path.name
+        df.to_csv(out_path, index_label="time")
+        print(f"{path.name} -> {out_path}")
+    return 0
+
+
+def cmd_data_pad_h1(args: argparse.Namespace) -> int:
+    in_dir = Path(args.input_dir)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for path in sorted(in_dir.glob("*.csv")):
+        df = read_ohlc_csv_smart(path)
+        df, _ = ensure_h1(df, policy="pad")
+        out_path = out_dir / path.name
+        df.to_csv(out_path, index_label="time")
+        print(f"{path.name} -> {out_path}")
+    return 0
+
+
 # --------------------------------- Parser ------------------------------------
 
 
@@ -416,6 +471,34 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=SafeHelpFormatter,
     )
     sub = p.add_subparsers(dest="command")
+
+    # data utilities
+    p_data = sub.add_parser("data", help="Narzędzia danych", formatter_class=SafeHelpFormatter)
+    sub_data = p_data.add_subparsers(dest="data_cmd")
+    sub_data.required = True
+
+    p_ins = sub_data.add_parser(
+        "inspect", help="Pokaż informacje o CSV", formatter_class=SafeHelpFormatter
+    )
+    p_ins.add_argument("--csv", required=True, help="Plik CSV do analizy")
+    p_ins.add_argument("--time-col", default=None, help="Nazwa kolumny czasu")
+    p_ins.add_argument("--sep", default=None, help="Separator CSV")
+    p_ins.add_argument("--decimal", default=None, help="Separator dziesiętny")
+    p_ins.set_defaults(func=cmd_data_inspect)
+
+    p_norm = sub_data.add_parser(
+        "normalize", help="Normalizuj pliki CSV", formatter_class=SafeHelpFormatter
+    )
+    p_norm.add_argument("--input-dir", type=Path, required=True, help="Katalog wejściowy")
+    p_norm.add_argument("--out-dir", type=Path, required=True, help="Katalog wyjściowy")
+    p_norm.set_defaults(func=cmd_data_normalize)
+
+    p_pad = sub_data.add_parser(
+        "pad-h1", help="Uzupełnij braki do 1H", formatter_class=SafeHelpFormatter
+    )
+    p_pad.add_argument("--input-dir", type=Path, required=True, help="Katalog wejściowy")
+    p_pad.add_argument("--out-dir", type=Path, required=True, help="Katalog wyjściowy")
+    p_pad.set_defaults(func=cmd_data_pad_h1)
 
     # backtest
     p_bt = sub.add_parser(
