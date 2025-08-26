@@ -52,8 +52,8 @@ def test_cli_grid_dry_run(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert called is False
 
-    out = capsys.readouterr().out.strip()
-    assert out.startswith("dry-run")
-    kw = ast.literal_eval(out.split("dry-run ", 1)[1])
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[-1].startswith("dry-run")
+    kw = ast.literal_eval(out[-1].split("dry-run ", 1)[1])
     combos = len(kw["fast_values"]) * len(kw["slow_values"])
     assert combos == 4
