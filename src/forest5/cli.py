@@ -94,6 +94,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         for g in meta.get("gaps", [])
     ]
     log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
+    if args.time_from is not None or args.time_to is not None:
+        df = df.loc[args.time_from : args.time_to]
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -170,6 +172,8 @@ def cmd_grid(args: argparse.Namespace) -> int:
         for g in meta.get("gaps", [])
     ]
     log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
+    if args.time_from is not None or args.time_to is not None:
+        df = df.loc[args.time_from : args.time_to]
 
     fast_vals = span_or_list(args.fast_values, int)
     slow_vals = span_or_list(args.slow_values, int)
@@ -461,6 +465,20 @@ def add_data_source_args(parser: argparse.ArgumentParser) -> None:
         choices=("strict", "pad", "drop"),
         default="strict",
         help=("Jak traktować braki 1H: 'strict' = błąd, 'pad' = wstaw NaN, 'drop' = usuń"),
+    )
+    parser.add_argument(
+        "--from",
+        dest="time_from",
+        type=pd.Timestamp,
+        default=None,
+        help="Początek zakresu danych (ISO‑datetime)",
+    )
+    parser.add_argument(
+        "--to",
+        dest="time_to",
+        type=pd.Timestamp,
+        default=None,
+        help="Koniec zakresu danych (ISO‑datetime)",
     )
 
 
