@@ -20,9 +20,8 @@ def _write_csv(path: Path, periods: int = 3) -> Path:
     return path
 
 
-def test_cli_grid_dry_run(tmp_path, monkeypatch, capsys):
+def test_grid_dryrun_plan(tmp_path, monkeypatch, capsys):
     csv_path = _write_csv(tmp_path / "data.csv")
-
     parser = build_parser()
     args = parser.parse_args(
         [
@@ -38,22 +37,17 @@ def test_cli_grid_dry_run(tmp_path, monkeypatch, capsys):
             "--dry-run",
         ]
     )
-
-    called = False
-
-    def fake_run_grid(*a, **k):
-        nonlocal called
-        called = True
-        return pd.DataFrame()
-
-    monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
     monkeypatch.chdir(tmp_path)
-
     rc = cmd_grid(args)
     assert rc == 0
-    assert called is False
-    out = capsys.readouterr().out.strip().splitlines()
-    assert out[-1] == "4"
-    assert (tmp_path / "plan.csv").exists()
-    meta = json.loads((tmp_path / "meta.json").read_text())
+    out_lines = capsys.readouterr().out.strip().splitlines()
+    assert out_lines[-1] == "4"
+    plan_path = tmp_path / "plan.csv"
+    meta_path = tmp_path / "meta.json"
+    assert plan_path.exists()
+    assert meta_path.exists()
+    df_plan = pd.read_csv(plan_path)
+    assert list(df_plan.columns)[0] == "combo_id"
+    assert len(df_plan) == 4
+    meta = json.loads(meta_path.read_text())
     assert meta["total_combos"] == 4

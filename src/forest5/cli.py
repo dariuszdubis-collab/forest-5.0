@@ -20,6 +20,7 @@ from forest5.config import (
 )
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
+from forest5.grid.engine import plan_param_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import (
     read_ohlc_csv,
@@ -234,7 +235,44 @@ def cmd_grid(args: argparse.Namespace) -> int:
         kwargs["seed"] = int(args.seed)
 
     if args.dry_run:
-        print("dry-run", kwargs)
+        param_ranges = {"fast": fast_vals, "slow": slow_vals}
+        if risk_vals:
+            param_ranges["risk"] = risk_vals
+        if max_dd_vals:
+            param_ranges["max_dd"] = max_dd_vals
+        if len(args.rsi_period) > 1:
+            param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+        combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
+        combos.to_csv("plan.csv", index=False)
+        from datetime import datetime, timezone
+        import json
+        import subprocess
+
+        git_rev = "unknown"
+        try:  # pragma: no cover - best effort
+            git_rev = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+                )
+                .decode()
+                .strip()
+            )
+        except Exception:  # pragma: no cover
+            pass
+
+        meta = {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "git": git_rev,
+            "symbol": args.symbol,
+            "period": {
+                "start": df.index[0].isoformat(),
+                "end": df.index[-1].isoformat(),
+            },
+            "seed": int(args.seed) if args.seed is not None else None,
+            "total_combos": int(len(combos)),
+        }
+        Path("meta.json").write_text(json.dumps(meta))
+        print(len(combos))
         return 0
 
     out = run_grid(df, **kwargs)
