@@ -7,10 +7,15 @@ from typing import Iterable, Any, Dict, List
 import json
 import random
 from copy import deepcopy
+import time
+import math
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
 from joblib import Memory, Parallel, delayed
+from rich.console import Console
+from rich.progress import Progress, BarColumn, TextColumn
 
 from ..config import BacktestSettings
 from .engine import run_backtest
@@ -373,10 +378,47 @@ def run_param_grid(
         except Exception as exc:  # pragma: no cover - defensive
             return {**combo, "error": str(exc)}
 
-    if jobs == 1:
-        rows = [_single(i, combo) for i, combo in enumerate(combos)]
-    else:
-        rows = Parallel(n_jobs=jobs)(delayed(_single)(i, combo) for i, combo in enumerate(combos))
+    total = len(combos)
+    rows: list[Dict[str, Any]] = []
+    best_pnl = float("-inf")
+    start = time.time()
+
+    def _fmt_eta(seconds: float) -> str:
+        if seconds <= 0 or not math.isfinite(seconds):
+            return "0s"
+        return str(timedelta(seconds=int(seconds)))
+
+    progress = Progress(
+        TextColumn("{task.completed}/{task.total}"),
+        BarColumn(),
+        TextColumn("best {task.fields[best]:.2f}"),
+        TextColumn("eta {task.fields[eta]}", justify="right"),
+        console=Console(force_terminal=True, color_system=None),
+        transient=False,
+    )
+    task = progress.add_task("grid", total=total, best=0.0, eta="0s")
+
+    with progress:
+        if jobs == 1:
+            for i, combo in enumerate(combos):
+                res = _single(i, combo)
+                rows.append(res)
+                processed = len(rows)
+                best_pnl = max(best_pnl, res.get("pnl_net", float("-inf")))
+                elapsed = time.time() - start
+                eta = _fmt_eta(elapsed / processed * (total - processed)) if processed else "0s"
+                progress.update(task, advance=1, best=best_pnl, eta=eta)
+        else:
+            results_iter = Parallel(n_jobs=jobs, return_as="generator")(
+                delayed(_single)(i, combo) for i, combo in enumerate(combos)
+            )
+            for res in results_iter:
+                rows.append(res)
+                processed = len(rows)
+                best_pnl = max(best_pnl, res.get("pnl_net", float("-inf")))
+                elapsed = time.time() - start
+                eta = _fmt_eta(elapsed / processed * (total - processed)) if processed else "0s"
+                progress.update(task, advance=1, best=best_pnl, eta=eta)
 
     out = pd.DataFrame(rows)
     if results_path:
