@@ -221,8 +221,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
             out_dir = Path(args.out or "out").resolve()
             out_dir.mkdir(parents=True, exist_ok=True)
             combos.to_csv(
-                out_dir
-                / f"plan_shard_{args.chunk_id:02d}of{args.chunks:02d}.csv",
+                out_dir / f"plan_shard_{args.chunk_id:02d}of{args.chunks:02d}.csv",
                 index=False,
             )
 
