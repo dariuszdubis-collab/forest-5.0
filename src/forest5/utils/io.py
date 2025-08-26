@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
+
 import pandas as pd
 
 from ..config import get_data_dir
@@ -23,118 +25,156 @@ ALLOWED_SYMBOLS = {
 }
 
 
-def read_ohlc_csv(
-    path: str | Path,
-    time_col: str | None = None,
-    tz: str | None = None,
-    sep: str | None = None,
-    has_header: bool = True,
-) -> pd.DataFrame:
-    """Load OHLC CSV used by Forest5 backtests.
-
-    This reader normalises column names (case/whitespace/aliases), parses the
-    timestamp column and returns a frame indexed by a tz-naive
-    :class:`~pandas.DatetimeIndex` with canonical ``open/high/low/close``
-    columns.
+def sniff_csv_dialect(path: str | Path, sample_bytes: int = 65_536) -> tuple[str, str, bool]:
+    """Best effort detection of CSV dialect.
 
     Parameters
     ----------
     path:
-        Path to a CSV file.
-    time_col:
-        Name of the timestamp column. If ``None`` it will try common aliases
-        such as ``time``/``timestamp``/``date``/``datetime``/``dt``.
-    tz:
-        Optional timezone if the input timestamps are *naive* and you know
-        their timezone. They will be localized to ``tz`` and converted to
-        tz-naive (wall-clock) to avoid tz-aware/naive mix-ups downstream.
-    sep:
-        Optional CSV separator. When ``None`` it will be auto-detected.
-    has_header:
-        Set to ``False`` for files without a header row. The columns are then
-        assumed to be ``time,open,high,low,close,volume`` and the first column
-        is used as the index.
+        CSV file to inspect.
+    sample_bytes:
+        Number of bytes to read for sniffing.
 
     Returns
     -------
-    pd.DataFrame
-        Data indexed by time with columns ``open``, ``high``, ``low``, ``close``.
+    tuple
+        ``(separator, decimal, has_header)`` where ``separator`` is either
+        `','` or `';'`, ``decimal`` is one of ``'.'``/`','` and ``has_header``
+        indicates the presence of a header row.
     """
 
     path = Path(path)
+    try:
+        with open(path, "r", newline="") as f:
+            sample = f.read(sample_bytes)
+    except OSError:
+        return ",", ".", True
 
-    # detect separator if not provided
+    sep = ","
+    has_header = True
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=[",", ";"])
+        sep = dialect.delimiter
+        has_header = csv.Sniffer().has_header(sample)
+    except csv.Error:
+        pass
+
+    decimal = "."
+    if sep == ";":
+        # Count decimal comma vs dot occurrences in the sample
+        comma_dec = len(re.findall(r"\d+,\d+", sample))
+        dot_dec = len(re.findall(r"\d+\.\d+", sample))
+        decimal = "," if comma_dec > dot_dec else "."
+
+    return sep, decimal, has_header
+
+
+def infer_ohlc_schema(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None, list[str]]:
+    """Infer and normalise OHLC column schema.
+
+    This maps common aliases (e.g. ``O/H/L/C`` or ``Date`` + ``Time``) to the
+    canonical ``open/high/low/close/volume`` set. It also attempts to locate the
+    timestamp column and returns diagnostic notes describing the transformations
+    performed.
+    """
+
+    notes: list[str] = []
+    df = df.copy()
+
+    # Normalise column names for lookup while preserving originals
+    cols = {c.strip().lower(): c for c in df.columns}
+
+    time_col: str | None = None
+    # Handle ``Date`` + ``Time`` split columns
+    if "date" in cols and "time" in cols and "datetime" not in cols and "timestamp" not in cols:
+        df["time"] = df[cols["date"]].astype(str) + " " + df[cols["time"]].astype(str)
+        notes.append("combined 'date' and 'time' columns into 'time'")
+        time_col = "time"
+    else:
+        for alias in ("time", "timestamp", "datetime", "dt"):
+            if alias in cols:
+                time_col = cols[alias]
+                if alias != "time":
+                    notes.append(f"using '{time_col}' as time column")
+                break
+
+    synonyms: dict[str, list[str]] = {
+        "open": ["open", "o", "op", "open_price"],
+        "high": ["high", "h", "hi"],
+        "low": ["low", "l", "lo"],
+        "close": ["close", "c", "cl", "close_price"],
+        "volume": ["volume", "vol", "v"],
+    }
+
+    rename: dict[str, str] = {}
+    for canon, aliases in synonyms.items():
+        found = None
+        for alias in aliases:
+            if alias in cols:
+                found = cols[alias]
+                break
+        if found is not None:
+            if found != canon:
+                rename[found] = canon
+                notes.append(f"renamed '{found}' to '{canon}'")
+        else:
+            notes.append(f"missing '{canon}' column")
+
+    if rename:
+        df = df.rename(columns=rename)
+
+    return df, time_col, notes
+
+
+def read_ohlc_csv_smart(
+    path: str | Path,
+    time_col: str | None = None,
+    sep: str | None = None,
+    decimal: str | None = None,
+) -> pd.DataFrame:
+    """Read OHLC data with automatic dialect and schema inference."""
+
+    path = Path(path)
+
+    sniff_sep, sniff_dec, has_header = sniff_csv_dialect(path)
     if sep is None:
-        try:
-            with open(path, "r", newline="") as f:
-                sample = f.read(4096)
-                sep = csv.Sniffer().sniff(sample).delimiter
-        except csv.Error:
-            sep = ","
+        sep = sniff_sep
+    if decimal is None:
+        decimal = sniff_dec
 
     if has_header:
-        df = pd.read_csv(path, sep=sep)
-        # normalise headers
-        df.columns = df.columns.str.strip().str.lower()
+        df = pd.read_csv(path, sep=sep, decimal=decimal)
     else:
         df = pd.read_csv(
             path,
             sep=sep,
+            decimal=decimal,
             header=None,
             names=["time", "open", "high", "low", "close", "volume"],
-            index_col=0,
         )
-        df.index = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
-        df.index.name = "time"
 
-    # normalise time column argument and discover aliases when absent
-    if has_header:
-        time_col = time_col.lower() if time_col is not None else None
-        if time_col is None:
-            for alias in ("time", "timestamp", "date", "datetime", "dt"):
-                if alias in df.columns:
-                    time_col = alias
-                    break
+    df, inferred_time, notes = infer_ohlc_schema(df)
 
-        if time_col and time_col in df.columns:
-            idx = pd.to_datetime(df[time_col], errors="coerce", utc=False, format="mixed")
-            df = df.drop(columns=[time_col])
-        else:
-            idx = pd.to_datetime(df.index, errors="coerce", utc=False, format="mixed")
-    else:
-        idx = df.index
+    if time_col is not None:
+        lc = {c.lower(): c for c in df.columns}
+        target = lc.get(time_col.lower())
+        if target is None:
+            raise ValueError(f"Specified time column '{time_col}' not found")
+        inferred_time = target
 
+    if inferred_time is None or inferred_time not in df.columns:
+        raise ValueError("Unable to determine time column")
+
+    idx = pd.to_datetime(df[inferred_time], errors="coerce", utc=True, format="mixed")
     if idx.isna().any():
         bad = int(idx.isna().sum())
         raise ValueError(
             f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
         )
 
-    if tz is not None and getattr(idx, "tz", None) is None:
-        idx = idx.tz_localize(tz)
-    if getattr(idx, "tz", None) is not None:
-        idx = idx.tz_convert(None)
-
+    df = df.drop(columns=[inferred_time])
     df.index = idx
-
-    # map OHLCV aliases to canonical names
-    synonyms: dict[str, list[str]] = {
-        "open": ["open", "o", "op", "open_price"],
-        "high": ["high", "h", "hi"],
-        "low": ["low", "l", "lo"],
-        "close": ["close", "c", "cl", "close_price"],
-        # volume is optional but we try to capture common aliases
-        "volume": ["volume", "vol", "v"],
-    }
-
-    rename: dict[str, str] = {}
-    for target, keys in synonyms.items():
-        for k in keys:
-            if k in df.columns:
-                rename[k] = target
-                break
-
-    df = df.rename(columns=rename)
+    df.index.name = "time"
 
     need = ["open", "high", "low", "close"]
     missing = [c for c in need if c not in df.columns]
@@ -143,8 +183,104 @@ def read_ohlc_csv(
 
     cols = need + (["volume"] if "volume" in df.columns else [])
     df = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
+    df = df.sort_index()
+    df.attrs["notes"] = notes
+    return df
 
-    return df.sort_index()
+
+def read_ohlc_csv(
+    path: str | Path,
+    time_col: str | None = None,
+    tz: str | None = None,
+    sep: str | None = None,
+    has_header: bool | None = None,
+    decimal: str | None = None,
+) -> pd.DataFrame:
+    """Load OHLC CSV used by Forest5 backtests.
+
+    Parameters
+    ----------
+    path:
+        Path to a CSV file.
+    time_col:
+        Name of the timestamp column. If ``None`` it will try common aliases.
+    tz:
+        Optional timezone to convert the parsed index to before returning a
+        tz-naive index.
+    sep, has_header, decimal:
+        Optional dialect overrides. When omitted the dialect is auto-detected
+        via :func:`sniff_csv_dialect` and processing delegated to
+        :func:`read_ohlc_csv_smart`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Data indexed by time with canonical ``open/high/low/close`` columns.
+    """
+
+    path = Path(path)
+
+    if has_header is None:
+        df = read_ohlc_csv_smart(path, time_col=time_col, sep=sep, decimal=decimal)
+    else:
+        if sep is None or decimal is None:
+            sniff_sep, sniff_dec, _ = sniff_csv_dialect(path)
+            if sep is None:
+                sep = sniff_sep
+            if decimal is None:
+                decimal = sniff_dec
+        if has_header:
+            df = pd.read_csv(path, sep=sep, decimal=decimal)
+        else:
+            df = pd.read_csv(
+                path,
+                sep=sep,
+                decimal=decimal,
+                header=None,
+                names=["time", "open", "high", "low", "close", "volume"],
+            )
+
+        df, inferred_time, notes = infer_ohlc_schema(df)
+
+        if time_col is not None:
+            lc = {c.lower(): c for c in df.columns}
+            target = lc.get(time_col.lower())
+            if target is None:
+                raise ValueError(f"Specified time column '{time_col}' not found")
+            inferred_time = target
+
+        if inferred_time is None or inferred_time not in df.columns:
+            raise ValueError("Unable to determine time column")
+
+        idx = pd.to_datetime(df[inferred_time], errors="coerce", utc=True, format="mixed")
+        if idx.isna().any():
+            bad = int(idx.isna().sum())
+            raise ValueError(
+                f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
+            )
+
+        df = df.drop(columns=[inferred_time])
+        df.index = idx
+        df.index.name = "time"
+
+        need = ["open", "high", "low", "close"]
+        missing = [c for c in need if c not in df.columns]
+        if missing:
+            raise ValueError(f"CSV missing required columns: {missing}")
+
+        cols = need + (["volume"] if "volume" in df.columns else [])
+        df = df[cols].apply(pd.to_numeric, errors="coerce").dropna().sort_index()
+        df.attrs["notes"] = notes
+
+    if tz is not None:
+        if getattr(df.index, "tz", None) is None:
+            df.index = df.index.tz_localize(tz)
+        else:
+            df.index = df.index.tz_convert(tz)
+
+    # Return tz-naive timestamps
+    df.index = df.index.tz_localize(None)
+    return df
 
 
 def load_symbol_csv(symbol: str, data_dir: Path | str | None = None) -> pd.DataFrame:
