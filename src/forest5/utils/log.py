@@ -32,6 +32,10 @@ E_ORDER_CANCELLED = "order_cancelled"
 # Generic error/diagnostics events.
 E_ERROR = "error"
 
+# Data loading and validation events.
+E_DATA_CSV_SCHEMA = "data_csv_schema"
+E_DATA_TIME_GAPS = "data_time_gaps"
+
 
 # -- Reason codes ----------------------------------------------------------
 # Reason codes provide additional colour for a given event.  As with the event

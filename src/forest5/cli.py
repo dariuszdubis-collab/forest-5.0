@@ -21,10 +21,15 @@ from forest5.config import (
 from forest5.backtest.engine import run_backtest
 from forest5.backtest.grid import run_grid
 from forest5.live.live_runner import run_live
-from forest5.utils.io import read_ohlc_csv, load_symbol_csv
+from forest5.utils.io import read_ohlc_csv, load_symbol_csv, read_ohlc_csv_smart
 from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import PercentAction, span_or_list
-from forest5.utils.log import setup_logger
+from forest5.utils.log import (
+    setup_logger,
+    log_event,
+    E_DATA_CSV_SCHEMA,
+    E_DATA_TIME_GAPS,
+)
 
 
 # Backwards compatibility – old name used in previous versions/tests
@@ -76,7 +81,14 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         print(f"CSV file not found: {csv_path}", file=sys.stderr)
         return 1
 
-    df, _meta = load_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
+    df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
+    log_event(E_DATA_CSV_SCHEMA, path=str(csv_path), notes=df.attrs.get("notes", []))
+    df, meta = ensure_h1(df, policy=args.h1_policy)
+    gaps = [
+        {"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing}
+        for g in meta.get("gaps", [])
+    ]
+    log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -136,9 +148,23 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 def cmd_grid(args: argparse.Namespace) -> int:
     if args.csv:
-        df, _meta = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+        csv_path = Path(args.csv)
     else:
-        df, _meta = load_symbol_csv(args.symbol, data_dir=args.data_dir)
+        data_dir = get_data_dir(args.data_dir)
+        csv_path = data_dir / f"{args.symbol}_H1.csv"
+
+    if not csv_path.exists():
+        print(f"CSV file not found: {csv_path}", file=sys.stderr)
+        return 1
+
+    df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
+    log_event(E_DATA_CSV_SCHEMA, path=str(csv_path), notes=df.attrs.get("notes", []))
+    df, meta = ensure_h1(df, policy=args.h1_policy)
+    gaps = [
+        {"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing}
+        for g in meta.get("gaps", [])
+    ]
+    log_event(E_DATA_TIME_GAPS, path=str(csv_path), gaps=gaps)
 
     fast_vals = span_or_list(args.fast_values, int)
     slow_vals = span_or_list(args.slow_values, int)
@@ -374,6 +400,12 @@ def add_data_source_args(parser: argparse.ArgumentParser) -> None:
             "Symbol (np. EURUSD). Używany do automatycznego wyszukania danych w "
             f"{DEFAULT_DATA_DIR}/<SYMBOL>_H1.csv"
         ),
+    )
+    parser.add_argument(
+        "--h1-policy",
+        choices=("strict", "pad", "drop"),
+        default="strict",
+        help=("Jak traktować braki 1H: 'strict' = błąd, 'pad' = wstaw NaN, 'drop' = usuń"),
     )
 
 
