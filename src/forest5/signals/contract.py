@@ -20,6 +20,7 @@ class TechnicalSignal:
     sl: float = 0.0
     tp: float = 0.0
     horizon_minutes: int = 0
+    ttl_minutes: int | None = None
     technical_score: float = 0.0
     confidence_tech: float = 0.0
     drivers: list[str] = field(default_factory=list)
