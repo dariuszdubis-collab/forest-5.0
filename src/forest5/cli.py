@@ -60,16 +60,28 @@ class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawText
 
 
 def load_ohlc_csv(
-    path: str | Path, time_col: Optional[str] = None, sep: Optional[str] = None
+    path: str | Path,
+    time_col: Optional[str] = None,
+    sep: Optional[str] = None,
+    *,
+    policy: str = "strict",
 ) -> tuple[pd.DataFrame, dict]:
     """Read OHLC CSV and ensure a 1H time index.
+
+    Parameters
+    ----------
+    path, time_col, sep:
+        See :func:`read_ohlc_csv`.
+    policy:
+        Handling of missing bars passed through to
+        :func:`~forest5.utils.timeindex.ensure_h1`.
 
     Returns the loaded DataFrame together with metadata describing any gaps
     detected in the index.
     """
 
     df = read_ohlc_csv(path, time_col=time_col, sep=sep)
-    df, meta = ensure_h1(df)
+    df, meta = ensure_h1(df, policy=policy)
     return df, meta
 
 
@@ -307,9 +319,16 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
 def cmd_walkforward(args: argparse.Namespace) -> int:
     if args.csv:
-        df, _meta = load_ohlc_csv(args.csv, time_col=args.time_col, sep=args.sep)
+        df, meta = load_ohlc_csv(
+            args.csv,
+            time_col=args.time_col,
+            sep=args.sep,
+            policy=args.h1_policy,
+        )
     else:
-        df, _meta = load_symbol_csv(args.symbol, data_dir=args.data_dir)
+        df, meta = load_symbol_csv(
+            args.symbol, data_dir=args.data_dir, policy=args.h1_policy
+        )
 
     def _single_val(spec: str) -> int:
         vals = span_or_list(spec, int)
@@ -361,6 +380,11 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
 
     settings.time.q_low = float(args.q_low)
     settings.time.q_high = float(args.q_high)
+
+    if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
+        step = meta.get("median_bar_minutes")
+        if step:
+            settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
     train = int(args.train)
     test = int(args.test)
