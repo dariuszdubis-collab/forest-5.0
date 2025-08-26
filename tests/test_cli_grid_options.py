@@ -1,4 +1,5 @@
 from pathlib import Path
+import numbers
 import pandas as pd
 import pytest
 
@@ -131,3 +132,4 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     assert kw["resume"] is True
     assert kw["chunks"] == 3
     assert kw["chunk_id"] == 2
+    assert isinstance(kw["min_confluence"], numbers.Number)
