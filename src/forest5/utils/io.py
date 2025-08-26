@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..config import get_data_dir
+from .log import E_DATA_CSV_SCHEMA, log_event
 from .timeindex import ensure_h1
 
 DATA_DIR = get_data_dir()
@@ -76,10 +77,12 @@ def infer_ohlc_schema(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None, list[
     This maps common aliases (e.g. ``O/H/L/C`` or ``Date`` + ``Time``) to the
     canonical ``open/high/low/close/volume`` set. It also attempts to locate the
     timestamp column and returns diagnostic notes describing the transformations
-    performed.
+    performed. Information about which aliases were used is stored on
+    ``df.attrs['aliases']`` for later inspection.
     """
 
     notes: list[str] = []
+    aliases_used: dict[str, str] = {}
     df = df.copy()
 
     # Normalise column names for lookup while preserving originals
@@ -91,12 +94,14 @@ def infer_ohlc_schema(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None, list[
         df["time"] = df[cols["date"]].astype(str) + " " + df[cols["time"]].astype(str)
         notes.append("combined 'date' and 'time' columns into 'time'")
         time_col = "time"
+        aliases_used["time"] = f"{cols['date']}+{cols['time']}"
     else:
         for alias in ("time", "timestamp", "datetime", "dt"):
             if alias in cols:
                 time_col = cols[alias]
                 if alias != "time":
                     notes.append(f"using '{time_col}' as time column")
+                    aliases_used["time"] = cols[alias]
                 break
 
     synonyms: dict[str, list[str]] = {
@@ -118,12 +123,14 @@ def infer_ohlc_schema(df: pd.DataFrame) -> tuple[pd.DataFrame, str | None, list[
             if found != canon:
                 rename[found] = canon
                 notes.append(f"renamed '{found}' to '{canon}'")
+                aliases_used[canon] = found
         else:
             notes.append(f"missing '{canon}' column")
 
     if rename:
         df = df.rename(columns=rename)
 
+    df.attrs["aliases"] = aliases_used
     return df, time_col, notes
 
 
@@ -186,6 +193,20 @@ def read_ohlc_csv_smart(
     df = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
     df = df.sort_index()
     df.attrs["notes"] = notes
+
+    time_from = df.index[0].isoformat() if not df.empty else None
+    time_to = df.index[-1].isoformat() if not df.empty else None
+    log_event(
+        E_DATA_CSV_SCHEMA,
+        path=str(path),
+        separator=sep,
+        decimal=decimal,
+        has_header=has_header,
+        aliases=df.attrs.get("aliases", {}),
+        rows=len(df),
+        **{"from": time_from, "to": time_to},
+    )
+
     return df
 
 
