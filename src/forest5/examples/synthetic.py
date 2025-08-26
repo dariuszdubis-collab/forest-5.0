@@ -5,8 +5,15 @@ import numpy as np
 import pandas as pd
 
 
+def _norm_freq(freq: str) -> str:
+    f = str(freq).strip()
+    if not f:
+        raise ValueError("freq required")
+    return f.lower()
+
+
 def generate_ohlc(periods: int = 100, start_price: float = 100.0, freq: str = "D") -> pd.DataFrame:
-    freq = freq.lower()  # normalize frequency to lowercase to avoid pandas warnings
+    freq = _norm_freq(freq)  # normalize frequency to lowercase to avoid pandas warnings
     idx = pd.date_range("2024-01-01", periods=periods, freq=freq)
     rnd = np.random.default_rng(42)
     ret = rnd.normal(0, 0.01, size=periods)
