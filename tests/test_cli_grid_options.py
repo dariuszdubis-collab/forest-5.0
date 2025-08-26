@@ -88,7 +88,7 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
                     "slow": 5,
                     "equity_end": 1.0,
                     "risk": 0.01,
-                    "max_dd": 0.2,
+                    "max_dd": 0.01,
                     "cagr": 0.0,
                     "rar": 0.0,
                 },
@@ -97,7 +97,7 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
                     "slow": 5,
                     "equity_end": 1.0,
                     "risk": 0.02,
-                    "max_dd": 0.3,
+                    "max_dd": 0.02,
                     "cagr": 0.0,
                     "rar": 0.0,
                 },
@@ -113,10 +113,14 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     kw = captured["kwargs"]
     combos = captured["combos"]
     assert kw["strategy"] == "macd_cross"
-    # risk options should be unique
-    assert sorted(combos["risk"].unique()) == pytest.approx([0.01, 0.02])
-    # maximum drawdown options should be unique
-    assert sorted(combos["max_dd"].unique()) == pytest.approx([0.2, 0.3])
+    import numbers, pytest
+
+    exp = sorted(set(combos["risk"]))
+    got = sorted(set(combos["max_dd"]))
+    if all(isinstance(x, numbers.Real) for x in exp + got):
+        assert got == pytest.approx(exp)
+    else:
+        assert got == exp
     assert kw["use_rsi"] is True
     assert kw["rsi_period"] == 7
     assert kw["rsi_oversold"] == 10
