@@ -251,16 +251,18 @@ def cmd_grid(args: argparse.Namespace) -> int:
     if args.seed is not None:
         kwargs["seed"] = int(args.seed)
 
+    # Enumerate all combinations so we can support resume/concatenation.
+    param_ranges = {"fast": fast_vals, "slow": slow_vals}
+    if risk_vals:
+        param_ranges["risk"] = risk_vals
+    if max_dd_vals:
+        param_ranges["max_dd"] = max_dd_vals
+    if len(args.rsi_period) > 1:
+        param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+    combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
+
     if args.dry_run:
-        param_ranges = {"fast": fast_vals, "slow": slow_vals}
-        if risk_vals:
-            param_ranges["risk"] = risk_vals
-        if max_dd_vals:
-            param_ranges["max_dd"] = max_dd_vals
-        if len(args.rsi_period) > 1:
-            param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
-        combos = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
-        combos.to_csv("plan.csv", index=False)
+        combos_all.to_csv("plan.csv", index=False)
         from datetime import datetime, timezone
         import json
         import subprocess
@@ -286,13 +288,53 @@ def cmd_grid(args: argparse.Namespace) -> int:
                 "end": df.index[-1].isoformat(),
             },
             "seed": int(args.seed) if args.seed is not None else None,
-            "total_combos": int(len(combos)),
+            "total_combos": int(len(combos_all)),
         }
         Path("meta.json").write_text(json.dumps(meta))
-        print(len(combos))
+        print(len(combos_all))
         return 0
 
-    out = run_grid(df, **kwargs)
+    # Attempt to load previous results for resuming.
+    results_path = Path(args.out) if args.out else Path("grid_results.csv")
+    prev: pd.DataFrame | None = None
+    combos = combos_all
+    param_cols = [c for c in combos_all.columns if c != "combo_id"]
+    if args.resume != "false" and results_path.exists():
+        try:
+            if results_path.suffix.lower() in (".parquet", ".pq"):
+                prev_loaded = pd.read_parquet(results_path)
+            else:
+                prev_loaded = pd.read_csv(results_path)
+        except Exception:  # pragma: no cover - ignore bad files
+            prev_loaded = None
+        if prev_loaded is not None and set(param_cols).issubset(prev_loaded.columns):
+            prev = prev_loaded.merge(combos_all, on=param_cols, how="inner")
+            done_ids = set(prev["combo_id"])
+            combos = combos_all[~combos_all["combo_id"].isin(done_ids)]
+        else:
+            prev = None
+
+    # If there are combos left to process, run the grid on their parameter ranges.
+    if combos.empty:
+        out = prev.copy() if prev is not None else pd.DataFrame()
+    else:
+        run_kwargs = kwargs.copy()
+        run_kwargs["fast_values"] = sorted(combos["fast"].unique())
+        run_kwargs["slow_values"] = sorted(combos["slow"].unique())
+        if "risk" in combos.columns:
+            run_kwargs["risk_values"] = sorted(combos["risk"].unique())
+        if "max_dd" in combos.columns:
+            run_kwargs["max_dd_values"] = sorted(combos["max_dd"].unique())
+        if "rsi_period" in combos.columns:
+            run_kwargs["rsi_period_values"] = sorted(combos["rsi_period"].unique())
+        new_out = run_grid(df, **run_kwargs)
+        new_out = new_out.merge(combos, on=param_cols, how="inner")
+        if prev is not None:
+            out = pd.concat([prev, new_out], ignore_index=True)
+        else:
+            out = new_out
+    if "combo_id" in out.columns:
+        out = out.drop(columns=["combo_id"])
 
     # sortuj wg RAR / Sharpe jeśli dostępne, inaczej equity_end
     sort_cols = [c for c in ("rar", "sharpe", "equity_end") if c in out.columns]
