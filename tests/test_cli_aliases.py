@@ -25,11 +25,11 @@ def test_cli_grid_pullback_alias(tmp_path, monkeypatch):
 
     captured = {}
 
-    def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
-        captured.update(kwargs)
-        return pd.DataFrame(
-            [{"fast": 1, "slow": 2, "equity_end": 1.0, "max_dd": 0.0, "cagr": 0.0, "rar": 0.0}]
-        )
+    def fake_run_grid(df, combos, settings, **kwargs):
+        captured["pullback_atr"] = settings.strategy.pullback_atr
+        row = combos.iloc[0].to_dict()
+        row.update({"equity_end": 1.0, "dd": 0.0, "cagr": 0.0, "rar": 0.0})
+        return pd.DataFrame([row])
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
 

@@ -2,8 +2,16 @@ from __future__ import annotations
 
 from itertools import product
 from typing import Dict, Iterable, Any, Callable
+import random
+from copy import deepcopy
 
 import pandas as pd
+import numpy as np
+from joblib import Parallel, delayed
+
+from ..config import BacktestSettings
+from ..backtest.engine import run_backtest
+from ..backtest.grid import _compute_metrics, build_combo_id
 
 
 def plan_param_grid(
@@ -33,5 +41,84 @@ def plan_param_grid(
     if filter_fn is not None:
         combos = [c for c in combos if filter_fn(c)]
     df = pd.DataFrame(combos)
-    df.insert(0, "combo_id", range(len(df)))
+    df.insert(0, "combo_id", [build_combo_id(c) for c in combos])
     return df
+
+
+def run_grid(
+    df: pd.DataFrame,
+    combos: pd.DataFrame,
+    base_settings: BacktestSettings,
+    *,
+    jobs: int = 1,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    """Execute backtests for prepared parameter combinations."""
+
+    combo_dicts = combos.to_dict("records")
+
+    def _single(idx: int, combo: Dict[str, Any]) -> Dict[str, Any]:
+        if seed is not None:
+            local_seed = seed + idx
+            random.seed(local_seed)
+            np.random.seed(local_seed)
+
+        settings = (
+            base_settings.model_copy(deep=True)
+            if hasattr(base_settings, "model_copy")
+            else deepcopy(base_settings)
+        )
+        for k, v in combo.items():
+            if k == "combo_id":
+                continue
+            if hasattr(settings.strategy, k):
+                setattr(settings.strategy, k, v)
+            elif hasattr(settings.risk, k):
+                setattr(settings.risk, k, v)
+            elif hasattr(settings.time, k):
+                setattr(settings.time, k, v)
+            else:
+                setattr(settings, k, v)
+
+        try:
+            res = run_backtest(df, settings)
+            equity = res.equity_curve
+            end, dd, cagr = _compute_metrics(equity)
+            tb = res.trades.trades
+            pnls = [t.pnl for t in tb]
+            pnl = float(sum(pnls))
+            pnl_net = end - float(settings.risk.initial_capital)
+            trades = len(pnls)
+            wins = sum(1 for p in pnls if p > 0)
+            winrate = wins / trades if trades else 0.0
+            expectancy = pnl / trades if trades else 0.0
+            returns = equity.pct_change().dropna()
+            sharpe = (
+                float(returns.mean() / returns.std() * np.sqrt(252))
+                if not returns.empty and returns.std() != 0
+                else 0.0
+            )
+            return {
+                **combo,
+                "equity_end": end,
+                "dd": dd,
+                "cagr": cagr,
+                "rar": cagr / dd if dd else 0.0,
+                "trades": trades,
+                "winrate": winrate,
+                "pnl": pnl,
+                "pnl_net": pnl_net,
+                "sharpe": sharpe,
+                "expectancy": expectancy,
+                "timeonly_wait_pct": 0.0,
+                "setups_expired_pct": 0.0,
+            }
+        except Exception as exc:  # pragma: no cover
+            return {**combo, "error": str(exc)}
+
+    if jobs == 1:
+        rows = [_single(i, c) for i, c in enumerate(combo_dicts)]
+    else:
+        rows = Parallel(n_jobs=jobs)(delayed(_single)(i, c) for i, c in enumerate(combo_dicts))
+
+    return pd.DataFrame(rows)

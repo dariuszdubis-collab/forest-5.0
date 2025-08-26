@@ -1,6 +1,5 @@
-import numbers
 from pathlib import Path
-
+import numbers
 import pandas as pd
 import pytest
 
@@ -70,67 +69,48 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "1",
             "--top",
             "1",
-            "--resume",
-            "true",
-            "--chunks",
-            "3",
-            "--chunk-id",
-            "2",
+            "--out",
+            str(tmp_path),
         ]
     )
 
     captured = {}
 
-    def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
-        captured["kwargs"] = kwargs
-        combos = pd.DataFrame(
-            [
-                {
-                    "fast": 2,
-                    "slow": 5,
-                    "equity_end": 1.0,
-                    "risk": 0.01,
-                    "max_dd": 0.2,
-                    "cagr": 0.0,
-                    "rar": 0.0,
-                },
-                {
-                    "fast": 2,
-                    "slow": 5,
-                    "equity_end": 1.0,
-                    "risk": 0.02,
-                    "max_dd": 0.3,
-                    "cagr": 0.0,
-                    "rar": 0.0,
-                },
-            ]
-        )
+    def fake_run_grid(df, combos, settings, **kwargs):
         captured["combos"] = combos
-        return combos
+        captured["settings"] = settings
+        row = combos.iloc[0].to_dict()
+        row.update({"equity_end": 1.0, "dd": 0.0, "cagr": 0.0, "rar": 0.0})
+        return pd.DataFrame([row])
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
 
     cmd_grid(args)
 
-    kw = captured["kwargs"]
     combos = captured["combos"]
-    assert kw["strategy"] == "macd_cross"
-    # risk options should be unique
-    assert sorted(combos["risk"].unique()) == pytest.approx([0.01, 0.02])
-    # maximum drawdown options should be unique
-    assert sorted(combos["max_dd"].unique()) == pytest.approx([0.2, 0.3])
-    assert kw["use_rsi"] is True
-    assert kw["rsi_period"] == 7
-    assert kw["rsi_oversold"] == 10
-    assert kw["rsi_overbought"] == 90
-    assert kw["max_dd"] == pytest.approx(0.2)
-    assert kw["fee"] == pytest.approx(0.001)
-    assert kw["slippage"] == pytest.approx(0.0001)
-    assert kw["atr_period"] == 5
-    assert kw["atr_multiple"] == 3
-    assert kw["time_model"] == model_path
-    assert kw["min_confluence"] == pytest.approx(2.0)
-    assert kw["resume"] is True
-    assert kw["chunks"] == 3
-    assert kw["chunk_id"] == 2
-    assert isinstance(kw["min_confluence"], numbers.Number)
+    settings = captured["settings"]
+
+    # compare numeric parameters via sorted lists for determinism
+    risk_vals = sorted(combos["risk"].unique())
+    if all(isinstance(x, numbers.Real) for x in risk_vals):
+        assert risk_vals == pytest.approx([0.01, 0.02])
+    else:
+        assert risk_vals == [0.01, 0.02]
+
+    max_dd_vals = sorted(combos["max_dd"].unique())
+    if all(isinstance(x, numbers.Real) for x in max_dd_vals):
+        assert max_dd_vals == pytest.approx([0.2, 0.3])
+    else:
+        assert max_dd_vals == [0.2, 0.3]
+    assert settings.strategy.name == "macd_cross"
+    assert settings.strategy.use_rsi is True
+    assert settings.strategy.rsi_period == 7
+    assert settings.strategy.rsi_oversold == 10
+    assert settings.strategy.rsi_overbought == 90
+    assert settings.risk.max_drawdown == pytest.approx(0.2)
+    assert settings.risk.fee_perc == pytest.approx(0.001)
+    assert settings.risk.slippage_perc == pytest.approx(0.0001)
+    assert settings.atr_period == 5
+    assert settings.atr_multiple == 3
+    assert settings.time.model.path == model_path
+    assert settings.time.fusion_min_confluence == pytest.approx(2.0)

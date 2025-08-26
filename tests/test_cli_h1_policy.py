@@ -127,9 +127,9 @@ def test_grid_h1_policy(tmp_path, monkeypatch, policy, expected_len, expected_tt
 
     captured = {}
 
-    def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
+    def fake_run_grid(df, combos, settings, **kwargs):
         captured["len"] = len(df)
-        captured["ttl"] = kwargs.get("setup_ttl_minutes")
+        captured["ttl"] = settings.setup_ttl_minutes
         return pd.DataFrame([])
 
     monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
