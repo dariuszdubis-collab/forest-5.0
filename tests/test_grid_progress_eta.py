@@ -27,4 +27,3 @@ def test_progress_parallel(capsys):
     assert "0/4" in text and "4/4" in text
     assert "eta" in text.lower()
     assert "best" in text.lower()
-
