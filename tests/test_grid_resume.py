@@ -17,7 +17,7 @@ def test_grid_resume(tmp_path, capsys):
         "--csv",
         str(csv_path),
         "--symbol",
-        "SYMB",
+        "EURUSD",
         "--fast-values",
         "21,34",
         "--slow-values",

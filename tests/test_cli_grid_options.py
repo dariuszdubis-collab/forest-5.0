@@ -1,4 +1,5 @@
 from pathlib import Path
+import numbers
 import pandas as pd
 import pytest
 
@@ -68,6 +69,8 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "1",
             "--top",
             "1",
+            "--out",
+            str(tmp_path),
         ]
     )
 
@@ -86,8 +89,18 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
 
     combos = captured["combos"]
     settings = captured["settings"]
-    assert set(combos["risk"]) == pytest.approx({0.01, 0.02})
-    assert set(combos["max_dd"]) == pytest.approx({0.2, 0.3})
+
+    risk_vals = sorted(set(combos["risk"]))
+    if all(isinstance(x, numbers.Real) for x in risk_vals):
+        assert risk_vals == pytest.approx([0.01, 0.02])
+    else:
+        assert risk_vals == [0.01, 0.02]
+
+    max_dd_vals = sorted(set(combos["max_dd"]))
+    if all(isinstance(x, numbers.Real) for x in max_dd_vals):
+        assert max_dd_vals == pytest.approx([0.2, 0.3])
+    else:
+        assert max_dd_vals == [0.2, 0.3]
     assert settings.strategy.name == "macd_cross"
     assert settings.strategy.use_rsi is True
     assert settings.strategy.rsi_period == 7

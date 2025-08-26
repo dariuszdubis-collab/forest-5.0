@@ -211,6 +211,26 @@ def cmd_grid(args: argparse.Namespace) -> int:
         param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
 
     combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
+    out_dir = Path(args.out or "out").resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.csv"
+    meta_path = out_dir / "meta.json"
+
+    done_df = None
+    done_ids: set[str] = set()
+    if args.resume in ("auto", True) and results_path.exists():
+        done_df = pd.read_csv(results_path)
+        param_names = list(param_ranges.keys())
+        if "combo_id" not in done_df.columns:
+            done_df["combo_id"] = [
+                build_combo_id({k: row.get(k) for k in param_names if k in row})
+                for row in done_df.to_dict("records")
+            ]
+        done_ids = set(done_df["combo_id"].astype(str))
+        print(
+            f"[resume] skipping {len(done_ids)} of {len(combos_all)} combos already in results.csv"
+        )
+
     combos = combos_all
     if args.chunks is not None and args.chunk_id is not None:
         size = math.ceil(len(combos_all) / args.chunks)
@@ -218,17 +238,13 @@ def cmd_grid(args: argparse.Namespace) -> int:
         end = args.chunk_id * size
         combos = combos_all.iloc[start:end]
         if args.dry_run:
-            out_dir = Path(args.out or "out").resolve()
-            out_dir.mkdir(parents=True, exist_ok=True)
             combos.to_csv(
                 out_dir / f"plan_shard_{args.chunk_id:02d}of{args.chunks:02d}.csv",
                 index=False,
             )
 
-    out_dir = Path(args.out or "out").resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    results_path = out_dir / "results.csv"
-    meta_path = out_dir / "meta.json"
+    if done_ids:
+        combos = combos[~combos["combo_id"].astype(str).isin(done_ids)]
 
     if args.dry_run:
         combos_all.to_csv(out_dir / "plan.csv", index=False)
@@ -240,20 +256,6 @@ def cmd_grid(args: argparse.Namespace) -> int:
         meta_path.write_text(json.dumps(meta, indent=2))
         print(len(combos_all))
         return 0
-
-    done_df = None
-    if args.resume in ("auto", True) and results_path.exists():
-        done_df = pd.read_csv(results_path)
-        param_names = list(param_ranges.keys())
-        if "combo_id" not in done_df.columns:
-            done_df["combo_id"] = [
-                build_combo_id({k: row.get(k) for k in param_names if k in row})
-                for row in done_df.to_dict("records")
-            ]
-        done_ids = set(done_df["combo_id"].astype(str))
-        pre = len(combos)
-        combos = combos[~combos["combo_id"].astype(str).isin(done_ids)]
-        print(f"[resume] skipping {pre - len(combos)} of {pre} combos already in results.csv")
 
     settings = BacktestSettings(
         symbol=args.symbol,
