@@ -53,6 +53,13 @@ class SafeHelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawText
         return help_text % params
 
 
+def _positive_int(value: str) -> int:
+    iv = int(value)
+    if iv < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return iv
+
+
 # ---------------------------- CSV loading helpers ----------------------------
 
 
@@ -213,11 +220,15 @@ def cmd_grid(args: argparse.Namespace) -> int:
         sl_min_atr=float(args.sl_min_atr[0]),
         rr=float(args.rr[0]),
         q_low=float(args.q_low[0]),
-        q_high=float(args.q_high[0]),
-        time_model=args.time_model,
-        min_confluence=float(args.min_confluence),
+       q_high=float(args.q_high[0]),
+       time_model=args.time_model,
+       min_confluence=float(args.min_confluence),
         n_jobs=int(args.jobs),
+        resume=args.resume,
+        chunks=int(args.chunks),
     )
+    if args.chunk_id is not None:
+        kwargs["chunk_id"] = int(args.chunk_id)
     kwargs["strategy"] = args.strategy
     kwargs["patterns"] = {
         "engulf": {"enabled": bool(args.pat_engulf)},
@@ -688,6 +699,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
     p_gr.add_argument(
         "--min-confluence", type=float, default=1.0, help="Minimalna konfluencja fuzji"
+    )
+
+    p_gr.add_argument(
+        "--resume",
+        choices=("auto", "true", "false"),
+        default="auto",
+        help="Wznów poprzedni bieg (auto korzysta z istniejących wyników)",
+    )
+    p_gr.add_argument(
+        "--chunks",
+        type=_positive_int,
+        default=1,
+        help="Podziel siatkę parametrów na N części",
+    )
+    p_gr.add_argument(
+        "--chunk-id",
+        type=_positive_int,
+        default=None,
+        help="Uruchom tylko wybrany fragment siatki (1-indexed)",
     )
 
     p_gr.add_argument("--dry-run", action="store_true", help="Tylko pokaż konfigurację")

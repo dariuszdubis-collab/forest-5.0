@@ -102,6 +102,9 @@ def run_grid(
     debug_dir: Path | None = None,
     seed: int | None = None,
     setup_ttl_minutes: int | None = None,
+    resume: str = "auto",
+    chunks: int = 1,
+    chunk_id: int | None = None,
 ) -> pd.DataFrame:
 
     mem = Memory(cache_dir, verbose=0)
