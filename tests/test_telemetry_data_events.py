@@ -22,8 +22,9 @@ def test_cli_inspect_emits_schema_event(tmp_path, caplog, capsys):
     setup_logger()
     caplog.set_level(logging.INFO)
     main(["data", "inspect", "--csv", str(csv)])
-    out = caplog.text + capsys.readouterr().out
-    events = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    stdout_lines = capsys.readouterr().out.splitlines()
+    json_lines = caplog.messages + [line for line in stdout_lines if line.startswith("{")]
+    events = [json.loads(line) for line in json_lines]
     ev = next(e for e in events if e.get("event") == E_DATA_CSV_SCHEMA)
     assert ev["path"] == str(csv)
     assert ev["rows"] == 2
@@ -42,8 +43,9 @@ def test_cli_pad_h1_emits_gap_event(tmp_path, caplog, capsys):
     setup_logger()
     caplog.set_level(logging.INFO)
     main(["data", "pad-h1", "--input-dir", str(in_dir), "--out-dir", str(out_dir)])
-    out = caplog.text + capsys.readouterr().out
-    events = [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+    stdout_lines = capsys.readouterr().out.splitlines()
+    json_lines = caplog.messages + [line for line in stdout_lines if line.startswith("{")]
+    events = [json.loads(line) for line in json_lines]
     ev = next(e for e in events if e.get("event") == E_DATA_TIME_GAPS)
     assert ev["count"] == 1
     assert ev["gaps_preview"][0]["bars_missing"] == 1
