@@ -9,13 +9,14 @@ import random
 from copy import deepcopy
 import time
 from datetime import timedelta
-import math
 
 import numpy as np
 import pandas as pd
 from joblib import Memory, Parallel, delayed
 from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn
+
+import math
 
 from ..config import BacktestSettings
 from .engine import run_backtest
