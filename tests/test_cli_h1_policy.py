@@ -51,4 +51,3 @@ def test_h1_policy_pad_drop(tmp_path, monkeypatch, policy, expected):
     cmd_backtest(args)
 
     assert captured["len"] == expected
-

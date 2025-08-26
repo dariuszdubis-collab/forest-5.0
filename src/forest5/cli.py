@@ -405,9 +405,7 @@ def add_data_source_args(parser: argparse.ArgumentParser) -> None:
         "--h1-policy",
         choices=("strict", "pad", "drop"),
         default="strict",
-        help=(
-            "Jak traktować braki 1H: 'strict' = błąd, 'pad' = wstaw NaN, 'drop' = usuń"
-        ),
+        help=("Jak traktować braki 1H: 'strict' = błąd, 'pad' = wstaw NaN, 'drop' = usuń"),
     )
 
 
