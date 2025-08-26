@@ -6,6 +6,7 @@ import pandas as pd
 
 
 def generate_ohlc(periods: int = 100, start_price: float = 100.0, freq: str = "D") -> pd.DataFrame:
+    # normalize frequency to lowercase to avoid pandas warnings
     freq = freq.lower()
     idx = pd.date_range("2024-01-01", periods=periods, freq=freq)
     rnd = np.random.default_rng(42)
