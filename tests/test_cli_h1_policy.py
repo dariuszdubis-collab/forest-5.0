@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from types import SimpleNamespace
 
-from forest5.cli import build_parser, cmd_backtest
+from forest5.cli import build_parser, cmd_backtest, cmd_grid
 
 
 def _write_gap_csv(path):
@@ -21,7 +21,7 @@ def _write_gap_csv(path):
 
 
 @pytest.mark.parametrize("policy, expected", [("pad", 3), ("drop", 2)])
-def test_h1_policy_pad_drop(tmp_path, monkeypatch, policy, expected):
+def test_backtest_h1_policy(tmp_path, monkeypatch, policy, expected):
     csv_path = _write_gap_csv(tmp_path / "data.csv")
     parser = build_parser()
     args = parser.parse_args(
@@ -49,5 +49,38 @@ def test_h1_policy_pad_drop(tmp_path, monkeypatch, policy, expected):
     monkeypatch.setattr("forest5.cli.run_backtest", fake_run_backtest)
 
     cmd_backtest(args)
+
+    assert captured["len"] == expected
+
+
+@pytest.mark.parametrize("policy, expected", [("pad", 3), ("drop", 2)])
+def test_grid_h1_policy(tmp_path, monkeypatch, policy, expected):
+    csv_path = _write_gap_csv(tmp_path / "data.csv")
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "grid",
+            "--csv",
+            str(csv_path),
+            "--symbol",
+            "EURUSD",
+            "--fast-values",
+            "2",
+            "--slow-values",
+            "5",
+            "--h1-policy",
+            policy,
+        ]
+    )
+
+    captured = {}
+
+    def fake_run_grid(df, symbol, fast_values, slow_values, **kwargs):
+        captured["len"] = len(df)
+        return pd.DataFrame([])
+
+    monkeypatch.setattr("forest5.cli.run_grid", fake_run_grid)
+
+    cmd_grid(args)
 
     assert captured["len"] == expected
