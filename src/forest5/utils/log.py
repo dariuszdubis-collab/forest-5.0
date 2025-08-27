@@ -25,6 +25,9 @@ E_ORDER_REJECTED = "order_rejected"
 E_ORDER_TIMEOUT = "order_timeout"
 E_ORDER_RETRY = "order_retry"
 E_BROKER_ADJUSTED_STOPS = "broker_adjusted_stops"
+# Risk guard lifecycle
+E_RISK_GUARD_ACTIVE = "risk_guard_active"
+E_RISK_GUARD_CLEARED = "risk_guard_cleared"
 # Legacy event names kept for backward compatibility.
 E_ORDER_PLACED = "order_placed"
 E_ORDER_CANCELLED = "order_cancelled"
@@ -118,7 +121,7 @@ def setup_logger(level: str = "INFO"):
         structlog.processors.dict_tracebacks,
         structlog.processors.JSONRenderer(),
     ]
-    structlog.configure(processors=processors)
+    structlog.configure(processors=processors, logger_factory=structlog.PrintLoggerFactory())
     return structlog.get_logger()
 
 

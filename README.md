@@ -128,6 +128,16 @@ lokalizację wskażesz właśnie parametrem `--csv`.
    ```
    W celu testów bez realnych zleceń dopisz `--paper`.
 
+## Validate live-config
+
+Przed uruchomieniem handlu można zweryfikować poprawność konfiguracji:
+
+```bash
+poetry run forest5 validate live-config --yaml config/live.example.yaml
+```
+
+Na sukces komenda wypisze komunikat `OK: <symbol> @ <broker>` i zwróci kod 0.
+
 ## Tryb PAPER (smoke test bez MT4)
 
 Do szybkiego testu bez uruchamiania MetaTradera można zasymulować most

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -100,4 +101,62 @@ __all__ = [
     "PrimarySignalSettings",
     "LiveTimeSettings",
     "LiveSettings",
+    "validate_live_config",
 ]
+
+
+def validate_live_config(path: str | Path, strict: bool = False) -> tuple[bool, dict]:
+    """Validate a live trading configuration file.
+
+    Parameters
+    ----------
+    path:
+        Path to the YAML configuration file.
+    strict:
+        Currently unused placeholder for future extensions.
+
+    Returns
+    -------
+    tuple[bool, dict]
+        ``(True, details)`` on success, ``(False, details)`` on failure.  The
+        ``details`` dictionary contains either a ``message`` or ``error`` field.
+    """
+
+    from .config.loader import load_live_settings
+
+    try:
+        settings = load_live_settings(path)
+    except Exception as exc:  # pragma: no cover - defensive
+        return False, {"error": str(exc)}
+
+    missing = []
+    broker = getattr(settings, "broker", None)
+    if broker is None or not getattr(broker, "type", None):
+        missing.append("broker.type")
+    if broker is None or not getattr(broker, "bridge_dir", None):
+        missing.append("broker.bridge_dir")
+    if broker is None or not getattr(broker, "symbol", None):
+        missing.append("broker.symbol")
+
+    risk = getattr(settings, "risk", None)
+    if risk is None or getattr(risk, "max_drawdown", None) is None:
+        missing.append("risk.max_drawdown")
+
+    if missing:
+        return False, {"error": f"Missing fields: {', '.join(missing)}"}
+
+    bridge_dir = Path(broker.bridge_dir)
+    spec_path = bridge_dir / "symbol_specs.json"
+    if spec_path.exists():
+        try:
+            specs = json.loads(spec_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive
+            return False, {"error": f"Invalid symbol_specs.json: {exc}"}
+        required = {"digits", "point"}
+        if "stop_level" not in specs and "STOPLEVEL" not in specs:
+            required.add("stop_level")
+        if not required.issubset(specs):
+            return False, {"error": "symbol_specs.json missing required fields"}
+
+    message = f"OK: {broker.symbol} @ {broker.type}"
+    return True, {"message": message}
