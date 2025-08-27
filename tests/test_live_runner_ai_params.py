@@ -34,10 +34,12 @@ def test_run_live_passes_ai_params(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("forest5.decision.SentimentAgent", _sentiment_agent)
     monkeypatch.setenv("OPENAI_API_KEY", "test")
 
+    ctx = tmp_path / "ctx.txt"
+    ctx.write_text("hi", encoding="utf-8")
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(tmp_path), symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=0.5),
-        ai=AISettings(enabled=True, model="custom-model", max_tokens=99, context_file=None),
+        ai=AISettings(enabled=True, model="custom-model", max_tokens=99, context_file=str(ctx), require_context=False),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
     )

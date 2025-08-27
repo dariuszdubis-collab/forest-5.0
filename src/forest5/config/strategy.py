@@ -30,6 +30,7 @@ class H1EmaRsiAtrParams(BaseModel):
 
 
 class PatternSettings(BaseModel):
+    model_config = ConfigDict(extra="allow")
     enabled: bool = True
     min_strength: float = 0.6
     boost_conf: float = 0.20

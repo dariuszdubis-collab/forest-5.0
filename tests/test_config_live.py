@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from forest5.config.loader import load_live_settings
-from forest5.config_live import LiveTimeModelSettings
+from forest5.config_live import LiveTimeModelSettings, validate_live_config
 from forest5.config.strategy import BaseStrategySettings, PatternSettings
 
 
@@ -98,3 +98,28 @@ def test_live_settings_h1_ema_rsi_atr(tmp_path: Path):
     assert s.strategy.name == "h1_ema_rsi_atr"  # nosec B101
     assert s.strategy.compat_int == 42  # nosec B101
     assert s.strategy.params["ema_fast"] == 21  # nosec B101
+
+
+def test_validate_live_config_rejects_bad_enum(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text(
+        "broker:\n  type: nope\n  symbol: EURUSD\n  bridge_dir: .\n"
+        "risk:\n  risk_per_trade: 0.1\n  max_drawdown: 0.2\n",
+        encoding="utf-8",
+    )
+    ok, info = validate_live_config(p)
+    assert not ok
+    assert "broker.type" in info["error"] or "Unsupported" in info["error"]
+
+
+def test_validate_live_config_requires_ai_context(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text(
+        "broker:\n  type: mt4\n  symbol: EURUSD\n  bridge_dir: .\n"
+        "risk:\n  risk_per_trade: 0.1\n  max_drawdown: 0.2\n"
+        "ai:\n  enabled: true\n",
+        encoding="utf-8",
+    )
+    ok, info = validate_live_config(p)
+    assert not ok
+    assert "ai.context_file" in info["error"]

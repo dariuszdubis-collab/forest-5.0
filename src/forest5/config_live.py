@@ -128,22 +128,29 @@ def validate_live_config(path: str | Path, strict: bool = False) -> tuple[bool, 
         settings = load_live_settings(path)
     except Exception as exc:  # pragma: no cover - defensive
         return False, {"error": str(exc)}
-
-    missing = []
     broker = getattr(settings, "broker", None)
-    if broker is None or not getattr(broker, "type", None):
-        missing.append("broker.type")
-    if broker is None or not getattr(broker, "bridge_dir", None):
-        missing.append("broker.bridge_dir")
-    if broker is None or not getattr(broker, "symbol", None):
-        missing.append("broker.symbol")
+    if broker is None:
+        return False, {"error": "Missing fields: broker.type, broker.symbol"}
+    if not getattr(broker, "type", ""):
+        return False, {"error": "Missing fields: broker.type"}
+    allowed = {"mt4", "mt4_stub", "file", "paper"}
+    if broker.type not in allowed:
+        return False, {"error": "Unsupported broker.type"}
+    if not getattr(broker, "symbol", ""):
+        return False, {"error": "Missing fields: broker.symbol"}
+    if not getattr(broker, "bridge_dir", None):
+        return False, {"error": "Missing fields: broker.bridge_dir"}
 
     risk = getattr(settings, "risk", None)
-    if risk is None or getattr(risk, "max_drawdown", None) is None:
-        missing.append("risk.max_drawdown")
+    if risk is None or getattr(risk, "risk_per_trade", None) is None or getattr(risk, "max_drawdown", None) is None:
+        return False, {"error": "Missing fields: risk.risk_per_trade or risk.max_drawdown"}
 
-    if missing:
-        return False, {"error": f"Missing fields: {', '.join(missing)}"}
+    ai = getattr(settings, "ai", None)
+    if getattr(ai, "enabled", False):
+        ctx_file = getattr(ai, "context_file", "") or ""
+        require_ctx = getattr(ai, "require_context", True)
+        if require_ctx and (not ctx_file or not Path(ctx_file).exists()):
+            return False, {"error": "ai.context_file missing"}
 
     bridge_dir = Path(broker.bridge_dir)
     spec_path = bridge_dir / "symbol_specs.json"

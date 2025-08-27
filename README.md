@@ -36,7 +36,22 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi
 
 # 5) Grid-search
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
+
+# 6) Inspekcja pojedynczego pliku i uzupełnianie braków
+poetry run forest5 data inspect --csv demo.csv --out out_dir
+poetry run forest5 data pad-h1 --csv demo.csv --policy pad --out demo_filled.csv
+
+# 7) Wyłączenie detektorów świecowych w backteście
+poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr --no-pinbar
+
+# 8) Walidacja konfiguracji live
+poetry run forest5 validate live-config --yaml config/live.example.yaml
+
+# 9) Preflight mostu MT4 tworzy plik handshake_ack.json
+poetry run forest5 live preflight --bridge-dir bridge --symbol EURUSD
 ```
+
+Jeśli w trakcie pracy `ai.enabled: true`, lecz plik kontekstu nie istnieje, aplikacja zaloguje `ai_context_missing_warn` i przejdzie w tryb bez AI.
 
 ## Komendy GRID i walk-forward
 

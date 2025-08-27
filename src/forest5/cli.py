@@ -7,6 +7,7 @@ import sys
 import random
 import json
 import math
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -40,6 +41,8 @@ from forest5.utils.argparse_ext import (
 )
 from forest5.utils.log import (
     setup_logger,
+    log_event,
+    E_PREFLIGHT_ACK,
 )
 from forest5.live.mt4_broker import MT4Broker
 
@@ -157,6 +160,17 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "sl_min_atr": args.sl_min_atr,
             "rr": args.rr,
         }
+
+        pats: Dict[str, bool] = {}
+        if args.no_engulf:
+            pats["engulfing"] = False
+        if args.no_pinbar:
+            pats["pinbar"] = False
+        if args.no_star:
+            pats["stars"] = False
+        if pats:
+            pats["enabled"] = True
+            strat_cfg["patterns"] = pats
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -526,6 +540,10 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
 
     out_path = Path(args.bridge_dir) / "symbol_specs.json"
     out_path.write_text(json.dumps(specs), encoding="utf-8")
+    ack_path = Path(args.bridge_dir) / "handshake_ack.json"
+    payload = {"symbol": args.symbol, "timestamp": time.time()}
+    ack_path.write_text(json.dumps(payload), encoding="utf-8")
+    log_event(E_PREFLIGHT_ACK, symbol=args.symbol, path=str(ack_path))
     # simple table-like output for UX
     print("Symbol specifications:")
     for k, v in specs.items():
@@ -533,28 +551,57 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_data_inspect(args: argparse.Namespace) -> int:
-    path = Path(args.csv)
+def _inspect_file(path: Path, args: argparse.Namespace) -> tuple[str, dict]:
     sep, dec, has_header = sniff_csv_dialect(path)
     header = "yes" if has_header else "no"
-    print(f"dialect: sep='{sep}' decimal='{dec}' header={header}")
+    lines = [f"dialect: sep='{sep}' decimal='{dec}' header={header}"]
     df = read_ohlc_csv_smart(path, time_col=args.time_col, sep=args.sep, decimal=args.decimal)
-    print(f"schema: {', '.join(df.columns)}")
+    lines.append(f"schema: {', '.join(df.columns)}")
+    summary = {
+        "dialect": {"sep": sep, "decimal": dec, "header": has_header},
+        "schema": list(df.columns),
+        "rows": int(len(df)),
+        "gaps": [],
+    }
     if df.empty:
-        print("no data")
-        return 0
+        lines.append("no data")
+        text = "\n".join(lines)
+        return text, summary
     start, end = df.index[0], df.index[-1]
-    print(f"date range: {start} -> {end} ({len(df)} rows)")
+    lines.append(f"date range: {start} -> {end} ({len(df)} rows)")
+    summary["date_range"] = {"start": start.isoformat(), "end": end.isoformat()}
     _, meta = ensure_h1(df, policy="pad")
     gaps = meta.get("gaps", [])
     if not gaps:
-        print("gaps: none")
+        lines.append("gaps: none")
     else:
-        print("gaps preview:")
+        lines.append("gaps preview:")
+        preview = []
         for g in gaps[:5]:
-            print(f"  {g.start} -> {g.end} (missing {g.missing})")
+            lines.append(f"  {g.start} -> {g.end} (missing {g.missing})")
+            preview.append({"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing})
+        summary["gaps"] = preview
         if len(gaps) > 5:
-            print(f"  ... {len(gaps) - 5} more")
+            lines.append(f"  ... {len(gaps) - 5} more")
+    text = "\n".join(lines)
+    return text, summary
+
+
+def cmd_data_inspect(args: argparse.Namespace) -> int:
+    paths: list[Path] = []
+    if args.csv:
+        paths = [Path(args.csv)]
+    elif args.input_dir:
+        paths = sorted(Path(args.input_dir).glob("*.csv"))
+    out_dir = Path(args.out) if getattr(args, "out", None) else None
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    for p in paths:
+        text, summary = _inspect_file(p, args)
+        print(text)
+        if out_dir:
+            (out_dir / "summary.txt").write_text(text, encoding="utf-8")
+            (out_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
     return 0
 
 
@@ -571,16 +618,39 @@ def cmd_data_normalize(args: argparse.Namespace) -> int:
 
 
 def cmd_data_pad_h1(args: argparse.Namespace) -> int:
+    if args.csv:
+        path = Path(args.csv)
+        if args.out is None:
+            print("--out is required when using --csv", file=sys.stderr)
+            return 2
+        df = read_ohlc_csv_smart(path)
+        try:
+            df, _ = ensure_h1(df, policy=args.policy)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(out_path, index_label="time")
+        print(f"{path.name} -> {out_path}")
+        return 0
+
     in_dir = Path(args.input_dir)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    rc = 0
     for path in sorted(in_dir.glob("*.csv")):
         df = read_ohlc_csv_smart(path)
-        df, _ = ensure_h1(df, policy="pad")
+        try:
+            df, _ = ensure_h1(df, policy=args.policy)
+        except ValueError as exc:
+            print(f"{path.name}: {exc}", file=sys.stderr)
+            rc = 1
+            continue
         out_path = out_dir / path.name
         df.to_csv(out_path, index_label="time")
         print(f"{path.name} -> {out_path}")
-    return 0
+    return rc
 
 
 # --------------------------------- Parser ------------------------------------
@@ -661,7 +731,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_ins = sub_data.add_parser(
         "inspect", help="Pokaż informacje o CSV", formatter_class=SafeHelpFormatter
     )
-    p_ins.add_argument("--csv", required=True, help="Plik CSV do analizy")
+    grp_ins = p_ins.add_mutually_exclusive_group(required=True)
+    grp_ins.add_argument("--csv", help="Plik CSV do analizy")
+    grp_ins.add_argument("--input-dir", type=Path, help="Katalog z plikami CSV")
+    p_ins.add_argument("--out", type=Path, help="Katalog wynikowy na podsumowanie")
     p_ins.add_argument("--time-col", default=None, help="Nazwa kolumny czasu")
     p_ins.add_argument("--sep", default=None, help="Separator CSV")
     p_ins.add_argument("--decimal", default=None, help="Separator dziesiętny")
@@ -677,8 +750,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_pad = sub_data.add_parser(
         "pad-h1", help="Uzupełnij braki do 1H", formatter_class=SafeHelpFormatter
     )
-    p_pad.add_argument("--input-dir", type=Path, required=True, help="Katalog wejściowy")
-    p_pad.add_argument("--out-dir", type=Path, required=True, help="Katalog wyjściowy")
+    grp_pad = p_pad.add_mutually_exclusive_group(required=True)
+    grp_pad.add_argument("--input-dir", type=Path, help="Katalog wejściowy")
+    grp_pad.add_argument("--csv", help="Pojedynczy plik CSV")
+    p_pad.add_argument("--out-dir", type=Path, help="Katalog wyjściowy (dla --input-dir)")
+    p_pad.add_argument("--out", type=Path, help="Plik wyjściowy (dla --csv)")
+    p_pad.add_argument(
+        "--policy", choices=("strict", "pad"), default="pad", help="Polityka braków czasu"
+    )
     p_pad.set_defaults(func=cmd_data_pad_h1)
 
     # backtest
@@ -725,6 +804,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--rr", dest="rr", type=float, default=2.0)
     p_bt.add_argument("--q-low", dest="q_low", type=float, default=0.1)
     p_bt.add_argument("--q-high", dest="q_high", type=float, default=0.9)
+
+    p_bt.add_argument("--no-engulf", action="store_true", help="Wyłącz detektor engulfing")
+    p_bt.add_argument("--no-pinbar", action="store_true", help="Wyłącz detektor pinbar")
+    p_bt.add_argument("--no-star", action="store_true", help="Wyłącz detektor gwiazdy")
 
     p_bt.add_argument("--capital", type=float, default=100_000.0)
     p_bt.add_argument("--risk", action=PercentAction, default=0.01, help="Ryzyko na trade (0-1)")
