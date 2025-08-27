@@ -5,7 +5,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from .router import OrderRouter, OrderResult
 from ..utils.log import (
@@ -120,6 +120,93 @@ class MT4Broker(OrderRouter):
 
     def _result_path(self, uid: str) -> Path:
         return self.results_dir / f"res_{uid}.json"
+
+    # ------------------------------------------------------------------
+    # Handshake utilities ------------------------------------------------
+    def request_specs(self) -> str:
+        """Request symbol specifications from the bridge.
+
+        Returns the unique request id which should match the corresponding
+        acknowledgement file name created by the Expert Advisor.
+        """
+
+        uid = uuid.uuid4().hex
+        payload = {"id": uid, "action": "GET_SPECS", "symbol": self.symbol}
+        path = self.commands_dir / f"req_{uid}.json"
+        tmp_path = path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+        os.replace(tmp_path, path)
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:  # pragma: no cover - best effort cleanup
+                pass
+        return uid
+
+    def await_ack(self, uid: str, timeout: float | None = None) -> Dict[str, Any]:
+        """Wait for ``ack_<uid>.json`` and return parsed specs.
+
+        Parameters
+        ----------
+        uid:
+            Identifier returned by :meth:`request_specs`.
+        timeout:
+            Optional timeout overriding the broker's default timeout.
+
+        Raises
+        ------
+        TimeoutError
+            If the acknowledgement file is not produced within ``timeout``
+            seconds.
+        """
+
+        path = self.results_dir / f"ack_{uid}.json"
+        deadline = time.time() + (timeout if timeout is not None else self.timeout)
+        delay = 0.1
+        while time.time() < deadline:
+            if path.exists():
+                try:
+                    if path.stat().st_size == 0:
+                        time.sleep(min(delay, max(0, deadline - time.time())))
+                        continue
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    time.sleep(min(delay, max(0, deadline - time.time())))
+                    continue
+            time.sleep(min(delay, max(0, deadline - time.time())))
+        raise TimeoutError(f"timeout waiting for ack {uid}")
+
+    def validate_specs(self, specs: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and normalise symbol specification dictionary.
+
+        The bridge should provide fields like ``digits``, ``point`` and
+        ``tick_size``. The function ensures required keys exist and converts
+        values to ``float``/``int`` as appropriate. It returns the normalised
+        dictionary on success and raises :class:`ValueError` on problems.
+        """
+
+        required = [
+            "digits",
+            "point",
+            "tick_size",
+            "min_lot",
+            "lot_step",
+            "contract_size",
+            "stop_level",
+            "freeze_level",
+        ]
+        missing = [k for k in required if k not in specs]
+        if missing:
+            raise ValueError(f"missing fields: {missing}")
+
+        norm: Dict[str, Any] = {}
+        for k in required:
+            v = specs[k]
+            if k == "digits":
+                norm[k] = int(v)
+            else:
+                norm[k] = float(v)
+        return norm
 
     def _wait_for_result(
         self,
