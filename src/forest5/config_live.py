@@ -142,7 +142,11 @@ def validate_live_config(path: str | Path, strict: bool = False) -> tuple[bool, 
         return False, {"error": "Missing fields: broker.bridge_dir"}
 
     risk = getattr(settings, "risk", None)
-    if risk is None or getattr(risk, "risk_per_trade", None) is None or getattr(risk, "max_drawdown", None) is None:
+    if (
+        risk is None
+        or getattr(risk, "risk_per_trade", None) is None
+        or getattr(risk, "max_drawdown", None) is None
+    ):
         return False, {"error": "Missing fields: risk.risk_per_trade or risk.max_drawdown"}
 
     ai = getattr(settings, "ai", None)

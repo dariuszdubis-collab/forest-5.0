@@ -579,7 +579,9 @@ def _inspect_file(path: Path, args: argparse.Namespace) -> tuple[str, dict]:
         preview = []
         for g in gaps[:5]:
             lines.append(f"  {g.start} -> {g.end} (missing {g.missing})")
-            preview.append({"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing})
+            preview.append(
+                {"start": g.start.isoformat(), "end": g.end.isoformat(), "missing": g.missing}
+            )
         summary["gaps"] = preview
         if len(gaps) > 5:
             lines.append(f"  ... {len(gaps) - 5} more")

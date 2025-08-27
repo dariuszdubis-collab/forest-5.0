@@ -64,7 +64,4 @@ def test_backtest_disable_patterns(tmp_path, monkeypatch):
 
     rc = cmd_backtest(args)
     assert rc == 0
-    assert all(
-        not (isinstance(d, dict) and "pattern" in d)
-        for d in captured.get("drivers", [])
-    )
+    assert all(not (isinstance(d, dict) and "pattern" in d) for d in captured.get("drivers", []))

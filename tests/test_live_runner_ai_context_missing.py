@@ -17,7 +17,13 @@ def test_missing_ai_context_disables(tmp_path: Path, monkeypatch, capsys):
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(tmp_path), symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=0.0),
-        ai=AISettings(enabled=True, model="gpt-4o-mini", max_tokens=32, context_file=str(tmp_path / "nope.txt"), require_context=False),
+        ai=AISettings(
+            enabled=True,
+            model="gpt-4o-mini",
+            max_tokens=32,
+            context_file=str(tmp_path / "nope.txt"),
+            require_context=False,
+        ),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
     )

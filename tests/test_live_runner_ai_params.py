@@ -39,7 +39,13 @@ def test_run_live_passes_ai_params(tmp_path: Path, monkeypatch):
     settings = LiveSettings(
         broker=BrokerSettings(type="paper", bridge_dir=str(tmp_path), symbol="EURUSD", volume=0.01),
         decision=DecisionSettings(min_confluence=0.5),
-        ai=AISettings(enabled=True, model="custom-model", max_tokens=99, context_file=str(ctx), require_context=False),
+        ai=AISettings(
+            enabled=True,
+            model="custom-model",
+            max_tokens=99,
+            context_file=str(ctx),
+            require_context=False,
+        ),
         time=TimeSettings(),
         risk=RiskSettings(max_drawdown=0.5),
     )

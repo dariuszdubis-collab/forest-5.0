@@ -58,6 +58,20 @@ def test_optimize_grid_aliases(tmp_path, monkeypatch):
     def run(args):
         monkeypatch.setattr(sys, "argv", ["optimize_grid.py"] + args)
         og.main()
+
     run(["--csv", str(csv), "--symbol", "EURUSD", "--fast", "1", "--slow", "2", "--jobs", "1"])
-    run(["--csv", str(csv), "--symbol", "EURUSD", "--ema-fast", "1", "--ema-slow", "2", "--jobs", "1"])
+    run(
+        [
+            "--csv",
+            str(csv),
+            "--symbol",
+            "EURUSD",
+            "--ema-fast",
+            "1",
+            "--ema-slow",
+            "2",
+            "--jobs",
+            "1",
+        ]
+    )
     assert calls == [(1, 2), (1, 2)]

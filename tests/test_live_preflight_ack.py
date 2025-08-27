@@ -23,16 +23,18 @@ def test_preflight_writes_ack(tmp_path, capsys):
 
     t = threading.Thread(target=writer)
     t.start()
-    rc = main([
-        "live",
-        "preflight",
-        "--bridge-dir",
-        str(bridge),
-        "--symbol",
-        "EURUSD",
-        "--timeout",
-        "1",
-    ])
+    rc = main(
+        [
+            "live",
+            "preflight",
+            "--bridge-dir",
+            str(bridge),
+            "--symbol",
+            "EURUSD",
+            "--timeout",
+            "1",
+        ]
+    )
     t.join()
     assert rc == 0
     ack_path = bridge / "handshake_ack.json"

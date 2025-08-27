@@ -35,9 +35,7 @@ def test_data_inspect_single_file(tmp_path):
 def test_data_pad_h1_single_file(tmp_path):
     gappy = tmp_path / "gappy.csv"
     gappy.write_text(
-        "time,open,high,low,close\n"
-        "2020-01-01 00:00,1,1,1,1\n"
-        "2020-01-01 02:00,1,1,1,1\n",
+        "time,open,high,low,close\n" "2020-01-01 00:00,1,1,1,1\n" "2020-01-01 02:00,1,1,1,1\n",
         encoding="utf-8",
     )
     out_file = tmp_path / "filled.csv"
