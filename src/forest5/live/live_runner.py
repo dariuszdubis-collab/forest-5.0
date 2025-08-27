@@ -219,6 +219,15 @@ def run_live(
         log.info("ai_disabled_no_api_key")
         use_ai = False
 
+    context_text = ""
+    if use_ai:
+        ctx_path = settings.ai.context_file
+        if ctx_path and Path(ctx_path).exists():
+            context_text = _read_context(ctx_path, 32_768)
+        else:
+            log.info("ai_context_missing_warn", path=ctx_path)
+            use_ai = False
+
     agent = DecisionAgent(
         router=broker,
         config=DecisionConfig(
@@ -232,10 +241,6 @@ def run_live(
             tech=settings.decision.tech,
         ),
     )
-
-    context_text = ""
-    if settings.ai.context_file:
-        context_text = _read_context(settings.ai.context_file, 32_768)
 
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60

@@ -11,6 +11,7 @@ def test_live_example_yaml_parses_and_has_fields():
     assert getattr(s.decision, "min_confluence", None) is not None  # nosec B101
     assert s.decision.min_confluence >= 0  # nosec B101
     assert hasattr(s.ai, "context_file")  # nosec B101
+    assert hasattr(s.ai, "require_context")  # nosec B101
     tm = s.time.model if hasattr(s.time, "model") else None
     assert tm is not None  # nosec B101
     assert hasattr(tm, "enabled")  # nosec B101

@@ -38,6 +38,7 @@ E_ERROR = "error"
 # Data loading and validation events.
 E_DATA_CSV_SCHEMA = "data_csv_schema"
 E_DATA_TIME_GAPS = "data_time_gaps"
+E_PREFLIGHT_ACK = "preflight_ack"
 
 
 # -- Reason codes ----------------------------------------------------------
