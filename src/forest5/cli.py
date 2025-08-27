@@ -41,6 +41,7 @@ from forest5.utils.argparse_ext import (
 from forest5.utils.log import (
     setup_logger,
 )
+from forest5.live.mt4_broker import MT4Broker
 
 
 # Backwards compatibility – old name used in previous versions/tests
@@ -229,7 +230,12 @@ def cmd_grid(args: argparse.Namespace) -> int:
         param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
 
     combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
-    out_dir = Path(args.out or "out").resolve()
+    if args.out:
+        out_dir = Path(args.out)
+    else:
+        # default to a directory next to the CSV to avoid sharing state across tests
+        out_dir = Path(csv_path).resolve().parent / "out"
+    out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     results_path = out_dir / "results.csv"
     meta_path = out_dir / "meta.json"
@@ -462,6 +468,9 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
 
 
 def cmd_live(args: argparse.Namespace) -> int:
+    if args.config is None:
+        print("--config is required", file=sys.stderr)
+        return 2
     settings = load_live_settings(args.config)
     if args.paper:
         settings.broker.type = "paper"
@@ -469,6 +478,34 @@ def cmd_live(args: argparse.Namespace) -> int:
     if args.debug_dir:
         kwargs["debug_dir"] = args.debug_dir
     run_live(settings, **kwargs)
+    return 0
+
+
+def cmd_live_preflight(args: argparse.Namespace) -> int:
+    """Perform MT4 bridge preflight handshake and save symbol specs."""
+
+    broker = MT4Broker(bridge_dir=args.bridge_dir, symbol=args.symbol, timeout_sec=args.timeout)
+    broker.connect()
+    uid = broker.request_specs()
+
+    try:
+        specs = broker.await_ack(uid, timeout=args.timeout)
+    except TimeoutError:
+        print("No acknowledgement from MT4 bridge (timeout)", file=sys.stderr)
+        return 1
+
+    try:
+        specs = broker.validate_specs(specs)
+    except ValueError as exc:  # pragma: no cover - defensive
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    out_path = Path(args.bridge_dir) / "symbol_specs.json"
+    out_path.write_text(json.dumps(specs), encoding="utf-8")
+    # simple table-like output for UX
+    print("Symbol specifications:")
+    for k, v in specs.items():
+        print(f"  {k}: {v}")
     return 0
 
 
@@ -837,12 +874,47 @@ def build_parser() -> argparse.ArgumentParser:
     p_wf.add_argument("--debug-dir", type=Path, default=None)
     p_wf.set_defaults(func=cmd_walkforward)
 
-    # live
-    p_lv = sub.add_parser("live", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter)
-    p_lv.add_argument("--config", required=True, help="Ścieżka do pliku YAML/JSON z ustawieniami")
-    p_lv.add_argument("--paper", action="store_true", help="Wymuś paper trading (broker.type)")
-    p_lv.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
-    p_lv.set_defaults(func=cmd_live)
+    # live ----------------------------------------------------------------
+    p_lv = sub.add_parser(
+        "live",
+        help="Uruchom trading na żywo lub wykonaj operacje pomocnicze",
+        formatter_class=SafeHelpFormatter,
+    )
+    sub_lv = p_lv.add_subparsers(dest="live_cmd")
+    sub_lv.required = False
+
+    def _add_live_run_args(parser: argparse.ArgumentParser, *, required: bool) -> None:
+        parser.add_argument(
+            "--config",
+            required=required,
+            help="Ścieżka do pliku YAML/JSON z ustawieniami",
+        )
+        parser.add_argument(
+            "--paper", action="store_true", help="Wymuś paper trading (broker.type)"
+        )
+        parser.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
+        parser.set_defaults(func=cmd_live)
+
+    # default run parser so that `forest5 live --config` still works
+    _add_live_run_args(p_lv, required=False)
+    p_lv.set_defaults(live_cmd="run")
+
+    # explicit `live run` subcommand
+    p_lv_run = sub_lv.add_parser(
+        "run", help="Uruchom trading na żywo", formatter_class=SafeHelpFormatter
+    )
+    _add_live_run_args(p_lv_run, required=True)
+
+    # `live preflight` subcommand
+    p_lv_pre = sub_lv.add_parser(
+        "preflight",
+        help="Wykonaj handshake z mostem MT4 i odczytaj specyfikację symbolu",
+        formatter_class=SafeHelpFormatter,
+    )
+    p_lv_pre.add_argument("--bridge-dir", type=Path, required=True, help="Katalog mostu MT4")
+    p_lv_pre.add_argument("--symbol", required=True, choices=ALLOWED_SYMBOLS)
+    p_lv_pre.add_argument("--timeout", type=float, default=5.0)
+    p_lv_pre.set_defaults(func=cmd_live_preflight)
 
     return p
 
