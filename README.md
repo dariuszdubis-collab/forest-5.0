@@ -28,6 +28,12 @@ poetry run forest5-demo --periods 50 --out demo.csv
 # 4) Backtest na CSV
 poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
 
+# 4b) Backtest ze strategią H1 EMA/RSI/ATR
+poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr \
+  --ema-fast 34 --ema-slow 89 --rsi-len 14 --atr-len 14 \
+  --t-sep-atr 0.20 --pullback-atr 0.50 --entry-buffer-atr 0.10 \
+  --sl-min-atr 0.90 --rr 1.8
+
 # 5) Grid-search
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
 ```

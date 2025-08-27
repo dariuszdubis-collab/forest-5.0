@@ -109,10 +109,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
-    settings = BacktestSettings(
-        symbol=args.symbol,
-        timeframe="1h",
-        strategy={
+    if args.strategy == "ema_cross":
+        strat_cfg: Dict[str, Any] = {
             "name": "ema_cross",
             "fast": args.fast,
             "slow": args.slow,
@@ -120,7 +118,25 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "rsi_period": args.rsi_period,
             "rsi_oversold": args.rsi_oversold,
             "rsi_overbought": args.rsi_overbought,
-        },
+        }
+    else:
+        strat_cfg = {
+            "name": "h1_ema_rsi_atr",
+            "ema_fast": args.ema_fast,
+            "ema_slow": args.ema_slow,
+            "rsi_period": args.rsi_len,
+            "atr_period": args.atr_len,
+            "t_sep_atr": args.t_sep_atr,
+            "pullback_atr": args.pullback_atr,
+            "entry_buffer_atr": args.entry_buffer_atr,
+            "sl_min_atr": args.sl_min_atr,
+            "rr": args.rr,
+        }
+
+    settings = BacktestSettings(
+        symbol=args.symbol,
+        timeframe="1h",
+        strategy=strat_cfg,
         risk={
             "initial_capital": float(args.capital),
             "risk_per_trade": float(args.risk),
@@ -141,6 +157,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     settings.time.model.enabled = bool(args.time_model)
     settings.time.model.path = args.time_model
     settings.time.fusion_min_confluence = float(args.min_confluence)
+    settings.time.q_low = float(args.q_low)
+    settings.time.q_high = float(args.q_high)
 
     res = run_backtest(
         df,
@@ -605,6 +623,14 @@ def build_parser() -> argparse.ArgumentParser:
         "backtest", help="Uruchom pojedynczy backtest", formatter_class=SafeHelpFormatter
     )
     add_data_source_args(p_bt)
+    p_bt.add_argument(
+        "--strategy",
+        choices=("ema_cross", "h1_ema_rsi_atr"),
+        default="ema_cross",
+        help="Wybór strategii",
+    )
+
+    # opcje dla strategii ema_cross
     p_bt.add_argument("--fast", type=int, default=12, help="Szybka EMA")
     p_bt.add_argument("--slow", type=int, default=26, help="Wolna EMA")
 
@@ -612,6 +638,30 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--rsi-period", type=int, default=14)
     p_bt.add_argument("--rsi-oversold", type=int, default=30, choices=range(0, 101))
     p_bt.add_argument("--rsi-overbought", type=int, default=70, choices=range(0, 101))
+
+    # parametry strategii h1_ema_rsi_atr
+    p_bt.add_argument("--ema-fast", type=int, default=21)
+    p_bt.add_argument("--ema-slow", type=int, default=55)
+    p_bt.add_argument("--rsi-len", dest="rsi_len", type=int, default=14)
+    p_bt.add_argument("--atr-len", dest="atr_len", type=int, default=14)
+    p_bt.add_argument("--t-sep-atr", dest="t_sep_atr", type=float, default=0.5)
+    p_bt.add_argument(
+        "--pullback-atr",
+        "--pullback-to-ema-fast-atr",
+        dest="pullback_atr",
+        type=float,
+        default=0.5,
+    )
+    p_bt.add_argument(
+        "--entry-buffer-atr",
+        dest="entry_buffer_atr",
+        type=float,
+        default=0.1,
+    )
+    p_bt.add_argument("--sl-min-atr", dest="sl_min_atr", type=float, default=0.0)
+    p_bt.add_argument("--rr", dest="rr", type=float, default=2.0)
+    p_bt.add_argument("--q-low", dest="q_low", type=float, default=0.1)
+    p_bt.add_argument("--q-high", dest="q_high", type=float, default=0.9)
 
     p_bt.add_argument("--capital", type=float, default=100_000.0)
     p_bt.add_argument("--risk", action=PercentAction, default=0.01, help="Ryzyko na trade (0-1)")
