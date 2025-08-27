@@ -23,6 +23,10 @@ def test_live_help(capsys):
     _run_and_capture(["live", "--help"], capsys)
 
 
+def test_validate_help(capsys):
+    _run_and_capture(["validate", "--help"], capsys)
+
+
 def _get_data_source_opts(help_text: str) -> list[str]:
     target = ("--csv", "--data-dir", "--time-col", "--sep", "--symbol")
     lines = []

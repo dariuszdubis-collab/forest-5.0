@@ -94,6 +94,30 @@ def load_ohlc_csv(
 # ------------------------------- CLI commands --------------------------------
 
 
+def cmd_validate_live_config(args: argparse.Namespace) -> int:
+    from forest5.config_live import validate_live_config
+
+    ok, details = validate_live_config(args.yaml, strict=args.strict)
+    if ok:
+        print(details.get("message", "OK"))
+        return 0
+    print(details.get("error", "Invalid config"), file=sys.stderr)
+    return 2
+
+
+def add_validate_subparser(sub: argparse._SubParsersAction) -> None:
+    """Attach ``validate`` subcommands to the top level parser."""
+
+    p = sub.add_parser("validate", help="validation utilities")
+    sp = p.add_subparsers(dest="validate_cmd")
+    sp.required = True
+
+    v = sp.add_parser("live-config", help="validate live trading config")
+    v.add_argument("--yaml", required=True, help="ścieżka do pliku YAML")
+    v.add_argument("--strict", action="store_true", help="zakończ błędem przy ostrzeżeniach")
+    v.set_defaults(func=cmd_validate_live_config)
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     if args.csv is not None:
         csv_path = Path(args.csv)
@@ -626,6 +650,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=SafeHelpFormatter,
     )
     sub = p.add_subparsers(dest="command")
+
+    add_validate_subparser(sub)
 
     # data utilities
     p_data = sub.add_parser("data", help="Narzędzia danych", formatter_class=SafeHelpFormatter)
