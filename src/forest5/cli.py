@@ -330,9 +330,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
             sl_min_atr=float(args.sl_min_atr[0]),
             rr=float(args.rr[0]),
             patterns={
-                "engulf": {"enabled": bool(args.pat_engulf)},
-                "pinbar": {"enabled": bool(args.pat_pinbar)},
-                "star": {"enabled": bool(args.pat_star)},
+                "engulfing": bool(args.pat_engulf),
+                "pinbar": bool(args.pat_pinbar),
+                "stars": bool(args.pat_star),
             },
         ),
         risk=dict(
@@ -424,9 +424,9 @@ def cmd_walkforward(args: argparse.Namespace) -> int:
             sl_min_atr=args.sl_min_atr,
             rr=args.rr,
             patterns={
-                "engulf": {"enabled": bool(args.pat_engulf)},
-                "pinbar": {"enabled": bool(args.pat_pinbar)},
-                "star": {"enabled": bool(args.pat_star)},
+                "engulfing": bool(args.pat_engulf),
+                "pinbar": bool(args.pat_pinbar),
+                "stars": bool(args.pat_star),
             },
         ),
         risk=dict(
