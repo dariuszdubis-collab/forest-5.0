@@ -181,8 +181,20 @@ def main() -> None:
     )
     parser.add_argument("--csv", required=True, help="Ścieżka do CSV z danymi OHLC.")
     parser.add_argument("--symbol", default="SYMBOL", help="Symbol (opisowy).")
-    parser.add_argument("--fast", required=True, help='Zakres np. "5-20" albo "5-20:5".')
-    parser.add_argument("--slow", required=True, help='Zakres np. "20-60" albo "20-60:5".')
+    parser.add_argument(
+        "--fast",
+        "--ema-fast",
+        dest="fast",
+        required=True,
+        help='Zakres np. "5-20" albo "5-20:5". Alias: --ema-fast',
+    )
+    parser.add_argument(
+        "--slow",
+        "--ema-slow",
+        dest="slow",
+        required=True,
+        help='Zakres np. "20-60" albo "20-60:5". Alias: --ema-slow',
+    )
     parser.add_argument(
         "--skip-fast-ge-slow", action="store_true", help="Pomiń pary gdzie fast >= slow."
     )

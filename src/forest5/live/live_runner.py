@@ -215,6 +215,13 @@ def run_live(
         log.info("time_model_missing", path=tm_path)
 
     use_ai = settings.ai.enabled
+    ctx_file = settings.ai.context_file or ""
+    if use_ai and ctx_file and not Path(ctx_file).exists():
+        if getattr(settings.ai, "require_context", False):
+            log.warning("ai_context_missing", path=ctx_file)
+            raise FileNotFoundError(ctx_file)
+        log.warning("ai_context_missing_warn", path=ctx_file)
+        use_ai = False
     if use_ai and not os.getenv("OPENAI_API_KEY"):
         log.info("ai_disabled_no_api_key")
         use_ai = False
@@ -234,8 +241,8 @@ def run_live(
     )
 
     context_text = ""
-    if settings.ai.context_file:
-        context_text = _read_context(settings.ai.context_file, 32_768)
+    if use_ai and ctx_file:
+        context_text = _read_context(ctx_file, 32_768)
 
     tf = settings.strategy.timeframe
     bar_sec = _TF_MINUTES[tf] * 60

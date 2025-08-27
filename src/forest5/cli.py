@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 from typing import Optional, Dict, Any
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -40,6 +41,7 @@ from forest5.utils.argparse_ext import (
 )
 from forest5.utils.log import (
     setup_logger,
+    log_event,
 )
 from forest5.live.mt4_broker import MT4Broker
 
@@ -145,8 +147,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "rsi_overbought": args.rsi_overbought,
         }
     else:
-        strat_cfg = {
-            "name": "h1_ema_rsi_atr",
+        params = {
             "ema_fast": args.ema_fast,
             "ema_slow": args.ema_slow,
             "rsi_period": args.rsi_len,
@@ -157,6 +158,12 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "sl_min_atr": args.sl_min_atr,
             "rr": args.rr,
         }
+        patterns = {
+            "engulfing": not args.no_engulf,
+            "pinbar": not args.no_pinbar,
+            "stars": not args.no_star,
+        }
+        strat_cfg = {"name": "h1_ema_rsi_atr", "params": params, "patterns": patterns}
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -526,6 +533,10 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
 
     out_path = Path(args.bridge_dir) / "symbol_specs.json"
     out_path.write_text(json.dumps(specs), encoding="utf-8")
+    ack_path = Path(args.bridge_dir) / "handshake_ack.json"
+    ack_payload = {"timestamp": datetime.utcnow().isoformat(), "symbol": args.symbol}
+    ack_path.write_text(json.dumps(ack_payload), encoding="utf-8")
+    log_event("preflight_ack", path=str(ack_path), symbol=args.symbol)
     # simple table-like output for UX
     print("Symbol specifications:")
     for k, v in specs.items():
@@ -534,28 +545,66 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
 
 
 def cmd_data_inspect(args: argparse.Namespace) -> int:
-    path = Path(args.csv)
-    sep, dec, has_header = sniff_csv_dialect(path)
-    header = "yes" if has_header else "no"
-    print(f"dialect: sep='{sep}' decimal='{dec}' header={header}")
-    df = read_ohlc_csv_smart(path, time_col=args.time_col, sep=args.sep, decimal=args.decimal)
-    print(f"schema: {', '.join(df.columns)}")
-    if df.empty:
-        print("no data")
-        return 0
-    start, end = df.index[0], df.index[-1]
-    print(f"date range: {start} -> {end} ({len(df)} rows)")
-    _, meta = ensure_h1(df, policy="pad")
-    gaps = meta.get("gaps", [])
-    if not gaps:
-        print("gaps: none")
+    paths: list[Path]
+    if args.csv:
+        paths = [Path(args.csv)]
     else:
-        print("gaps preview:")
-        for g in gaps[:5]:
-            print(f"  {g.start} -> {g.end} (missing {g.missing})")
-        if len(gaps) > 5:
-            print(f"  ... {len(gaps) - 5} more")
-    return 0
+        in_dir = Path(args.input_dir)
+        paths = sorted(in_dir.glob("*.csv"))
+
+    out_dir = Path(args.out) if args.out else None
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    rc = 0
+    for path in paths:
+        sep, dec, has_header = sniff_csv_dialect(path)
+        header = "yes" if has_header else "no"
+        df = read_ohlc_csv_smart(
+            path, time_col=args.time_col, sep=args.sep, decimal=args.decimal
+        )
+        lines = [f"dialect: sep='{sep}' decimal='{dec}' header={header}"]
+        lines.append(f"schema: {', '.join(df.columns)}")
+        if df.empty:
+            lines.append("no data")
+        else:
+            start, end = df.index[0], df.index[-1]
+            lines.append(f"date range: {start} -> {end} ({len(df)} rows)")
+            _, meta = ensure_h1(df, policy="pad")
+            gaps = meta.get("gaps", [])
+            if not gaps:
+                lines.append("gaps: none")
+            else:
+                lines.append("gaps preview:")
+                for g in gaps[:5]:
+                    lines.append(f"  {g.start} -> {g.end} (missing {g.missing})")
+                if len(gaps) > 5:
+                    lines.append(f"  ... {len(gaps) - 5} more")
+
+        text = "\n".join(lines)
+        print(text)
+
+        if out_dir:
+            base = path.stem
+            (out_dir / f"{base}.txt").write_text(text + "\n", encoding="utf-8")
+            summary = {
+                "sep": sep,
+                "decimal": dec,
+                "header": has_header,
+                "columns": list(df.columns),
+                "rows": len(df),
+            }
+            if not df.empty:
+                summary["start"] = str(df.index[0])
+                summary["end"] = str(df.index[-1])
+                summary["gaps"] = [
+                    {"start": str(g.start), "end": str(g.end), "missing": int(g.missing)}
+                    for g in meta.get("gaps", [])
+                ]
+            (out_dir / f"{base}.json").write_text(
+                json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+    return rc
 
 
 def cmd_data_normalize(args: argparse.Namespace) -> int:
@@ -571,12 +620,32 @@ def cmd_data_normalize(args: argparse.Namespace) -> int:
 
 
 def cmd_data_pad_h1(args: argparse.Namespace) -> int:
+    if args.csv:
+        if not args.out:
+            print("--out required with --csv", file=sys.stderr)
+            return 2
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        df = read_ohlc_csv_smart(args.csv)
+        try:
+            df, _ = ensure_h1(df, policy=args.policy)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        df.to_csv(out_path, index_label="time")
+        print(f"{Path(args.csv).name} -> {out_path}")
+        return 0
+
+    if not args.out_dir:
+        print("--out-dir required with --input-dir", file=sys.stderr)
+        return 2
+
     in_dir = Path(args.input_dir)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for path in sorted(in_dir.glob("*.csv")):
         df = read_ohlc_csv_smart(path)
-        df, _ = ensure_h1(df, policy="pad")
+        df, _ = ensure_h1(df, policy=args.policy)
         out_path = out_dir / path.name
         df.to_csv(out_path, index_label="time")
         print(f"{path.name} -> {out_path}")
@@ -661,7 +730,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_ins = sub_data.add_parser(
         "inspect", help="Pokaż informacje o CSV", formatter_class=SafeHelpFormatter
     )
-    p_ins.add_argument("--csv", required=True, help="Plik CSV do analizy")
+    g_ins = p_ins.add_mutually_exclusive_group(required=True)
+    g_ins.add_argument("--csv", help="Plik CSV do analizy")
+    g_ins.add_argument("--input-dir", type=Path, help="Katalog wejściowy")
+    p_ins.add_argument("--out", type=Path, help="Katalog wyjściowy na raport")
     p_ins.add_argument("--time-col", default=None, help="Nazwa kolumny czasu")
     p_ins.add_argument("--sep", default=None, help="Separator CSV")
     p_ins.add_argument("--decimal", default=None, help="Separator dziesiętny")
@@ -677,8 +749,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_pad = sub_data.add_parser(
         "pad-h1", help="Uzupełnij braki do 1H", formatter_class=SafeHelpFormatter
     )
-    p_pad.add_argument("--input-dir", type=Path, required=True, help="Katalog wejściowy")
-    p_pad.add_argument("--out-dir", type=Path, required=True, help="Katalog wyjściowy")
+    g_pad = p_pad.add_mutually_exclusive_group(required=True)
+    g_pad.add_argument("--input-dir", type=Path, help="Katalog wejściowy")
+    g_pad.add_argument("--csv", type=Path, help="Plik CSV do uzupełnienia")
+    p_pad.add_argument("--out-dir", type=Path, help="Katalog wyjściowy")
+    p_pad.add_argument("--out", type=Path, help="Plik wyjściowy")
+    p_pad.add_argument(
+        "--policy", choices=("strict", "pad"), default="pad", help="Polityka braków"
+    )
     p_pad.set_defaults(func=cmd_data_pad_h1)
 
     # backtest
@@ -725,6 +803,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--rr", dest="rr", type=float, default=2.0)
     p_bt.add_argument("--q-low", dest="q_low", type=float, default=0.1)
     p_bt.add_argument("--q-high", dest="q_high", type=float, default=0.9)
+    p_bt.add_argument("--no-engulf", action="store_true", help="Wyłącz pattern engulfing")
+    p_bt.add_argument("--no-pinbar", action="store_true", help="Wyłącz pattern pinbar")
+    p_bt.add_argument("--no-star", action="store_true", help="Wyłącz pattern star")
 
     p_bt.add_argument("--capital", type=float, default=100_000.0)
     p_bt.add_argument("--risk", action=PercentAction, default=0.01, help="Ryzyko na trade (0-1)")

@@ -63,6 +63,17 @@ def compute_signal(
         return confirm_with_candles(base, candles)
     if name == "h1_ema_rsi_atr":
         params = getattr(strategy, "params", None)
+        patt = getattr(strategy, "patterns", None)
+        if patt is not None:
+            if hasattr(patt, "model_dump"):
+                patt_cfg = patt.model_dump()
+            else:
+                patt_cfg = dict(patt)
+            if hasattr(params, "model_dump"):
+                params = params.model_dump()
+            elif hasattr(params, "dict"):
+                params = params.dict()
+            params = {**(params or {}), "patterns": patt_cfg}
         res = compute_primary_signal_h1(df, params, ctx=ctx)
         if compat_int:
             from .compat import contract_to_int

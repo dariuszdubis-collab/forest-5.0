@@ -129,18 +129,31 @@ def validate_live_config(path: str | Path, strict: bool = False) -> tuple[bool, 
     except Exception as exc:  # pragma: no cover - defensive
         return False, {"error": str(exc)}
 
-    missing = []
+    missing: list[str] = []
     broker = getattr(settings, "broker", None)
-    if broker is None or not getattr(broker, "type", None):
+    btype = getattr(broker, "type", "") if broker else ""
+    if not btype:
         missing.append("broker.type")
+    else:
+        allowed = {"mt4", "mt4_stub", "file", "paper"}
+        if btype not in allowed:
+            return False, {"error": "Invalid broker.type"}
     if broker is None or not getattr(broker, "bridge_dir", None):
         missing.append("broker.bridge_dir")
-    if broker is None or not getattr(broker, "symbol", None):
+    if broker is None or not getattr(broker, "symbol", "").strip():
         missing.append("broker.symbol")
 
     risk = getattr(settings, "risk", None)
-    if risk is None or getattr(risk, "max_drawdown", None) is None:
-        missing.append("risk.max_drawdown")
+    for field in ("initial_capital", "risk_per_trade", "max_drawdown"):
+        if risk is None or getattr(risk, field, None) in (None, ""):
+            missing.append(f"risk.{field}")
+
+    ai = getattr(settings, "ai", None)
+    if ai and getattr(ai, "enabled", False):
+        ctx_file = getattr(ai, "context_file", "") or ""
+        require_ctx = getattr(ai, "require_context", False)
+        if (not ctx_file) and require_ctx:
+            missing.append("ai.context_file")
 
     if missing:
         return False, {"error": f"Missing fields: {', '.join(missing)}"}

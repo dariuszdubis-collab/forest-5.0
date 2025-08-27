@@ -32,7 +32,7 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
 poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr \
   --ema-fast 34 --ema-slow 89 --rsi-len 14 --atr-len 14 \
   --t-sep-atr 0.20 --pullback-atr 0.50 --entry-buffer-atr 0.10 \
-  --sl-min-atr 0.90 --rr 1.8
+  --sl-min-atr 0.90 --rr 1.8 --no-engulf --no-pinbar --no-star
 
 # 5) Grid-search
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
@@ -112,6 +112,20 @@ Jeżeli nie podasz `--csv`, program spróbuje znaleźć plik w
 `/home/daro/Fxdata/{SYMBOL}_H1.csv` na podstawie wartości `--symbol`. Własną
 lokalizację wskażesz właśnie parametrem `--csv`.
 
+### Narzędzia danych
+
+Pojedynczy plik można przeanalizować komendą:
+
+```bash
+poetry run forest5 data inspect --csv demo.csv --out out_dir
+```
+
+Uzupełnienie brakujących świec do siatki 1H:
+
+```bash
+poetry run forest5 data pad-h1 --csv demo.csv --policy pad --out padded.csv
+```
+
 ## Live trading z MetaTrader 4
 
 1. Zainstaluj i uruchom MT4 (np. pod Wine w katalogu `~/.mt4`).
@@ -128,6 +142,11 @@ lokalizację wskażesz właśnie parametrem `--csv`.
    ```
    W celu testów bez realnych zleceń dopisz `--paper`.
 
+   Komenda `forest5 live preflight` zapisuje plik `handshake_ack.json` w
+   katalogu mostu potwierdzający poprawną wymianę specyfikacji symbolu.
+   Przy włączonym AI brak pliku kontekstu skutkuje ostrzeżeniem i automatycznym
+   wyłączeniem modułu AI.
+
 ## Validate live-config
 
 Przed uruchomieniem handlu można zweryfikować poprawność konfiguracji:
@@ -137,6 +156,8 @@ poetry run forest5 validate live-config --yaml config/live.example.yaml
 ```
 
 Na sukces komenda wypisze komunikat `OK: <symbol> @ <broker>` i zwróci kod 0.
+Błędny typ brokera lub brak wymaganych pól (np. `ai.context_file` przy
+`require_context: true`) zwróci kod różny od zera.
 
 ## Tryb PAPER (smoke test bez MT4)
 

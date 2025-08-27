@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from forest5.config.loader import load_live_settings
 from forest5.config_live import LiveTimeModelSettings
 from forest5.config.strategy import BaseStrategySettings, PatternSettings
+from forest5.config_live import validate_live_config
 
 
 def test_live_settings_from_yaml(tmp_path: Path):
@@ -98,3 +99,25 @@ def test_live_settings_h1_ema_rsi_atr(tmp_path: Path):
     assert s.strategy.name == "h1_ema_rsi_atr"  # nosec B101
     assert s.strategy.compat_int == 42  # nosec B101
     assert s.strategy.params["ema_fast"] == 21  # nosec B101
+
+
+def test_validate_live_config_bad_enum(tmp_path: Path):
+    cfg = tmp_path / "bad.yaml"
+    cfg.write_text(
+        "broker:\n  type: unknown\n  bridge_dir: /tmp/x\n  symbol: EURUSD\nrisk:\n  max_drawdown: 0.2\n",
+        encoding="utf-8",
+    )
+    ok, _ = validate_live_config(cfg)
+    assert ok is False
+
+
+def test_validate_live_config_ai_require_context(tmp_path: Path):
+    cfg = tmp_path / "bad_ai.yaml"
+    cfg.write_text(
+        "broker:\n  type: mt4\n  bridge_dir: /tmp/x\n  symbol: EURUSD\n"
+        "risk:\n  max_drawdown: 0.2\n"
+        "ai:\n  enabled: true\n  require_context: true\n",
+        encoding="utf-8",
+    )
+    ok, _ = validate_live_config(cfg)
+    assert ok is False

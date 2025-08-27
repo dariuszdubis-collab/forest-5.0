@@ -35,6 +35,9 @@ class PatternSettings(BaseModel):
     boost_conf: float = 0.20
     boost_score: float = 0.20
     gate: bool = False
+    engulfing: bool = True
+    pinbar: bool = True
+    stars: bool = True
 
 
 class ProfileSettings(BaseModel):

@@ -72,6 +72,7 @@ class AISettings(BaseModel):
     model: str = "gpt-4o-mini"
     max_tokens: int = 256
     context_file: str | None = None
+    require_context: bool = False
 
 
 class TimeOnlySettings(BaseModel):
