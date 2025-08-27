@@ -39,3 +39,9 @@ def test_backtest_and_grid_data_source_options_identical(capsys):
     bt = _run_and_capture(["backtest", "--help"], capsys)
     gr = _run_and_capture(["grid", "--help"], capsys)
     assert _get_data_source_opts(bt) == _get_data_source_opts(gr)
+
+
+def test_backtest_help_mentions_strategy(capsys):
+    out = _run_and_capture(["backtest", "--help"], capsys)
+    assert "--strategy" in out
+    assert "h1_ema_rsi_atr" in out
