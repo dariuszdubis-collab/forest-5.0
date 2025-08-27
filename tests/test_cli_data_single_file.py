@@ -24,19 +24,13 @@ def test_data_inspect_single_file(tmp_path):
 def test_data_pad_h1_single_file(tmp_path):
     csv = tmp_path / "pad.csv"
     csv.write_text(
-        "time,open,high,low,close\n"
-        "2020-01-01 00:00,1,1,1,1\n"
-        "2020-01-01 02:00,1,1,1,1\n",
+        "time,open,high,low,close\n" "2020-01-01 00:00,1,1,1,1\n" "2020-01-01 02:00,1,1,1,1\n",
         encoding="utf-8",
     )
     out_csv = tmp_path / "out.csv"
-    rc = main(
-        ["data", "pad-h1", "--csv", str(csv), "--policy", "strict", "--out", str(out_csv)]
-    )
+    rc = main(["data", "pad-h1", "--csv", str(csv), "--policy", "strict", "--out", str(out_csv)])
     assert rc != 0
-    rc = main(
-        ["data", "pad-h1", "--csv", str(csv), "--policy", "pad", "--out", str(out_csv)]
-    )
+    rc = main(["data", "pad-h1", "--csv", str(csv), "--policy", "pad", "--out", str(out_csv)])
     assert rc == 0
     df = pd.read_csv(out_csv)
     assert len(df) == 3

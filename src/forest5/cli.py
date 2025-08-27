@@ -560,9 +560,7 @@ def cmd_data_inspect(args: argparse.Namespace) -> int:
     for path in paths:
         sep, dec, has_header = sniff_csv_dialect(path)
         header = "yes" if has_header else "no"
-        df = read_ohlc_csv_smart(
-            path, time_col=args.time_col, sep=args.sep, decimal=args.decimal
-        )
+        df = read_ohlc_csv_smart(path, time_col=args.time_col, sep=args.sep, decimal=args.decimal)
         lines = [f"dialect: sep='{sep}' decimal='{dec}' header={header}"]
         lines.append(f"schema: {', '.join(df.columns)}")
         if df.empty:
@@ -754,9 +752,7 @@ def build_parser() -> argparse.ArgumentParser:
     g_pad.add_argument("--csv", type=Path, help="Plik CSV do uzupełnienia")
     p_pad.add_argument("--out-dir", type=Path, help="Katalog wyjściowy")
     p_pad.add_argument("--out", type=Path, help="Plik wyjściowy")
-    p_pad.add_argument(
-        "--policy", choices=("strict", "pad"), default="pad", help="Polityka braków"
-    )
+    p_pad.add_argument("--policy", choices=("strict", "pad"), default="pad", help="Polityka braków")
     p_pad.set_defaults(func=cmd_data_pad_h1)
 
     # backtest

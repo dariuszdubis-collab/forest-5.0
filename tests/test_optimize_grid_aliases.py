@@ -1,5 +1,4 @@
 import sys
-import pandas as pd
 import importlib.util
 from pathlib import Path
 import pytest
@@ -14,8 +13,10 @@ spec.loader.exec_module(optimize_grid)
 def test_optimize_grid_aliases(tmp_path, monkeypatch):
     csv = tmp_path / "d.csv"
     csv.write_text("time,open,high,low,close\n", encoding="utf-8")
+
     def fake_load_csv(p):
         raise SystemExit(0)
+
     monkeypatch.setattr(optimize_grid, "_load_csv", fake_load_csv)
     for fast, slow in [("--fast", "--slow"), ("--ema-fast", "--ema-slow")]:
         argv = [
