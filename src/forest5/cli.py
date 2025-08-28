@@ -35,6 +35,7 @@ from forest5.utils.io import (
     sniff_csv_dialect,
     atomic_to_csv,
     atomic_write_json,
+    normalize_ohlc_h1,
 )
 from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import (
@@ -95,6 +96,7 @@ def load_ohlc_csv(
 
     df = read_ohlc_csv(path, time_col=time_col, sep=sep)
     df, meta = ensure_h1(df, policy=policy)
+    df = normalize_ohlc_h1(df, policy=policy)
     return df, meta
 
 
@@ -138,6 +140,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
     df, time_meta = ensure_h1(df, policy=args.h1_policy)
+    df = normalize_ohlc_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -250,6 +253,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
     df, time_meta = ensure_h1(df, policy=args.h1_policy)
+    df = normalize_ohlc_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -716,6 +720,7 @@ def cmd_data_pad_h1(args: argparse.Namespace) -> int:
         df = read_ohlc_csv_smart(path)
         try:
             df, _ = ensure_h1(df, policy=args.policy)
+            df = normalize_ohlc_h1(df, policy=args.policy)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
@@ -733,6 +738,7 @@ def cmd_data_pad_h1(args: argparse.Namespace) -> int:
         df = read_ohlc_csv_smart(path)
         try:
             df, _ = ensure_h1(df, policy=args.policy)
+            df = normalize_ohlc_h1(df, policy=args.policy)
         except ValueError as exc:
             print(f"{path.name}: {exc}", file=sys.stderr)
             rc = 1
