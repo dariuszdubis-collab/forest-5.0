@@ -141,11 +141,17 @@ class MT4Broker(OrderRouter):
             If the acknowledgement file does not appear within ``timeout``.
         """
 
-        ping_path = self.bridge_dir / "PING"
         ack_path = self.bridge_dir / "ACK"
+        # Ensure stale ACK does not short‑circuit the handshake
+        try:
+            ack_path.unlink()
+        except OSError:
+            pass
+        ping_path = self.bridge_dir / "PING"
         # create/overwrite ping marker
         ping_path.write_text("PING", encoding="utf-8")
-        deadline = time.time() + (timeout if timeout is not None else self.timeout)
+        wait = timeout if timeout is not None else self.timeout
+        deadline = time.time() + wait
         delay = 0.1
         try:
             while time.time() < deadline:
@@ -162,13 +168,8 @@ class MT4Broker(OrderRouter):
                 ping_path.unlink()
             except OSError:
                 pass
-        log_event(
-            "mt4_preflight_ack_timeout",
-            timeout_s=(timeout if timeout is not None else self.timeout),
-        )
-        raise PreflightAckTimeout(
-            f"timeout waiting for ACK ({timeout if timeout is not None else self.timeout}s)"
-        )
+        log_event("mt4_preflight_ack_timeout", timeout_s=wait)
+        raise PreflightAckTimeout(f"timeout waiting for ACK ({wait}s)")
 
     def request_specs(self) -> str:
         """Request symbol specifications from the bridge.

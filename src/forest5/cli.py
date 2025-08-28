@@ -525,38 +525,41 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
     broker = MT4Broker(bridge_dir=args.bridge_dir, symbol=args.symbol, timeout_sec=args.timeout)
     broker.connect()
     try:
-        broker.await_preflight_ack(timeout=args.timeout)
-    except PreflightAckTimeout:
-        print(
-            "No ACK from MT4 bridge. Start the Expert Advisor or check --bridge-dir",
-            file=sys.stderr,
-        )
-        return 2
-    uid = broker.request_specs()
+        try:
+            broker.await_preflight_ack(timeout=args.timeout)
+        except PreflightAckTimeout:
+            print(
+                "No ACK from MT4 bridge. Start the Expert Advisor or check --bridge-dir",
+                file=sys.stderr,
+            )
+            return 2
+        uid = broker.request_specs()
 
-    try:
-        specs = broker.await_ack(uid, timeout=args.timeout)
-    except TimeoutError:
-        print("No acknowledgement from MT4 bridge (timeout)", file=sys.stderr)
-        return 1
+        try:
+            specs = broker.await_ack(uid, timeout=args.timeout)
+        except TimeoutError:
+            print("No acknowledgement from MT4 bridge (timeout)", file=sys.stderr)
+            return 1
 
-    try:
-        specs = broker.validate_specs(specs)
-    except ValueError as exc:  # pragma: no cover - defensive
-        print(str(exc), file=sys.stderr)
-        return 1
+        try:
+            specs = broker.validate_specs(specs)
+        except ValueError as exc:  # pragma: no cover - defensive
+            print(str(exc), file=sys.stderr)
+            return 1
 
-    out_path = Path(args.bridge_dir) / "symbol_specs.json"
-    out_path.write_text(json.dumps(specs), encoding="utf-8")
-    ack_path = Path(args.bridge_dir) / "handshake_ack.json"
-    payload = {"symbol": args.symbol, "timestamp": time.time()}
-    ack_path.write_text(json.dumps(payload), encoding="utf-8")
-    log_event(E_PREFLIGHT_ACK, symbol=args.symbol, path=str(ack_path))
-    # simple table-like output for UX
-    print("Symbol specifications:")
-    for k, v in specs.items():
-        print(f"  {k}: {v}")
-    return 0
+        out_path = Path(args.bridge_dir) / "symbol_specs.json"
+        out_path.write_text(json.dumps(specs), encoding="utf-8")
+        ack_path = Path(args.bridge_dir) / "handshake_ack.json"
+        payload = {"symbol": args.symbol, "timestamp": time.time()}
+        ack_path.write_text(json.dumps(payload), encoding="utf-8")
+        log_event(E_PREFLIGHT_ACK, symbol=args.symbol, path=str(ack_path))
+        # simple table-like output for UX
+        print("Symbol specifications:")
+        for k, v in specs.items():
+            print(f"  {k}: {v}")
+        return 0
+    finally:
+        broker.close()
 
 
 def _inspect_file(path: Path, args: argparse.Namespace) -> tuple[str, dict]:

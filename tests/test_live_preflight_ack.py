@@ -66,3 +66,24 @@ def test_preflight_nack_times_out_and_fails(tmp_path, capsys):
     assert rc == 2
     err = capsys.readouterr().err
     assert "ACK" in err
+
+
+def test_preflight_ignores_stale_ack(tmp_path, capsys):
+    bridge = _prepare_bridge(tmp_path)
+    # stale ACK left by previous run should not short-circuit handshake
+    (bridge / "ACK").write_text("ACK", encoding="utf-8")
+    rc = main(
+        [
+            "live",
+            "preflight",
+            "--bridge-dir",
+            str(bridge),
+            "--symbol",
+            "EURUSD",
+            "--timeout",
+            "0.2",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "ACK" in err
