@@ -75,17 +75,17 @@ def precompute_indicators(
     for p in sorted(ema_periods or []):
         name = ema_col_name(p)
         if name not in df.columns:
-            df[name] = compute_ema(df, p, src).astype("float32")
+            df.loc[:, name] = compute_ema(df, p, src).astype("float32")
             created.append(name)
     for p in sorted(rsi_periods or []):
         name = rsi_col_name(p)
         if name not in df.columns:
-            df[name] = compute_rsi(df, p).astype("float32")
+            df.loc[:, name] = compute_rsi(df, p).astype("float32")
             created.append(name)
     for p in sorted(atr_periods or []):
         name = atr_col_name(p)
         if name not in df.columns:
-            df[name] = compute_atr(df, p).astype("float32")
+            df.loc[:, name] = compute_atr(df, p).astype("float32")
             created.append(name)
     return created
 

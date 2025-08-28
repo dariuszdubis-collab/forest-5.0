@@ -264,8 +264,8 @@ def run_grid(
         indicators.ema = ema_orig
 
     out = pd.DataFrame([r.__dict__ for r in results])
-    out["rar"] = out["cagr"] / out["dd"].replace(0, np.nan)
-    out["rar"] = out["rar"].fillna(0.0)
+    out.loc[:, "rar"] = out["cagr"] / out["dd"].replace(0, np.nan)
+    out.loc[:, "rar"] = out["rar"].fillna(0.0)
     return out
 
 
@@ -456,7 +456,7 @@ def run_param_grid(
     if results_path:
         to_save = out.copy()
         if "expectancy_by_pattern" in to_save.columns:
-            to_save["expectancy_by_pattern"] = to_save["expectancy_by_pattern"].apply(
+            to_save.loc[:, "expectancy_by_pattern"] = to_save["expectancy_by_pattern"].apply(
                 lambda v: json.dumps(v)
             )
         to_save.to_csv(results_path, index=False)
