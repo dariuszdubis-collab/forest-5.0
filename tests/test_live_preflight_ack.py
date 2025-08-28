@@ -25,7 +25,7 @@ def test_preflight_ack_passes(tmp_path, capsys):
                 break
             time.sleep(0.01)
 
-    t = threading.Thread(target=writer)
+    t = threading.Thread(target=writer, daemon=True)
     t.start()
     rc = main(
         [
@@ -39,7 +39,8 @@ def test_preflight_ack_passes(tmp_path, capsys):
             "1",
         ]
     )
-    t.join()
+    t.join(timeout=5)
+    assert not t.is_alive(), "writer thread did not finish"
     assert rc == 0
     ack_path = bridge / "handshake_ack.json"
     assert ack_path.exists()
