@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pandas as pd
+import warnings
 
 from ..config import get_data_dir
 from .log import E_DATA_CSV_SCHEMA, log_event
@@ -242,57 +243,153 @@ def read_ohlc_csv(
 
     path = Path(path)
 
+    # Auto-detect dialect when not explicitly provided
+    sniff_sep, sniff_dec, sniff_header = sniff_csv_dialect(path)
+    if sep is None:
+        sep = sniff_sep
+    if decimal is None:
+        decimal = sniff_dec
     if has_header is None:
-        df = read_ohlc_csv_smart(path, time_col=time_col, sep=sep, decimal=decimal)
-    else:
-        if sep is None or decimal is None:
-            sniff_sep, sniff_dec, _ = sniff_csv_dialect(path)
-            if sep is None:
-                sep = sniff_sep
-            if decimal is None:
-                decimal = sniff_dec
-        if has_header:
-            df = pd.read_csv(path, sep=sep, decimal=decimal)
-        else:
-            df = pd.read_csv(
-                path,
-                sep=sep,
-                decimal=decimal,
-                header=None,
-                names=["time", "open", "high", "low", "close", "volume"],
-            )
+        has_header = sniff_header
 
-        df, inferred_time, notes = infer_ohlc_schema(df)
+    notes: list[str] = []
+    aliases: dict[str, str] = {}
+
+    if has_header:
+        # Read a small sample to infer schema and discover column aliases
+        sample = pd.read_csv(path, sep=sep, decimal=decimal, nrows=100)
+        sample, inferred_time, notes = infer_ohlc_schema(sample)
 
         if time_col is not None:
-            lc = {c.lower(): c for c in df.columns}
+            lc = {c.lower(): c for c in sample.columns}
             target = lc.get(time_col.lower())
             if target is None:
                 raise ValueError(f"Specified time column '{time_col}' not found")
             inferred_time = target
 
-        if inferred_time is None or inferred_time not in df.columns:
+        if inferred_time is None or inferred_time not in sample.columns:
             raise ValueError("Unable to determine time column")
 
-        idx = pd.to_datetime(df[inferred_time], errors="coerce", utc=True, format="mixed")
-        if idx.isna().any():
-            bad = int(idx.isna().sum())
-            raise ValueError(
-                f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
-            )
-
-        df = df.drop(columns=[inferred_time])
-        df.index = idx
-        df.index.name = "time"
+        aliases = sample.attrs.get("aliases", {})
+        time_alias = aliases.get("time", inferred_time)
 
         need = ["open", "high", "low", "close"]
-        missing = [c for c in need if c not in df.columns]
-        if missing:
-            raise ValueError(f"CSV missing required columns: {missing}")
+        missing_need = [c for c in need if c not in sample.columns]
+        if missing_need:
+            raise ValueError(f"CSV missing required columns: {missing_need}")
+        cols = need + (["volume"] if "volume" in sample.columns else [])
+        col_aliases = {c: aliases.get(c, c) for c in cols}
 
+        if "+" in time_alias:
+            tparts = time_alias.split("+")
+            parse_dates = {"time": tparts}
+            usecols = tparts + list(col_aliases.values())
+            index_col = "time"
+        else:
+            parse_dates = [time_alias]
+            usecols = [time_alias] + list(col_aliases.values())
+            index_col = time_alias
+
+        # Only volume is forced to float32 to tolerate bad entries
+        read_kwargs = dict(
+            sep=sep,
+            decimal=decimal,
+            usecols=usecols,
+            parse_dates=parse_dates,
+            index_col=index_col,
+            infer_datetime_format=True,
+            date_parser=None,
+            low_memory=False,
+            memory_map=True,
+        )
+        with pd.option_context("mode.chained_assignment", None):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", "The argument 'infer_datetime_format' is deprecated", FutureWarning
+                )
+                warnings.filterwarnings(
+                    "ignore", "The argument 'date_parser' is deprecated", FutureWarning
+                )
+                try:
+                    df = pd.read_csv(path, **read_kwargs)
+                except TypeError:
+                    read_kwargs.pop("date_parser", None)
+                    df = pd.read_csv(path, **read_kwargs)
+                except ValueError as e:
+                    if "Usecols do not match" in str(e):
+                        raise ValueError(f"CSV missing required columns: {missing_need}") from None
+                    raise
+
+        rename_map = {v: k for k, v in col_aliases.items()}
+        df = df.rename(columns=rename_map)
+    else:
+        # Headerless CSV with canonical column order
+        names = ["time", "open", "high", "low", "close", "volume"]
+        read_kwargs = dict(
+            sep=sep,
+            decimal=decimal,
+            header=None,
+            names=names,
+            usecols=names,
+            parse_dates=["time"],
+            index_col="time",
+            infer_datetime_format=True,
+            date_parser=None,
+            low_memory=False,
+            memory_map=True,
+        )
+        with pd.option_context("mode.chained_assignment", None):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", "The argument 'infer_datetime_format' is deprecated", FutureWarning
+                )
+                warnings.filterwarnings(
+                    "ignore", "The argument 'date_parser' is deprecated", FutureWarning
+                )
+                try:
+                    df = pd.read_csv(path, **read_kwargs)
+                except TypeError:
+                    read_kwargs.pop("date_parser", None)
+                    df = pd.read_csv(path, **read_kwargs)
+
+        need = ["open", "high", "low", "close"]
         cols = need + (["volume"] if "volume" in df.columns else [])
-        df = df[cols].apply(pd.to_numeric, errors="coerce").dropna().sort_index()
-        df.attrs["notes"] = notes
+
+    # Validation of required columns
+    missing = [c for c in ["open", "high", "low", "close"] if c not in df.columns]
+    if missing:
+        raise ValueError(f"CSV missing required columns: {missing}")
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError(
+            f"Failed to parse timestamps from '{path}'. Check the 'time' column format."
+        )
+    if df.index.isna().any():
+        bad = int(df.index.isna().sum())
+        raise ValueError(
+            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
+        )
+
+    df.index.name = "time"
+    if "volume" in df.columns:
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").astype("float32")
+    df = df[cols].dropna().sort_index()
+
+    # Downcast volume to float32
+    if "volume" in df.columns and df["volume"].dtype != "float32":
+        df["volume"] = df["volume"].astype("float32")
+
+    # Ensure UTC tz-aware index; keep existing tz if already set
+    if getattr(df.index, "tz", None) is None:
+        try:
+            df.index = df.index.tz_localize(
+                "UTC", nonexistent="shift_forward", ambiguous="NaT", errors="ignore"
+            )
+        except TypeError:
+            df.index = df.index.tz_localize("UTC", nonexistent="shift_forward", ambiguous="NaT")
+
+    df.attrs["notes"] = notes
+    df.attrs["aliases"] = aliases
 
     if tz is not None:
         if getattr(df.index, "tz", None) is None:
@@ -300,7 +397,7 @@ def read_ohlc_csv(
         else:
             df.index = df.index.tz_convert(tz)
 
-    # Return tz-naive timestamps
+    # Return tz-naive timestamps for backward compatibility
     df.index = df.index.tz_localize(None)
     return df
 

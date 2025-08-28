@@ -12,6 +12,8 @@ from joblib import Parallel, delayed
 from ..config import BacktestSettings
 from ..backtest.engine import run_backtest
 from ..backtest.grid import _compute_metrics, build_combo_id
+from ..core.indicators import precompute_indicators
+from ..utils.log import log_event
 
 
 def plan_param_grid(
@@ -56,6 +58,19 @@ def run_grid(
     """Execute backtests for prepared parameter combinations."""
 
     combo_dicts = combos.to_dict("records")
+
+    # Precompute indicators used across the grid
+    set_fast = set(combos["ema_fast"]) if "ema_fast" in combos else set()
+    set_slow = set(combos["ema_slow"]) if "ema_slow" in combos else set()
+    set_rsi = set(combos["rsi_period"]) if "rsi_period" in combos else set()
+    set_atr = set(combos["atr_period"]) if "atr_period" in combos else set()
+    created_cols = precompute_indicators(
+        df,
+        ema_periods=set_fast | set_slow,
+        rsi_periods=set_rsi,
+        atr_periods=set_atr,
+    )
+    log_event("grid.indicators.cached", count=len(created_cols))
 
     def _single(idx: int, combo: Dict[str, Any]) -> Dict[str, Any]:
         if seed is not None:

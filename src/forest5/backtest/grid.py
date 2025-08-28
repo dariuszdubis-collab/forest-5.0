@@ -437,9 +437,13 @@ def run_param_grid(
                 eta = _fmt_eta(elapsed / processed * (total - processed)) if processed else "0s"
                 progress.update(task, advance=1, best=best_pnl, eta=eta)
         else:
-            results_iter = Parallel(n_jobs=jobs, return_as="generator")(
-                delayed(_single)(i, combo) for i, combo in enumerate(combos)
-            )
+            chunksize = max(1, len(combos) // (jobs * 4))
+            results_iter = Parallel(
+                n_jobs=jobs,
+                return_as="generator",
+                batch_size=chunksize,
+                **{"maxtasksperchild": 200},
+            )(delayed(_single)(i, combo) for i, combo in enumerate(combos))
             for res in results_iter:
                 rows.append(res)
                 processed = len(rows)
