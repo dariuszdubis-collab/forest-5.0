@@ -59,6 +59,9 @@ def run_grid(
 
     combo_dicts = combos.to_dict("records")
 
+    # Ensure we're working on an isolated DataFrame to avoid chained assignment
+    df = df.copy()
+
     # Precompute indicators used across the grid
     set_fast = set(combos["ema_fast"]) if "ema_fast" in combos else set()
     set_slow = set(combos["ema_slow"]) if "ema_slow" in combos else set()

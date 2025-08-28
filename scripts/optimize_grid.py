@@ -122,9 +122,9 @@ def _load_csv(csv_path: str | os.PathLike[str]) -> pd.DataFrame:
 
 def _filter_time(df: pd.DataFrame, start: str | None, end: str | None) -> pd.DataFrame:
     if start:
-        df = df.loc[df.index >= pd.Timestamp(start)]
+        df = df.loc[df.index >= pd.Timestamp(start)].copy()
     if end:
-        df = df.loc[df.index <= pd.Timestamp(end)]
+        df = df.loc[df.index <= pd.Timestamp(end)].copy()
     return df
 
 

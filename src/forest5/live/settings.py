@@ -5,8 +5,9 @@ from ..config_live import (
     BrokerSettings,
     DecisionSettings,
     LiveTimeSettings as TimeSettings,
+    AISettings,
+    RiskSettings,
 )
-from ..config import AISettings, RiskSettings
 
 __all__ = [
     "LiveSettings",

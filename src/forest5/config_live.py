@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .config import RiskSettings, AISettings
+from .config import (
+    ALLOWED_SYMBOLS,
+    RiskSettings as BaseRiskSettings,
+    AISettings as BaseAISettings,
+)
 from .config.strategy import BaseStrategySettings, PatternSettings
 from .utils.timeframes import normalize_timeframe
 
@@ -19,12 +24,37 @@ class StrategySettings(BaseStrategySettings):
         return normalize_timeframe(v)
 
 
+class RiskSettings(BaseRiskSettings):
+    @field_validator("risk_per_trade")
+    @classmethod
+    def _check_rpt(cls, v: float) -> float:
+        if not (0 < v <= 0.05):
+            raise ValueError("risk.risk_per_trade must be in (0, 0.05]")
+        return v
+
+    @field_validator("max_drawdown")
+    @classmethod
+    def _check_max_dd(cls, v: float) -> float:
+        if not (0 < v <= 1.0):
+            raise ValueError("risk.max_drawdown must be in (0, 1]")
+        return v
+
+
+class AISettings(BaseAISettings):
+    @model_validator(mode="after")
+    def _check_context(self) -> "AISettings":
+        if self.enabled and not (self.context_file and Path(self.context_file).exists()):
+            raise ValueError("ai.context_file missing")
+        return self
+
+
 class BrokerSettings(BaseModel):
-    type: str = "mt4"
+    type: Literal["mt4", "paper"]
     bridge_dir: Path | None = None
-    symbol: str = "SYMBOL"
+    symbol: str
     volume: float = 1.0
     timeframe: str = "1m"
+    stop_level_points: float | None = None
 
     @field_validator("bridge_dir", mode="before")
     @classmethod
@@ -32,6 +62,26 @@ class BrokerSettings(BaseModel):
         if v in (None, ""):
             return None
         return Path(v)
+
+    @field_validator("symbol")
+    @classmethod
+    def _check_symbol(cls, v: str) -> str:
+        if v not in ALLOWED_SYMBOLS:
+            raise ValueError("unsupported broker.symbol")
+        return v
+
+    @field_validator("volume")
+    @classmethod
+    def _check_volume(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("volume must be > 0")
+        return v
+
+    @model_validator(mode="after")
+    def _check_stop_level(self) -> "BrokerSettings":
+        if self.type == "mt4" and self.stop_level_points is not None and self.stop_level_points < 0:
+            raise ValueError("stop_level_points must be >= 0")
+        return self
 
 
 class DecisionTechSettings(BaseModel):
@@ -50,6 +100,13 @@ class DecisionSettings(BaseModel):
     tie_epsilon: float = 0.05
     weights: DecisionWeights = Field(default_factory=DecisionWeights)
     tech: DecisionTechSettings = Field(default_factory=DecisionTechSettings)
+
+    @field_validator("min_confluence")
+    @classmethod
+    def _check_confluence(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("0.0 <= decision.min_confluence <= 1.0")
+        return v
 
 
 class LiveTimeModelSettings(BaseModel):
@@ -128,33 +185,10 @@ def validate_live_config(path: str | Path, strict: bool = False) -> tuple[bool, 
         settings = load_live_settings(path)
     except Exception as exc:  # pragma: no cover - defensive
         return False, {"error": str(exc)}
-    broker = getattr(settings, "broker", None)
-    if broker is None:
-        return False, {"error": "Missing fields: broker.type, broker.symbol"}
-    if not getattr(broker, "type", ""):
-        return False, {"error": "Missing fields: broker.type"}
-    allowed = {"mt4", "mt4_stub", "file", "paper"}
-    if broker.type not in allowed:
-        return False, {"error": "Unsupported broker.type"}
-    if not getattr(broker, "symbol", ""):
-        return False, {"error": "Missing fields: broker.symbol"}
-    if not getattr(broker, "bridge_dir", None):
+
+    broker = settings.broker
+    if not broker.bridge_dir:
         return False, {"error": "Missing fields: broker.bridge_dir"}
-
-    risk = getattr(settings, "risk", None)
-    if (
-        risk is None
-        or getattr(risk, "risk_per_trade", None) is None
-        or getattr(risk, "max_drawdown", None) is None
-    ):
-        return False, {"error": "Missing fields: risk.risk_per_trade or risk.max_drawdown"}
-
-    ai = getattr(settings, "ai", None)
-    if getattr(ai, "enabled", False):
-        ctx_file = getattr(ai, "context_file", "") or ""
-        require_ctx = getattr(ai, "require_context", True)
-        if require_ctx and (not ctx_file or not Path(ctx_file).exists()):
-            return False, {"error": "ai.context_file missing"}
 
     bridge_dir = Path(broker.bridge_dir)
     spec_path = bridge_dir / "symbol_specs.json"

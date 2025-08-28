@@ -22,7 +22,7 @@ def test_live_settings_from_yaml(tmp_path: Path):
         "  fast: 10\n"
         "  slow: 30\n"
         "ai:\n"
-        "  enabled: true\n"
+        "  enabled: false\n"
         "time:\n"
         "  model:\n"
         "    enabled: true\n"
@@ -56,7 +56,7 @@ def test_live_settings_ai_context_file_resolved(tmp_path: Path):
     ctx.write_text("hi", encoding="utf-8")
     cfg = cfg_dir / "cfg_live.yaml"
     cfg.write_text(
-        "broker:\n  type: mt4\n" "ai:\n  context_file: ctx.txt\n",
+        "broker:\n  type: mt4\n  symbol: EURUSD\n  volume: 1.0\n" "ai:\n  context_file: ctx.txt\n",
         encoding="utf-8",
     )
 
@@ -88,7 +88,7 @@ def test_live_time_model_quantile_invalid(q_low: float, q_high: float):
 def test_live_settings_h1_ema_rsi_atr(tmp_path: Path):
     p = tmp_path / "cfg_live.yaml"
     p.write_text(
-        "broker:\n  type: mt4\n"
+        "broker:\n  type: mt4\n  symbol: EURUSD\n  volume: 1.0\n"
         "strategy:\n  name: h1_ema_rsi_atr\n  compat_int: 42\n  params:\n    ema_fast: 21\n    ema_slow: 55\n",
         encoding="utf-8",
     )

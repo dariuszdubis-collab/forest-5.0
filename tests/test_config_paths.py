@@ -28,6 +28,8 @@ def test_path_resolution_and_env_expansion(tmp_path: Path, monkeypatch):
             broker:
               type: mt4
               bridge_dir: ""
+              symbol: EURUSD
+              volume: 1.0
             ai:
               context_file: "~/ctx.txt"
             time:
@@ -56,6 +58,8 @@ def test_windows_literal_preserved(tmp_path: Path):
             broker:
               type: mt4
               bridge_dir: 'C:\\Temp\\bridge'
+              symbol: EURUSD
+              volume: 1.0
             ai:
               context_file: 'C:\\Temp\\ctx.txt'
             time:
