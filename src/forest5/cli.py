@@ -137,7 +137,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
-    df, meta = ensure_h1(df, policy=args.h1_policy)
+    df, time_meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -193,7 +193,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     )
 
     if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
-        step = meta.get("median_bar_minutes")
+        step = time_meta.get("median_bar_minutes")
         if step:
             settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
@@ -249,7 +249,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
-    df, meta = ensure_h1(df, policy=args.h1_policy)
+    df, time_meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -335,12 +335,12 @@ def cmd_grid(args: argparse.Namespace) -> int:
             return 0
 
     if args.dry_run:
-        meta = {
+        run_meta = {
             "symbol": args.symbol,
             "seed": args.seed,
             "total_combos": int(len(combos_all)),
         }
-        atomic_write_json(meta, meta_path)
+        atomic_write_json(run_meta, meta_path)
         print(len(combos_all))
         return 0
 
@@ -368,7 +368,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
     except Exception:  # pragma: no cover
         pass
 
-    meta = {
+    run_meta = {
         "iso_datetime_start": start_time.isoformat(),
         "command_line": " ".join(sys.argv),
         "seed": args.seed,
@@ -382,7 +382,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         "plan_total": int(len(combos_all)),
         "plan_remaining": int(len(combos)),
     }
-    atomic_write_json(meta, meta_path)
+    atomic_write_json(run_meta, meta_path)
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -424,9 +424,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
     settings.time.model.path = args.time_model
     settings.time.fusion_min_confluence = float(args.min_confluence)
     if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
-        step = meta.get("median_bar_minutes")
+        step = time_meta.get("median_bar_minutes")
         if step:
-            settings.setup_ttl_minutes = int(step)
+            settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
     new_results = run_grid(df, combos, settings, jobs=jobs, seed=args.seed)
 
@@ -463,7 +463,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
     end_time = datetime.now(timezone.utc)
     success = int((merged.get("error").isna()).sum()) if "error" in merged.columns else len(merged)
     failed = int((merged.get("error").notna()).sum()) if "error" in merged.columns else 0
-    meta.update(
+    run_meta.update(
         {
             "iso_datetime_end": end_time.isoformat(),
             "duration_sec": (end_time - start_time).total_seconds(),
@@ -473,7 +473,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
             "completed_combos": int(len(merged)),
         }
     )
-    atomic_write_json(meta, meta_path)
+    atomic_write_json(run_meta, meta_path)
     return 0
 
 
