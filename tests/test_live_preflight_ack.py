@@ -7,10 +7,14 @@ from forest5.cli import main
 from test_live_preflight import _prepare_bridge, _sample_specs
 
 
-def test_preflight_writes_ack(tmp_path, capsys):
+def test_preflight_ack_passes(tmp_path, capsys):
     bridge = _prepare_bridge(tmp_path)
 
     def writer():
+        ping = bridge / "PING"
+        while not ping.exists():
+            time.sleep(0.01)
+        (bridge / "ACK").write_text("ACK", encoding="utf-8")
         cmd_dir = bridge / "commands"
         while True:
             reqs = list(cmd_dir.glob("req_*.json"))
@@ -43,3 +47,22 @@ def test_preflight_writes_ack(tmp_path, capsys):
     assert data["symbol"] == "EURUSD"
     out = capsys.readouterr().out
     assert "preflight_ack" in out
+
+
+def test_preflight_nack_times_out_and_fails(tmp_path, capsys):
+    bridge = _prepare_bridge(tmp_path)
+    rc = main(
+        [
+            "live",
+            "preflight",
+            "--bridge-dir",
+            str(bridge),
+            "--symbol",
+            "EURUSD",
+            "--timeout",
+            "0.2",
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "ACK" in err

@@ -24,6 +24,10 @@ from ..utils.log import (
 log = setup_logger()
 
 
+class PreflightAckTimeout(TimeoutError):
+    """Raised when MT4 bridge fails to acknowledge the preflight PING."""
+
+
 class MT4Broker(OrderRouter):
     """Broker współpracujący z mostem plikowym MetaTrader4.
 
@@ -123,6 +127,49 @@ class MT4Broker(OrderRouter):
 
     # ------------------------------------------------------------------
     # Handshake utilities ------------------------------------------------
+    def await_preflight_ack(self, timeout: float | None = None) -> None:
+        """Send a ``PING`` file and wait for bridge ``ACK``.
+
+        Parameters
+        ----------
+        timeout:
+            Optional timeout overriding broker default.
+
+        Raises
+        ------
+        PreflightAckTimeout
+            If the acknowledgement file does not appear within ``timeout``.
+        """
+
+        ping_path = self.bridge_dir / "PING"
+        ack_path = self.bridge_dir / "ACK"
+        # create/overwrite ping marker
+        ping_path.write_text("PING", encoding="utf-8")
+        deadline = time.time() + (timeout if timeout is not None else self.timeout)
+        delay = 0.1
+        try:
+            while time.time() < deadline:
+                if ack_path.exists():
+                    # Clean up to avoid stale acknowledgements for subsequent calls
+                    try:
+                        ack_path.unlink()
+                    except OSError:
+                        pass
+                    return
+                time.sleep(min(delay, max(0, deadline - time.time())))
+        finally:
+            try:
+                ping_path.unlink()
+            except OSError:
+                pass
+        log_event(
+            "mt4_preflight_ack_timeout",
+            timeout_s=(timeout if timeout is not None else self.timeout),
+        )
+        raise PreflightAckTimeout(
+            f"timeout waiting for ACK ({timeout if timeout is not None else self.timeout}s)"
+        )
+
     def request_specs(self) -> str:
         """Request symbol specifications from the bridge.
 

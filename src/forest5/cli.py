@@ -44,7 +44,7 @@ from forest5.utils.log import (
     log_event,
     E_PREFLIGHT_ACK,
 )
-from forest5.live.mt4_broker import MT4Broker
+from forest5.live.mt4_broker import MT4Broker, PreflightAckTimeout
 
 
 # Backwards compatibility – old name used in previous versions/tests
@@ -524,6 +524,14 @@ def cmd_live_preflight(args: argparse.Namespace) -> int:
 
     broker = MT4Broker(bridge_dir=args.bridge_dir, symbol=args.symbol, timeout_sec=args.timeout)
     broker.connect()
+    try:
+        broker.await_preflight_ack(timeout=args.timeout)
+    except PreflightAckTimeout:
+        print(
+            "No ACK from MT4 bridge. Start the Expert Advisor or check --bridge-dir",
+            file=sys.stderr,
+        )
+        return 2
     uid = broker.request_specs()
 
     try:
