@@ -32,7 +32,7 @@ ALLOWED_SYMBOLS = {
 }
 
 
-H1Policy = Literal["strict", "pad", "infer"]
+H1Policy = Literal["strict", "pad", "infer", "drop"]
 
 
 def _normalize_h1_index(df: pd.DataFrame, policy: H1Policy = "strict") -> pd.DataFrame:
@@ -52,7 +52,9 @@ def _normalize_h1_index(df: pd.DataFrame, policy: H1Policy = "strict") -> pd.Dat
 
     if policy == "strict":
         if inferred not in ("H", "h"):
-            raise ValueError("Index must have 1H frequency")
+            diffs = df.index.to_series().diff().dropna()
+            if (diffs != pd.Timedelta("1h")).any():
+                raise ValueError("Index must have 1H frequency")
         return df
     if policy == "infer":
         if inferred not in ("H", "h"):
@@ -72,6 +74,8 @@ def _normalize_h1_index(df: pd.DataFrame, policy: H1Policy = "strict") -> pd.Dat
             out["volume"] = out["volume"].fillna(0)
         out = out.ffill()
         return out
+    if policy == "drop":
+        return df.dropna()
     raise ValueError(f"Unknown H1 policy: {policy}")
 
 
@@ -450,6 +454,7 @@ def read_ohlc_csv(
     df.index.name = "time"
     if "volume" in df.columns:
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").astype("float32")
+        df = df[df["volume"].notna()]
     df = df[cols].sort_index()
 
     # Downcast volume to float32
