@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 import re
 from pathlib import Path
+import os
+import tempfile
+import json
 
 import pandas as pd
 import warnings
@@ -26,6 +29,30 @@ ALLOWED_SYMBOLS = {
     "USDCHF",
     "USDJPY",
 }
+
+
+def atomic_to_csv(df: "pd.DataFrame", path: str | os.PathLike[str], **kwargs) -> None:
+    """Write ``df`` to ``path`` atomically.
+
+    The file is first written to a temporary location in the destination
+    directory and then moved into place using :func:`os.replace`.
+    """
+
+    directory = os.path.dirname(path) or "."
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False, suffix=".tmp") as f:
+        tmp = f.name
+        df.to_csv(f, index=False, **kwargs)
+    os.replace(tmp, path)
+
+
+def atomic_write_json(data: dict[str, object], path: str | os.PathLike[str]) -> None:
+    """Atomically write JSON ``data`` to ``path``."""
+
+    directory = os.path.dirname(path) or "."
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False, suffix=".tmp") as f:
+        json.dump(data, f, indent=2)
+        tmp = f.name
+    os.replace(tmp, path)
 
 
 def sniff_csv_dialect(path: str | Path, sample_bytes: int = 65_536) -> tuple[str, str, bool]:

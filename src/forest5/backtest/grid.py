@@ -5,6 +5,7 @@ from itertools import product
 from pathlib import Path
 from typing import Iterable, Any, Dict, List, Mapping
 import json
+import hashlib
 import random
 from copy import deepcopy
 import time
@@ -17,31 +18,26 @@ from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn
 
 import math
+import warnings
 
 from ..config import BacktestSettings
 from .engine import run_backtest
+from ..utils.io import atomic_to_csv, atomic_write_json
+
+warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 
 
-def build_combo_id(params: Mapping[str, Any]) -> str:
-    """Return a stable unique id for a parameter set."""
+def make_combo_id(params: Mapping[str, Any]) -> str:
+    """Return a deterministic id for a parameter set."""
 
-    def norm(v: Any) -> str:
-        if v is None:
-            return "null"
-        if isinstance(v, bool):
-            return "1" if v else "0"
-        if isinstance(v, (int,)):
-            return str(v)
-        if isinstance(v, float):
-            vv = 0.0 if abs(v) < 1e-15 else round(v, 10)
-            s = f"{vv:.10f}"
-            return s.rstrip("0").rstrip(".") if "." in s else s
-        if isinstance(v, (list, tuple)):
-            return ",".join(norm(x) for x in v)
-        return str(v)
+    s = json.dumps(params, sort_keys=True, separators=(",", ":"))
+    return hashlib.md5(s.encode("utf-8")).hexdigest()[:12]
 
-    items = sorted((k, params[k]) for k in params.keys())
-    return "|".join(f"{k}={norm(v)}" for k, v in items)
+
+def build_combo_id(params: Mapping[str, Any]) -> str:  # pragma: no cover - backwards compat
+    """Backward compatible wrapper for ``make_combo_id``."""
+
+    return make_combo_id(params)
 
 
 def _compute_metrics(equity: pd.Series) -> tuple[float, float, float]:
@@ -274,7 +270,7 @@ def run_param_grid(
     base_settings: BacktestSettings,
     param_ranges: Dict[str, Iterable[Any]],
     *,
-    jobs: int = 1,
+    jobs: int = 0,
     seed: int | None = None,
     dry_run: bool = False,
     results_path: Path | None = None,
@@ -303,6 +299,7 @@ def run_param_grid(
         written.
     """
 
+    df = df.copy()
     keys = sorted(param_ranges.keys())
     combos = [dict(zip(keys, vals)) for vals in product(*[param_ranges[k] for k in keys])]
     from datetime import datetime, timezone
@@ -330,10 +327,14 @@ def run_param_grid(
 
     if dry_run:
         out = pd.DataFrame(combos)
+        out.insert(
+            0, "combo_json", [json.dumps(c, sort_keys=True, separators=(",", ":")) for c in combos]
+        )
+        out.insert(0, "combo_id", [make_combo_id(c) for c in combos])
         if results_path:
-            out.to_csv(results_path, index=False)
+            atomic_to_csv(out, results_path)
         if meta_path:
-            Path(meta_path).write_text(json.dumps(meta))
+            atomic_write_json(meta, meta_path)
         return out, meta
 
     def _single(idx: int, combo: Dict[str, Any]) -> Dict[str, Any]:
@@ -355,6 +356,8 @@ def run_param_grid(
                 setattr(settings.time, k, v)
             else:
                 setattr(settings, k, v)
+        combo_json = json.dumps(combo, sort_keys=True, separators=(",", ":"))
+        combo_id = make_combo_id(combo)
         try:
             res = run_backtest(df, settings)
             equity = res.equity_curve
@@ -386,6 +389,8 @@ def run_param_grid(
                 else 0.0
             )
             return {
+                "combo_id": combo_id,
+                "combo_json": combo_json,
                 **combo,
                 "equity_end": end,
                 "dd": dd,
@@ -404,7 +409,7 @@ def run_param_grid(
                 "rr_median": rr_median,
             }
         except Exception as exc:  # pragma: no cover - defensive
-            return {**combo, "error": str(exc)}
+            return {"combo_id": combo_id, "combo_json": combo_json, **combo, "error": str(exc)}
 
     total = len(combos)
     rows: list[Dict[str, Any]] = []
@@ -425,9 +430,10 @@ def run_param_grid(
         transient=False,
     )
     task = progress.add_task("grid", total=total, best=0.0, eta="0s")
+    throttle = max(1, total // 100)
 
     with progress:
-        if jobs == 1:
+        if jobs <= 1:
             for i, combo in enumerate(combos):
                 res = _single(i, combo)
                 rows.append(res)
@@ -435,7 +441,10 @@ def run_param_grid(
                 best_pnl = max(best_pnl, res.get("pnl_net", float("-inf")))
                 elapsed = time.time() - start
                 eta = _fmt_eta(elapsed / processed * (total - processed)) if processed else "0s"
-                progress.update(task, advance=1, best=best_pnl, eta=eta)
+                if processed % throttle == 0 or processed == total:
+                    progress.update(task, advance=1, best=best_pnl, eta=eta)
+                else:
+                    progress.advance(task, 1)
         else:
             chunksize = max(1, len(combos) // (jobs * 4))
             results_iter = Parallel(
@@ -450,7 +459,10 @@ def run_param_grid(
                 best_pnl = max(best_pnl, res.get("pnl_net", float("-inf")))
                 elapsed = time.time() - start
                 eta = _fmt_eta(elapsed / processed * (total - processed)) if processed else "0s"
-                progress.update(task, advance=1, best=best_pnl, eta=eta)
+                if processed % throttle == 0 or processed == total:
+                    progress.update(task, advance=1, best=best_pnl, eta=eta)
+                else:
+                    progress.advance(task, 1)
 
     out = pd.DataFrame(rows)
     if results_path:
@@ -459,7 +471,7 @@ def run_param_grid(
             to_save.loc[:, "expectancy_by_pattern"] = to_save["expectancy_by_pattern"].apply(
                 lambda v: json.dumps(v)
             )
-        to_save.to_csv(results_path, index=False)
+        atomic_to_csv(to_save, results_path)
     if meta_path:
-        Path(meta_path).write_text(json.dumps(meta))
+        atomic_write_json(meta, meta_path)
     return out, meta

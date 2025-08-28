@@ -39,6 +39,8 @@ def test_cli_grid_respects_from_to(tmp_path, monkeypatch):
             "2020-01-01T02:00:00",
             "--to",
             "2020-01-01T04:00:00",
+            "--jobs",
+            "0",
         ]
     )
 
