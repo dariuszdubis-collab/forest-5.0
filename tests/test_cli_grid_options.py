@@ -66,7 +66,7 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
             "--min-confluence",
             "2",
             "--jobs",
-            "1",
+            "0",
             "--top",
             "1",
             "--out",

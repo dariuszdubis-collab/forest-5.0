@@ -51,6 +51,22 @@ poetry run forest5 validate live-config --yaml config/live.example.yaml
 poetry run forest5 live preflight --bridge-dir bridge --symbol EURUSD
 ```
 
+## Grid resume/top‑N/meta
+
+Pierwszy bieg zapisuje plan i wyniki do katalogu:
+
+```bash
+forest5 grid ... --out out/EURUSD_grid
+```
+
+Wznowienie pomija już obliczone kombinacje:
+
+```bash
+forest5 grid ... --resume auto --out out/EURUSD_grid
+```
+
+Najlepsze wyniki trafiają do `results_top.csv`, a metadane uruchomienia do `meta.json`.
+
 ## Performance notes
 
 - CSV loader uses memory mapping and float32 types to lower memory usage.

@@ -8,6 +8,9 @@ import random
 import json
 import math
 import time
+import socket
+import subprocess  # nosec B404
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -22,7 +25,7 @@ from forest5.config import (
     load_live_settings,
 )
 from forest5.backtest.engine import run_backtest
-from forest5.backtest.grid import build_combo_id
+from forest5.backtest.grid import make_combo_id
 from forest5.grid.engine import plan_param_grid, run_grid
 from forest5.live.live_runner import run_live
 from forest5.utils.io import (
@@ -30,12 +33,13 @@ from forest5.utils.io import (
     load_symbol_csv,
     read_ohlc_csv_smart,
     sniff_csv_dialect,
+    atomic_to_csv,
+    atomic_write_json,
 )
 from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import (
     PercentAction,
     span_or_list,
-    enum_bool,
     positive_int,
     validate_chunks,
 )
@@ -133,7 +137,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
-    df, meta = ensure_h1(df, policy=args.h1_policy)
+    df, time_meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -189,7 +193,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     )
 
     if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
-        step = meta.get("median_bar_minutes")
+        step = time_meta.get("median_bar_minutes")
         if step:
             settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
@@ -245,7 +249,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         return 1
 
     df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
-    df, meta = ensure_h1(df, policy=args.h1_policy)
+    df, time_meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
 
@@ -275,17 +279,36 @@ def cmd_grid(args: argparse.Namespace) -> int:
         out_dir = Path(csv_path).resolve().parent / "out"
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    results_path = out_dir / "results.csv"
-    meta_path = out_dir / "meta.json"
+    plan_path = out_dir / "plan.csv"
+    results_path = Path(args.results) if getattr(args, "results", None) else out_dir / "results.csv"
+    meta_path = Path(args.meta_out) if getattr(args, "meta_out", None) else out_dir / "meta.json"
+    top_path = out_dir / "results_top.csv"
+
+    atomic_to_csv(combos_all, plan_path)
 
     done_df = None
     done_ids: set[str] = set()
-    if args.resume in ("auto", True) and results_path.exists():
+    resume_mode = args.resume
+    if resume_mode in ("auto", "on") and results_path.exists():
         done_df = pd.read_csv(results_path)
         param_names = list(param_ranges.keys())
         if "combo_id" not in done_df.columns:
-            done_df["combo_id"] = [
-                build_combo_id({k: row.get(k) for k in param_names if k in row})
+            done_df["combo_json"] = [
+                json.dumps(
+                    {k: row.get(k) for k in param_names if k in row},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                for row in done_df.to_dict("records")
+            ]
+            done_df["combo_id"] = [make_combo_id(json.loads(js)) for js in done_df["combo_json"]]
+        elif "combo_json" not in done_df.columns:
+            done_df["combo_json"] = [
+                json.dumps(
+                    {k: row.get(k) for k in param_names if k in row},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 for row in done_df.to_dict("records")
             ]
         done_ids = set(done_df["combo_id"].astype(str))
@@ -307,17 +330,59 @@ def cmd_grid(args: argparse.Namespace) -> int:
 
     if done_ids:
         combos = combos[~combos["combo_id"].astype(str).isin(done_ids)]
+        if combos.empty:
+            print("nothing to do (resume)")
+            return 0
 
     if args.dry_run:
-        combos_all.to_csv(out_dir / "plan.csv", index=False)
-        meta = {
+        run_meta = {
             "symbol": args.symbol,
             "seed": args.seed,
             "total_combos": int(len(combos_all)),
         }
-        meta_path.write_text(json.dumps(meta, indent=2))
+        atomic_write_json(run_meta, meta_path)
         print(len(combos_all))
         return 0
+
+    jobs = args.jobs
+    if jobs is None:
+        env_jobs = os.environ.get("FOREST5_TEST_JOBS")
+        if env_jobs is not None:
+            jobs = int(env_jobs)
+        elif os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true":
+            jobs = 0
+        else:
+            jobs = 1
+    jobs = int(jobs)
+
+    start_time = datetime.now(timezone.utc)
+    git_sha = "unknown"
+    try:  # pragma: no cover - best effort
+        git_sha = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
+    except Exception:  # pragma: no cover
+        pass
+
+    run_meta = {
+        "iso_datetime_start": start_time.isoformat(),
+        "command_line": " ".join(sys.argv),
+        "seed": args.seed,
+        "jobs": jobs,
+        "hostname": socket.gethostname(),
+        "pid": os.getpid(),
+        "git_sha": git_sha,
+        "input_csv": str(csv_path),
+        "symbol": args.symbol,
+        "strategy": args.strategy,
+        "plan_total": int(len(combos_all)),
+        "plan_remaining": int(len(combos)),
+    }
+    atomic_write_json(run_meta, meta_path)
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -359,11 +424,11 @@ def cmd_grid(args: argparse.Namespace) -> int:
     settings.time.model.path = args.time_model
     settings.time.fusion_min_confluence = float(args.min_confluence)
     if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
-        step = meta.get("median_bar_minutes")
+        step = time_meta.get("median_bar_minutes")
         if step:
-            settings.setup_ttl_minutes = int(step)
+            settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
-    new_results = run_grid(df, combos, settings, jobs=int(args.jobs), seed=args.seed)
+    new_results = run_grid(df, combos, settings, jobs=jobs, seed=args.seed)
 
     if done_df is not None:
         merged = pd.concat([done_df, new_results], ignore_index=True)
@@ -371,21 +436,44 @@ def cmd_grid(args: argparse.Namespace) -> int:
     else:
         merged = new_results
 
-    sort_keys = [c for c in ["rar", "sharpe", "equity_end", "pnl_net"] if c in merged.columns]
-    merged = merged.sort_values(by=sort_keys, ascending=[False] * len(sort_keys))
-    merged.to_csv(results_path, index=False)
+    sort_cols: list[str] = []
+    sort_asc: list[bool] = []
+    if "equity_end" in merged.columns:
+        sort_cols.append("equity_end")
+        sort_asc.append(False)
+    if "trades" in merged.columns:
+        sort_cols.append("trades")
+        sort_asc.append(False)
+    if "dd" in merged.columns:
+        sort_cols.append("dd")
+        sort_asc.append(True)
+    elif "max_dd" in merged.columns:
+        sort_cols.append("max_dd")
+        sort_asc.append(True)
+    if sort_cols:
+        merged = merged.sort_values(by=sort_cols, ascending=sort_asc)
 
-    topn = int(args.top or 20)
-    merged.head(topn).to_csv(out_dir / "results_top.csv", index=False)
-    print("\n=== TOP", topn, "===\n", merged.head(topn).to_string(index=False))
+    atomic_to_csv(merged, results_path)
 
-    meta = {
-        "symbol": args.symbol,
-        "seed": getattr(args, "seed", None),
-        "total_combos": int(len(combos_all)),
-        "completed_combos": int(len(merged)),
-    }
-    meta_path.write_text(json.dumps(meta, indent=2))
+    topn = int(args.top)
+    top_df = merged.head(topn)
+    atomic_to_csv(top_df, top_path)
+    print("\n=== TOP", topn, "===\n", top_df.to_string(index=False))
+
+    end_time = datetime.now(timezone.utc)
+    success = int((merged.get("error").isna()).sum()) if "error" in merged.columns else len(merged)
+    failed = int((merged.get("error").notna()).sum()) if "error" in merged.columns else 0
+    run_meta.update(
+        {
+            "iso_datetime_end": end_time.isoformat(),
+            "duration_sec": (end_time - start_time).total_seconds(),
+            "success": success,
+            "failed": failed,
+            "aborted": 0,
+            "completed_combos": int(len(merged)),
+        }
+    )
+    atomic_write_json(run_meta, meta_path)
     return 0
 
 
@@ -920,9 +1008,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gr.add_argument(
         "--resume",
-        type=enum_bool,
+        choices=("auto", "on", "off"),
         default="auto",
-        help="Wznów poprzedni bieg (auto korzysta z istniejących wyników)",
+        help="Wznów poprzedni bieg (auto wykrywa, on wymusza, off ignoruje)",
     )
     p_gr.add_argument(
         "--chunks",
@@ -939,9 +1027,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gr.add_argument("--dry-run", action="store_true", help="Tylko pokaż konfigurację")
     p_gr.add_argument("--seed", type=int, default=None, help="Losowe ziarno")
-    p_gr.add_argument("--jobs", type=int, default=1, help="Równoległość (1 = sekwencyjnie)")
-    p_gr.add_argument("--top", type=int, default=20, help="Ile rekordów wyświetlić")
-    p_gr.add_argument("--out", "--export", dest="out", default=None, help="Zapis do CSV/Parquet")
+    p_gr.add_argument("--jobs", type=int, default=None, help="Równoległość (0 = sekwencyjnie)")
+    p_gr.add_argument("--top", type=int, default=10, help="Ile rekordów wyeksportować")
+    p_gr.add_argument("--results", dest="results", default=None, help="Ścieżka do results.csv")
+    p_gr.add_argument("--meta-out", dest="meta_out", default=None, help="Ścieżka do meta.json")
+    p_gr.add_argument("--out", "--export", dest="out", default=None, help="Katalog wyjściowy")
     p_gr.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_gr.set_defaults(func=cmd_grid)
 

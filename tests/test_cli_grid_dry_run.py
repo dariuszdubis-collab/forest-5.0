@@ -35,6 +35,8 @@ def test_cli_grid_dry_run(tmp_path, monkeypatch, capsys):
             "1,2",
             "--slow-values",
             "3,4",
+            "--jobs",
+            "0",
             "--dry-run",
         ]
     )

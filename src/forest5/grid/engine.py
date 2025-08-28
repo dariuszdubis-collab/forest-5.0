@@ -4,16 +4,20 @@ from itertools import product
 from typing import Dict, Iterable, Any, Callable
 import random
 from copy import deepcopy
+import json
 
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
+import warnings
 
 from ..config import BacktestSettings
 from ..backtest.engine import run_backtest
-from ..backtest.grid import _compute_metrics, build_combo_id
+from ..backtest.grid import _compute_metrics, make_combo_id
 from ..core.indicators import precompute_indicators
 from ..utils.log import log_event
+
+warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 
 
 def plan_param_grid(
@@ -43,7 +47,10 @@ def plan_param_grid(
     if filter_fn is not None:
         combos = [c for c in combos if filter_fn(c)]
     df = pd.DataFrame(combos)
-    df.insert(0, "combo_id", [build_combo_id(c) for c in combos])
+    jsons = [json.dumps(c, sort_keys=True, separators=(",", ":")) for c in combos]
+    ids = [make_combo_id(c) for c in combos]
+    df.insert(0, "combo_json", jsons)
+    df.insert(0, "combo_id", ids)
     return df
 
 
@@ -52,7 +59,7 @@ def run_grid(
     combos: pd.DataFrame,
     base_settings: BacktestSettings,
     *,
-    jobs: int = 1,
+    jobs: int = 0,
     seed: int | None = None,
 ) -> pd.DataFrame:
     """Execute backtests for prepared parameter combinations."""
@@ -81,14 +88,14 @@ def run_grid(
             random.seed(local_seed)
             np.random.seed(local_seed)
 
+        params = {k: v for k, v in combo.items() if k not in {"combo_id", "combo_json"}}
+
         settings = (
             base_settings.model_copy(deep=True)
             if hasattr(base_settings, "model_copy")
             else deepcopy(base_settings)
         )
-        for k, v in combo.items():
-            if k == "combo_id":
-                continue
+        for k, v in params.items():
             if hasattr(settings.strategy, k):
                 setattr(settings.strategy, k, v)
             elif hasattr(settings.risk, k):
@@ -97,6 +104,9 @@ def run_grid(
                 setattr(settings.time, k, v)
             else:
                 setattr(settings, k, v)
+
+        combo_json = json.dumps(params, sort_keys=True, separators=(",", ":"))
+        combo_id = combo.get("combo_id") or make_combo_id(params)
 
         try:
             res = run_backtest(df, settings)
@@ -117,7 +127,9 @@ def run_grid(
                 else 0.0
             )
             return {
-                **combo,
+                "combo_id": combo_id,
+                "combo_json": combo_json,
+                **params,
                 "equity_end": end,
                 "dd": dd,
                 "cagr": cagr,
@@ -132,9 +144,9 @@ def run_grid(
                 "setups_expired_pct": 0.0,
             }
         except Exception as exc:  # pragma: no cover
-            return {**combo, "error": str(exc)}
+            return {"combo_id": combo_id, "combo_json": combo_json, **params, "error": str(exc)}
 
-    if jobs == 1:
+    if jobs <= 1:
         rows = [_single(i, c) for i, c in enumerate(combo_dicts)]
     else:
         rows = Parallel(n_jobs=jobs)(delayed(_single)(i, c) for i, c in enumerate(combo_dicts))

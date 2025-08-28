@@ -31,4 +31,7 @@ jobs:
       - name: Run lint
         run: make lint
       - name: Run tests
+        env:
+          PYTHONWARNINGS: "ignore::SettingWithCopyWarning"
+          FOREST5_TEST_JOBS: "0"
         run: pytest -q

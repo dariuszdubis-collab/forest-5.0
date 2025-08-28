@@ -26,6 +26,8 @@ def test_grid_resume(tmp_path, capsys):
         str(tmp_path),
         "--seed",
         "1",
+        "--jobs",
+        "0",
     ]
 
     args1 = parser.parse_args(base + ["--chunks", "2", "--chunk-id", "1"])
@@ -48,9 +50,12 @@ def test_grid_resume(tmp_path, capsys):
     top_path = tmp_path / "results_top.csv"
     assert top_path.exists()
     top_df = pd.read_csv(top_path)
-    assert len(top_df) <= int(args2.top or 20)
+    assert len(top_df) <= int(args2.top or 10)
 
     meta = json.loads((tmp_path / "meta.json").read_text())
     assert meta["seed"] == 1
-    assert meta["total_combos"] == 4
+    assert meta["plan_total"] == 4
     assert meta["completed_combos"] == 4
+    assert "iso_datetime_start" in meta
+    assert "iso_datetime_end" in meta
+    assert "duration_sec" in meta

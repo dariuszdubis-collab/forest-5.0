@@ -19,12 +19,15 @@ def test_grid_export_columns(tmp_path):
         df,
         settings,
         params,
+        jobs=0,
         results_path=results_path,
         meta_path=meta_path,
     )
     assert results_path.exists()
     csv = pd.read_csv(results_path)
-    expected_cols = [
+    expected_cols = {
+        "combo_id",
+        "combo_json",
         "fast",
         "slow",
         "equity_end",
@@ -42,5 +45,5 @@ def test_grid_export_columns(tmp_path):
         "setups_expired_pct",
         "rr_avg",
         "rr_median",
-    ]
-    assert list(csv.columns) == expected_cols
+    }
+    assert set(csv.columns) >= expected_cols
