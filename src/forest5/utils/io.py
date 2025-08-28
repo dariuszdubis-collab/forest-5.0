@@ -7,6 +7,7 @@ import os
 import tempfile
 import json
 
+from typing import Literal
 import pandas as pd
 import warnings
 
@@ -29,6 +30,55 @@ ALLOWED_SYMBOLS = {
     "USDCHF",
     "USDJPY",
 }
+
+
+H1Policy = Literal["strict", "pad", "infer"]
+
+
+def _normalize_h1_index(df: pd.DataFrame, policy: H1Policy = "strict") -> pd.DataFrame:
+    """Return ``df`` with a consistently hourly index."""
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame index must be DatetimeIndex")
+    if not df.index.is_monotonic_increasing:
+        df = df.sort_index()
+    if df.index.has_duplicates:
+        df = df[~df.index.duplicated(keep="last")]
+
+    try:
+        inferred = pd.infer_freq(df.index)
+    except Exception:
+        inferred = None
+
+    if policy == "strict":
+        if inferred not in ("H", "h"):
+            raise ValueError("Index must have 1H frequency")
+        return df
+    if policy == "infer":
+        if inferred not in ("H", "h"):
+            raise ValueError("Index must have 1H frequency (infer)")
+        return df
+    if policy == "pad":
+        full = pd.date_range(df.index[0], df.index[-1], freq="1h", tz=df.index.tz)
+        if len(full) == len(df.index) and inferred in ("H", "h"):
+            return df
+        out = df.reindex(full)
+        if "close" in out.columns:
+            out["close"] = out["close"].ffill()
+        for col in ("open", "high", "low"):
+            if col in out.columns:
+                out[col] = out[col].fillna(out["close"])
+        if "volume" in out.columns:
+            out["volume"] = out["volume"].fillna(0)
+        out = out.ffill()
+        return out
+    raise ValueError(f"Unknown H1 policy: {policy}")
+
+
+def normalize_ohlc_h1(df: pd.DataFrame, policy: H1Policy = "strict") -> pd.DataFrame:
+    """Public helper to normalise OHLC data to 1H frequency."""
+
+    return _normalize_h1_index(df, policy=policy)
 
 
 def atomic_to_csv(df: "pd.DataFrame", path: str | os.PathLike[str], **kwargs) -> None:
@@ -400,7 +450,7 @@ def read_ohlc_csv(
     df.index.name = "time"
     if "volume" in df.columns:
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").astype("float32")
-    df = df[cols].dropna().sort_index()
+    df = df[cols].sort_index()
 
     # Downcast volume to float32
     if "volume" in df.columns and df["volume"].dtype != "float32":
@@ -481,4 +531,5 @@ def load_symbol_csv(
 
     df = read_ohlc_csv(path, has_header=has_header)
     df, meta = ensure_h1(df, policy=policy)
+    df = normalize_ohlc_h1(df, policy=policy)
     return df, meta
