@@ -49,7 +49,11 @@ class TPslPolicy:
 
 def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
     """Zapewnia poprawność danych wejściowych do backtestu."""
-    return ensure_backtest_ready(df, price_col=price_col).copy()
+    out = ensure_backtest_ready(df, price_col=price_col)
+    float_cols = out.select_dtypes(include=["float64"]).columns
+    if len(float_cols) > 0:
+        out[float_cols] = out[float_cols].astype("float32")
+    return out
 
 
 def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: str) -> pd.Series:
@@ -652,7 +656,7 @@ def run_backtest(
     # 3) przygotowanie ATR do sizingu
     ap = int(atr_period or settings.atr_period)
     am = float(atr_multiple or settings.atr_multiple)
-    df["atr"] = atr(df["high"], df["low"], df["close"], ap)
+    df["atr"] = atr(df["high"], df["low"], df["close"], ap).astype("float32")
 
     # 4) stan początkowy
     tb = TradeBook()

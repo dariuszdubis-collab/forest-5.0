@@ -51,6 +51,12 @@ poetry run forest5 validate live-config --yaml config/live.example.yaml
 poetry run forest5 live preflight --bridge-dir bridge --symbol EURUSD
 ```
 
+## Performance notes
+
+- CSV loader uses memory mapping and float32 types to lower memory usage.
+- Grid search precomputes indicator columns once per unique period.
+- Parallel runs are controlled by `--jobs`; workers recycle after many tasks.
+
 Jeśli w trakcie pracy `ai.enabled: true`, lecz plik kontekstu nie istnieje, aplikacja zaloguje `ai_context_missing_warn` i przejdzie w tryb bez AI.
 
 ## Komendy GRID i walk-forward

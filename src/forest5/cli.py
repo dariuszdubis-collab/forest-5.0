@@ -132,7 +132,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         print(f"CSV file not found: {csv_path}", file=sys.stderr)
         return 1
 
-    df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
+    df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
     df, meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
@@ -244,7 +244,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
         print(f"CSV file not found: {csv_path}", file=sys.stderr)
         return 1
 
-    df = read_ohlc_csv_smart(csv_path, time_col=args.time_col, sep=args.sep)
+    df = read_ohlc_csv(csv_path, time_col=args.time_col, sep=args.sep)
     df, meta = ensure_h1(df, policy=args.h1_policy)
     if args.time_from is not None or args.time_to is not None:
         df = df.loc[args.time_from : args.time_to]
@@ -719,6 +719,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forest5",
         description="Forest 5.0 – modularny framework tradingowy.",
+        epilog=(
+            "Performance notes: CSV loader uses float32 and memory mapping, "
+            "grid precomputes indicators once, and --jobs controls worker "
+            "processes."
+        ),
         formatter_class=SafeHelpFormatter,
     )
     sub = p.add_subparsers(dest="command")

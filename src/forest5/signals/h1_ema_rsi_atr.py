@@ -22,7 +22,15 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-from forest5.core.indicators import atr, ema, rsi
+from forest5.core.indicators import (
+    ensure_col,
+    ema_col_name,
+    rsi_col_name,
+    atr_col_name,
+    ema,
+    atr,
+    rsi,
+)
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
 from forest5.utils.log import TelemetryContext
@@ -119,10 +127,33 @@ def compute_primary_signal_h1(
 
     close = df["close"]
 
-    ema_f = ema(close, p["ema_fast"])
-    ema_s = ema(close, p["ema_slow"])
-    atr_series = atr(high, low, close, p["atr_period"])
-    rsi_series = rsi(close, p["rsi_period"])
+    fast_name = ema_col_name(p["ema_fast"])
+    slow_name = ema_col_name(p["ema_slow"])
+    atr_name = atr_col_name(p["atr_period"])
+    rsi_name = rsi_col_name(p["rsi_period"])
+
+    ema_f = (
+        df[fast_name]
+        if fast_name in df.columns
+        else ensure_col(df, fast_name, lambda d: ema(d["close"], p["ema_fast"]))
+    )
+    ema_s = (
+        df[slow_name]
+        if slow_name in df.columns
+        else ensure_col(df, slow_name, lambda d: ema(d["close"], p["ema_slow"]))
+    )
+    atr_series = (
+        df[atr_name]
+        if atr_name in df.columns
+        else ensure_col(
+            df, atr_name, lambda d: atr(d["high"], d["low"], d["close"], p["atr_period"])
+        )
+    )
+    rsi_series = (
+        df[rsi_name]
+        if rsi_name in df.columns
+        else ensure_col(df, rsi_name, lambda d: rsi(d["close"], p["rsi_period"]))
+    )
 
     ema_f_last = ema_f.iloc[-1]
     ema_s_last = ema_s.iloc[-1]
