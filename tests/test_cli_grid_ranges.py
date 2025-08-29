@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-from forest5.cli import build_parser
+from forest5.cli import build_parser, cmd_grid
 
 
 def _write_csv(path: Path) -> Path:
@@ -67,6 +67,61 @@ def test_grid_range_parsing(tmp_path):
     assert args.trailing_atr == [0.5]
     assert args.q_low == [0.1]
     assert args.q_high == [0.9]
+
+
+def test_grid_plan_includes_pattern_columns(tmp_path, monkeypatch):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "grid",
+            "--csv",
+            str(csv_path),
+            "--symbol",
+            "EURUSD",
+            "--ema-fast",
+            "1",
+            "--ema-slow",
+            "2",
+            "--engulf-eps-atr",
+            "0.03,0.05",
+            "--engulf-body-ratio-min",
+            "1.0,1.1",
+            "--pinbar-wick-dom",
+            "0.55,0.60",
+            "--pinbar-body-max",
+            "0.25,0.30",
+            "--pinbar-opp-wick-max",
+            "0.15,0.20",
+            "--star-reclaim-min",
+            "0.50,0.62",
+            "--star-mid-small-max",
+            "0.30,0.40",
+            "--no-engulf",
+            "--no-pinbar",
+            "--no-star",
+            "--dry-run",
+            "--out",
+            str(tmp_path),
+        ]
+    )
+
+    monkeypatch.chdir(tmp_path)
+    cmd_grid(args)
+    plan = pd.read_csv(tmp_path / "plan.csv")
+    expected = {
+        "engulf_eps_atr",
+        "engulf_body_ratio_min",
+        "pinbar_wick_dom",
+        "pinbar_body_max",
+        "pinbar_opp_wick_max",
+        "star_reclaim_min",
+        "star_mid_small_max",
+        "enable_engulf",
+        "enable_pinbar",
+        "enable_star",
+    }
+    assert expected.issubset(set(plan.columns))
 
 
 def test_grid_fast_slow_alias(tmp_path):

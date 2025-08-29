@@ -19,6 +19,7 @@ are populated so the decision engine can consume extra context.
 from __future__ import annotations
 
 from typing import Any, Mapping
+import types
 
 import pandas as pd
 
@@ -51,6 +52,16 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "timeframe": "H1",
     "horizon_minutes": 240,
     "ttl_minutes": None,
+    "engulf_eps_atr": 0.05,
+    "engulf_body_ratio_min": 1.0,
+    "pinbar_wick_dom": 0.60,
+    "pinbar_body_max": 0.30,
+    "pinbar_opp_wick_max": 0.20,
+    "star_reclaim_min": 0.62,
+    "star_mid_small_max": 0.40,
+    "enable_engulf": True,
+    "enable_pinbar": True,
+    "enable_star": True,
 }
 
 
@@ -88,6 +99,24 @@ def compute_primary_signal_h1(
 
     p = _to_params(params)
     reg = registry or SetupRegistry()
+
+    cfg = types.SimpleNamespace(**p)
+    if cfg.enable_engulf:
+        patterns.registry.enable_engulfing(
+            eps_atr=cfg.engulf_eps_atr,
+            body_ratio_min=cfg.engulf_body_ratio_min,
+        )
+    if cfg.enable_pinbar:
+        patterns.registry.enable_pinbar(
+            wick_dom=cfg.pinbar_wick_dom,
+            body_max=cfg.pinbar_body_max,
+            opp_wick_max=cfg.pinbar_opp_wick_max,
+        )
+    if cfg.enable_star:
+        patterns.registry.enable_stars(
+            reclaim_min=cfg.star_reclaim_min,
+            mid_small_max=cfg.star_mid_small_max,
+        )
 
     if df.empty:
         return TechnicalSignal(
@@ -206,7 +235,17 @@ def compute_primary_signal_h1(
         technical_score = 1.0 if action == "BUY" else -1.0
         confidence_tech = abs(technical_score)
 
-        patterns_cfg = p.get("patterns", {}) or {}
+        patterns_cfg = dict(p.get("patterns", {}) or {})
+        patterns_cfg.update(
+            {
+                "engulfing": cfg.enable_engulf,
+                "pinbar": cfg.enable_pinbar,
+                "stars": cfg.enable_star,
+            }
+        )
+        if cfg.enable_engulf or cfg.enable_pinbar or cfg.enable_star:
+            patterns_cfg["enabled"] = True
+
         pattern_ok = True
         if patterns_cfg.get("enabled"):
             pattern_ok = False

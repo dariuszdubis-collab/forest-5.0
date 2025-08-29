@@ -37,12 +37,24 @@ poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi
 # 5) Grid-search
 poetry run forest5 grid --csv demo.csv --symbol EURUSD --fast-values 6:12:6 --slow-values 20:40:10
 
+# 5b) Grid-search z progami formacji świecowych
+poetry run forest5 grid --csv demo.csv --symbol EURUSD \
+  --fast-values 6 --slow-values 20 \
+  --engulf-eps-atr 0.03,0.05 --pinbar-wick-dom 0.55,0.60 \
+  --star-reclaim-min 0.50,0.62 --dry-run
+
 # 6) Inspekcja pojedynczego pliku i uzupełnianie braków
 poetry run forest5 data inspect --csv demo.csv --out out_dir
 poetry run forest5 data pad-h1 --csv demo.csv --policy pad --out demo_filled.csv
 
 # 7) Wyłączenie detektorów świecowych w backteście
 poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr --no-pinbar
+
+# 7b) Backtest z progami formacji świecowych
+poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr \
+  --engulf-eps-atr 0.05 --engulf-body-ratio-min 1.1 \
+  --pinbar-wick-dom 0.60 --pinbar-body-max 0.30 --pinbar-opp-wick-max 0.20 \
+  --star-reclaim-min 0.62 --star-mid-small-max 0.40
 
 # 8) Walidacja konfiguracji live
 poetry run forest5 validate live-config --yaml config/live.example.yaml
