@@ -1,4 +1,3 @@
-import pandas as pd
 from forest5.config import BacktestSettings
 from forest5.grid.engine import plan_param_grid, run_grid
 from forest5.examples.synthetic import generate_ohlc

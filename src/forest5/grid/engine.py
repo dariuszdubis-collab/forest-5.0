@@ -154,7 +154,14 @@ def run_grid(
                 miss_pattern = cnt.get("pattern_trigger_miss", 0)
                 wait_timeonly = cnt.get("timeonly_wait", 0)
                 ttl_expire = cnt.get("setup_expire", 0)
-                cand_cnt = gate_trend + gate_pullback + gate_rsi + miss_pattern + wait_timeonly + ttl_expire
+                cand_cnt = (
+                    gate_trend
+                    + gate_pullback
+                    + gate_rsi
+                    + miss_pattern
+                    + wait_timeonly
+                    + ttl_expire
+                )
                 row.update(
                     {
                         "cand_cnt": cand_cnt,
