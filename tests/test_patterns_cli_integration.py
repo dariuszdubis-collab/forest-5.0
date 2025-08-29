@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from forest5.cli import build_parser, cmd_backtest
 
