@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import BacktestSettings
-from ..utils.debugger import DebugLogger
+from ..utils.debugger import DebugLogger, TraceCollector
 from ..core.indicators import atr, ema, rsi
 from ..utils.log import (
     E_ORDER_ACK,
@@ -56,7 +56,13 @@ def _validate_data(df: pd.DataFrame, price_col: str) -> pd.DataFrame:
     return out
 
 
-def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: str) -> pd.Series:
+def _generate_signal(
+    df: pd.DataFrame,
+    settings: BacktestSettings,
+    price_col: str,
+    *,
+    collector: TraceCollector | None = None,
+) -> pd.Series:
     """Generuje serię sygnałów tradingowych."""
     name = getattr(settings.strategy, "name", "ema_cross")
     use_rsi = getattr(settings.strategy, "use_rsi", False)
@@ -74,7 +80,12 @@ def _generate_signal(df: pd.DataFrame, settings: BacktestSettings, price_col: st
         params = getattr(settings.strategy, "params", settings.strategy)
         vals: list[int] = []
         for i in range(len(df)):
-            contract = compute_primary_signal_h1(df.iloc[: i + 1], params=params, registry=registry)
+            contract = compute_primary_signal_h1(
+                df.iloc[: i + 1],
+                params=params,
+                registry=registry,
+                collector=collector,
+            )
             vals.append(int(contract_to_int(contract)))
         sig = pd.Series(vals, index=df.index, dtype=int)
     else:
@@ -559,6 +570,7 @@ def _trading_loop(
     atr_multiple: float,
     settings: BacktestSettings,
     debug: DebugLogger | None = None,
+    collector: TraceCollector | None = None,
 ) -> float:
     """Główna pętla tradingowa z mark-to-market."""
     prices = df[price_col].to_numpy(dtype=float)
@@ -583,8 +595,11 @@ def _trading_loop(
             return_weight=True,
         )
         this_sig = fused
-        if fuse_reason in {"time_model_hold", "time_model_wait"} and debug:
-            debug.log("skip_candle", time=str(t), reason=fuse_reason)
+        if fuse_reason in {"time_model_hold", "time_model_wait"}:
+            if debug:
+                debug.log("skip_candle", time=str(t), reason=fuse_reason)
+            if collector:
+                collector.note("timeonly_wait", fuse_reason, at=pd.Timestamp(t), extras={})
         if fuse_reason == "not_enough_confluence" and debug:
             debug.log("signal_rejected", time=str(t), reason="no_confluence")
 
@@ -610,15 +625,30 @@ def _trading_loop(
                         qty=float(qty),
                         weight=float(weight),
                     )
+                if collector:
+                    collector.note(
+                        "order_submit",
+                        "ok",
+                        at=pd.Timestamp(t),
+                        extras={"price": float(price), "qty": float(qty)},
+                    )
                 position = qty
-            elif debug:
-                debug.log(
-                    "signal_rejected",
-                    time=str(t),
-                    reason="qty_zero",
-                    price=float(price),
-                    atr=float(atr_val),
-                )
+            else:
+                if debug:
+                    debug.log(
+                        "signal_rejected",
+                        time=str(t),
+                        reason="qty_zero",
+                        price=float(price),
+                        atr=float(atr_val),
+                    )
+                if collector:
+                    collector.note(
+                        "order_reject",
+                        "qty_zero",
+                        at=pd.Timestamp(t),
+                        extras={"price": float(price)},
+                    )
 
         equity_mtm = rm.equity + position * price
         rm.record_mark_to_market(equity_mtm)
@@ -646,12 +676,13 @@ def run_backtest(
     price_col: str = "close",
     atr_period: int | None = None,
     atr_multiple: float | None = None,
+    collector: TraceCollector | None = None,
 ) -> BacktestResult:
     # 1) walidacja danych
     df = _validate_data(df, price_col=price_col)
 
     # 2) generowanie sygnału
-    sig = _generate_signal(df, settings, price_col=price_col)
+    sig = _generate_signal(df, settings, price_col=price_col, collector=collector)
 
     # 3) przygotowanie ATR do sizingu
     ap = int(atr_period or settings.atr_period)
@@ -678,6 +709,7 @@ def run_backtest(
             am,
             settings,
             debug,
+            collector,
         )
     finally:
         if debug:

@@ -25,6 +25,7 @@ from forest5.config import (
     load_live_settings,
 )
 from forest5.backtest.engine import run_backtest
+from forest5.utils.debugger import get_collector
 from forest5.backtest.grid import make_combo_id
 from forest5.grid.engine import plan_param_grid, run_grid
 from forest5.live.live_runner import run_live
@@ -228,14 +229,26 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     settings.time.q_low = float(args.q_low)
     settings.time.q_high = float(args.q_high)
 
-    res = run_backtest(
-        df,
-        settings,
-        symbol=args.symbol,
-        price_col="close",
-        atr_period=args.atr_period,
-        atr_multiple=args.atr_multiple,
-    )
+    collector = get_collector(None) if args.export_setups else None
+    if collector is not None:
+        res = run_backtest(
+            df,
+            settings,
+            symbol=args.symbol,
+            price_col="close",
+            atr_period=args.atr_period,
+            atr_multiple=args.atr_multiple,
+            collector=collector,
+        )
+    else:
+        res = run_backtest(
+            df,
+            settings,
+            symbol=args.symbol,
+            price_col="close",
+            atr_period=args.atr_period,
+            atr_multiple=args.atr_multiple,
+        )
 
     equity = res.equity_curve
     equity_end = float(equity.iloc[-1]) if not equity.empty else 0.0
@@ -248,6 +261,27 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         f"MaxDD: {res.max_dd:.3f} | Trades: {len(res.trades.trades)}"
     )
 
+    if args.export_setups and collector:
+        out = Path(args.export_setups)
+        df_setups = pd.DataFrame(collector.events)
+        expected_cols = [
+            "time",
+            "side",
+            "entry",
+            "sl",
+            "tp",
+            "drivers",
+            "t_sep_atr",
+            "pullback_atr",
+            "rsi",
+            "atr",
+            "reason",
+        ]
+        for col in expected_cols:
+            if col not in df_setups.columns:
+                df_setups[col] = pd.NA
+        df_setups.rename(columns={"reason": "reasons"}, inplace=True)
+        df_setups.to_csv(out, index=False)
     if args.export_equity:
         out = Path(args.export_equity)
         res.equity_curve.to_csv(out, index_label="time")
@@ -460,7 +494,9 @@ def cmd_grid(args: argparse.Namespace) -> int:
         if step:
             settings.setup_ttl_minutes = int(settings.setup_ttl_bars * step)
 
-    new_results = run_grid(df, combos, settings, jobs=jobs, seed=args.seed)
+    new_results = run_grid(
+        df, combos, settings, jobs=jobs, seed=args.seed, explain=bool(args.explain)
+    )
 
     if done_df is not None:
         merged = pd.concat([done_df, new_results], ignore_index=True)
@@ -963,6 +999,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_bt.add_argument("--export-equity", default=None, help="Zapisz equity do CSV")
+    p_bt.add_argument("--export-setups", default=None, help="Eksportuj setupy do CSV")
     p_bt.add_argument("--debug-dir", type=Path, default=None, help="Katalog logów debug")
     p_bt.set_defaults(func=cmd_backtest)
 
@@ -1128,6 +1165,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--seed", type=int, default=None, help="Losowe ziarno")
     p_gr.add_argument("--jobs", type=int, default=None, help="Równoległość (0 = sekwencyjnie)")
     p_gr.add_argument("--top", type=int, default=10, help="Ile rekordów wyeksportować")
+    p_gr.add_argument("--explain", action="store_true", help="Dodaj kolumny wyjaśnień")
     p_gr.add_argument("--results", dest="results", default=None, help="Ścieżka do results.csv")
     p_gr.add_argument("--meta-out", dest="meta_out", default=None, help="Ścieżka do meta.json")
     p_gr.add_argument("--out", "--export", dest="out", default=None, help="Katalog wyjściowy")
