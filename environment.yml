@@ -17,5 +17,6 @@ dependencies:
   - pip:
       - openai>=1
       - python-dotenv
+      - rich>=14.1
       # - ruff
       # - pytest
