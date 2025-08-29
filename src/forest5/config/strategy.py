@@ -25,6 +25,17 @@ class H1EmaRsiAtrParams(BaseModel):
     timeframe: str = "H1"
     horizon_minutes: int = 240
 
+    engulf_eps_atr: float | None = 0.05
+    engulf_body_ratio_min: float | None = 1.0
+    pinbar_wick_dom: float | None = 0.60
+    pinbar_body_max: float | None = 0.30
+    pinbar_opp_wick_max: float | None = 0.20
+    star_reclaim_min: float | None = 0.62
+    star_mid_small_max: float | None = 0.40
+    enable_engulf: bool = True
+    enable_pinbar: bool = True
+    enable_star: bool = True
+
     def __getitem__(self, item: str) -> Any:  # pragma: no cover - convenience
         return getattr(self, item)
 
@@ -96,6 +107,18 @@ class BaseStrategySettings(BaseModel):
     timeframe: str | None = None
     horizon_minutes: int | None = None
 
+    # Optional overrides for pattern detectors
+    engulf_eps_atr: float | None = None
+    engulf_body_ratio_min: float | None = None
+    pinbar_wick_dom: float | None = None
+    pinbar_body_max: float | None = None
+    pinbar_opp_wick_max: float | None = None
+    star_reclaim_min: float | None = None
+    star_mid_small_max: float | None = None
+    enable_engulf: bool | None = None
+    enable_pinbar: bool | None = None
+    enable_star: bool | None = None
+
     @model_validator(mode="after")
     def _map_h1_params(self) -> "BaseStrategySettings":
         if self.name != "h1_ema_rsi_atr":
@@ -120,6 +143,16 @@ class BaseStrategySettings(BaseModel):
             "rr",
             "timeframe",
             "horizon_minutes",
+            "engulf_eps_atr",
+            "engulf_body_ratio_min",
+            "pinbar_wick_dom",
+            "pinbar_body_max",
+            "pinbar_opp_wick_max",
+            "star_reclaim_min",
+            "star_mid_small_max",
+            "enable_engulf",
+            "enable_pinbar",
+            "enable_star",
         ):
             value = getattr(self, field, None)
             if value is not None:

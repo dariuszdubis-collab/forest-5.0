@@ -41,6 +41,7 @@ from forest5.utils.timeindex import ensure_h1
 from forest5.utils.argparse_ext import (
     PercentAction,
     span_or_list,
+    SpanOrList,
     positive_int,
     validate_chunks,
 )
@@ -98,6 +99,34 @@ def load_ohlc_csv(
     df, meta = ensure_h1(df, policy=policy)
     df = normalize_ohlc_h1(df, policy=policy)
     return df, meta
+
+
+PATTERN_PARAM_KEYS = [
+    "engulf_eps_atr",
+    "engulf_body_ratio_min",
+    "pinbar_wick_dom",
+    "pinbar_body_max",
+    "pinbar_opp_wick_max",
+    "star_reclaim_min",
+    "star_mid_small_max",
+]
+
+
+def _collect_pattern_overrides_ns(ns: argparse.Namespace) -> Dict[str, Any]:
+    """Extract pattern-related overrides from a namespace."""
+
+    d: Dict[str, Any] = {}
+    for k in PATTERN_PARAM_KEYS:
+        v = getattr(ns, k, None)
+        if v is not None:
+            d[k] = v
+    if getattr(ns, "no_engulf", False):
+        d["enable_engulf"] = False
+    if getattr(ns, "no_pinbar", False):
+        d["enable_pinbar"] = False
+    if getattr(ns, "no_star", False):
+        d["enable_star"] = False
+    return d
 
 
 # ------------------------------- CLI commands --------------------------------
@@ -168,16 +197,9 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "rr": args.rr,
         }
 
-        pats: Dict[str, bool] = {}
-        if args.no_engulf:
-            pats["engulfing"] = False
-        if args.no_pinbar:
-            pats["pinbar"] = False
-        if args.no_star:
-            pats["stars"] = False
-        if pats:
-            pats["enabled"] = True
-            strat_cfg["patterns"] = pats
+        overrides = _collect_pattern_overrides_ns(args)
+        if overrides:
+            strat_cfg.update(overrides)
 
     settings = BacktestSettings(
         symbol=args.symbol,
@@ -274,6 +296,16 @@ def cmd_grid(args: argparse.Namespace) -> int:
         param_ranges["max_dd"] = [float(v) for v in args.max_dd_values]
     if len(args.rsi_period) > 1:
         param_ranges["rsi_period"] = [int(v) for v in args.rsi_period]
+
+    pattern_ranges = _collect_pattern_overrides_ns(args)
+    base_pattern_vals: Dict[str, Any] = {}
+    for k, v in pattern_ranges.items():
+        if isinstance(v, list):
+            param_ranges[k] = list(v)
+            base_pattern_vals[k] = v[0]
+        else:
+            param_ranges[k] = [v]
+            base_pattern_vals[k] = v
 
     combos_all = plan_param_grid(param_ranges, filter_fn=lambda c: c["fast"] < c["slow"])
     if args.out:
@@ -405,11 +437,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
             sl_atr=float(args.sl_atr),
             sl_min_atr=float(args.sl_min_atr[0]),
             rr=float(args.rr[0]),
-            patterns={
-                "engulfing": args.pat_engulf,
-                "pinbar": args.pat_pinbar,
-                "stars": args.pat_star,
-            },
+            **base_pattern_vals,
         ),
         risk=dict(
             initial_capital=float(args.capital),
@@ -906,6 +934,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--q-low", dest="q_low", type=float, default=0.1)
     p_bt.add_argument("--q-high", dest="q_high", type=float, default=0.9)
 
+    p_bt.add_argument("--engulf-eps-atr", dest="engulf_eps_atr", type=float, default=None)
+    p_bt.add_argument(
+        "--engulf-body-ratio-min", dest="engulf_body_ratio_min", type=float, default=None
+    )
+    p_bt.add_argument("--pinbar-wick-dom", dest="pinbar_wick_dom", type=float, default=None)
+    p_bt.add_argument("--pinbar-body-max", dest="pinbar_body_max", type=float, default=None)
+    p_bt.add_argument("--pinbar-opp-wick-max", dest="pinbar_opp_wick_max", type=float, default=None)
+    p_bt.add_argument("--star-reclaim-min", dest="star_reclaim_min", type=float, default=None)
+    p_bt.add_argument("--star-mid-small-max", dest="star_mid_small_max", type=float, default=None)
+
     p_bt.add_argument("--no-engulf", action="store_true", help="Wyłącz detektor engulfing")
     p_bt.add_argument("--no-pinbar", action="store_true", help="Wyłącz detektor pinbar")
     p_bt.add_argument("--no-star", action="store_true", help="Wyłącz detektor gwiazdy")
@@ -1003,9 +1041,64 @@ def build_parser() -> argparse.ArgumentParser:
     p_gr.add_argument("--trailing-atr", dest="trailing_atr", type=span_or_list, default=[0.0])
     p_gr.add_argument("--q-low", dest="q_low", type=span_or_list, default=[0.1])
     p_gr.add_argument("--q-high", dest="q_high", type=span_or_list, default=[0.9])
-    p_gr.add_argument("--no-engulf", dest="pat_engulf", action="store_false", default=True)
-    p_gr.add_argument("--no-pinbar", dest="pat_pinbar", action="store_false", default=True)
-    p_gr.add_argument("--no-star", dest="pat_star", action="store_false", default=True)
+    p_gr.add_argument(
+        "--engulf-eps-atr",
+        dest="engulf_eps_atr",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) tolerancja domknięcia engulfingu w ATR",
+    )
+    p_gr.add_argument(
+        "--engulf-body-ratio-min",
+        dest="engulf_body_ratio_min",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) minimalny stosunek ciał świec dla engulfingu",
+    )
+    p_gr.add_argument(
+        "--pinbar-wick-dom",
+        dest="pinbar_wick_dom",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) dominacja knota pinbara",
+    )
+    p_gr.add_argument(
+        "--pinbar-body-max",
+        dest="pinbar_body_max",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) maksymalny udział ciała pinbara",
+    )
+    p_gr.add_argument(
+        "--pinbar-opp-wick-max",
+        dest="pinbar_opp_wick_max",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) maksymalny przeciwny knot pinbara",
+    )
+    p_gr.add_argument(
+        "--star-reclaim-min",
+        dest="star_reclaim_min",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) minimalny reclaim w formacji Star",
+    )
+    p_gr.add_argument(
+        "--star-mid-small-max",
+        dest="star_mid_small_max",
+        type=SpanOrList(float),
+        default=None,
+        help="(span/list) maksymalny rozmiar świecy środkowej w Star",
+    )
+    p_gr.add_argument(
+        "--no-engulf", dest="no_engulf", action="store_true", help="Wyłącz detektor engulfing"
+    )
+    p_gr.add_argument(
+        "--no-pinbar", dest="no_pinbar", action="store_true", help="Wyłącz detektor pinbar"
+    )
+    p_gr.add_argument(
+        "--no-star", dest="no_star", action="store_true", help="Wyłącz detektor gwiazdy"
+    )
 
     p_gr.add_argument("--time-model", type=Path, default=None, help="Ścieżka do modelu czasu")
     p_gr.add_argument(

@@ -49,3 +49,15 @@ def test_backtest_help_mentions_strategy(capsys):
     out = _run_and_capture(["backtest", "--help"], capsys)
     assert "--strategy" in out
     assert "h1_ema_rsi_atr" in out
+
+
+def test_backtest_help_mentions_patterns(capsys):
+    out = _run_and_capture(["backtest", "--help"], capsys)
+    assert "--engulf-eps-atr" in out
+    assert "--pinbar-wick-dom" in out
+
+
+def test_grid_help_mentions_patterns(capsys):
+    out = _run_and_capture(["grid", "--help"], capsys)
+    assert "--star-mid-small-max" in out
+    assert "--pinbar-body-max" in out

@@ -114,3 +114,79 @@ def test_cli_grid_additional_options(tmp_path, monkeypatch):
     assert settings.atr_multiple == 3
     assert settings.time.model.path == model_path
     assert settings.time.fusion_min_confluence == pytest.approx(2.0)
+
+
+def test_pattern_flags_parse(tmp_path):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "grid",
+            "--csv",
+            str(csv_path),
+            "--symbol",
+            "EURUSD",
+            "--fast-values",
+            "2",
+            "--slow-values",
+            "5",
+            "--engulf-eps-atr",
+            "0.03,0.05",
+            "--engulf-body-ratio-min",
+            "1.0,1.1",
+            "--pinbar-wick-dom",
+            "0.55,0.60",
+            "--pinbar-body-max",
+            "0.25,0.30",
+            "--pinbar-opp-wick-max",
+            "0.15,0.20",
+            "--star-reclaim-min",
+            "0.50,0.62",
+            "--star-mid-small-max",
+            "0.30,0.40",
+            "--no-star",
+        ]
+    )
+    assert args.engulf_eps_atr == [0.03, 0.05]
+    assert args.engulf_body_ratio_min == [1.0, 1.1]
+    assert args.pinbar_wick_dom == [0.55, 0.60]
+    assert args.pinbar_body_max == [0.25, 0.30]
+    assert args.pinbar_opp_wick_max == [0.15, 0.20]
+    assert args.star_reclaim_min == [0.50, 0.62]
+    assert args.star_mid_small_max == [0.30, 0.40]
+    assert args.no_star is True
+
+
+def test_backtest_pattern_flags_parse(tmp_path):
+    csv_path = _write_csv(tmp_path / "data.csv")
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "backtest",
+            "--csv",
+            str(csv_path),
+            "--symbol",
+            "EURUSD",
+            "--strategy",
+            "h1_ema_rsi_atr",
+            "--engulf-eps-atr",
+            "0.05",
+            "--engulf-body-ratio-min",
+            "1.1",
+            "--pinbar-wick-dom",
+            "0.6",
+            "--pinbar-body-max",
+            "0.3",
+            "--pinbar-opp-wick-max",
+            "0.2",
+            "--star-reclaim-min",
+            "0.62",
+            "--star-mid-small-max",
+            "0.4",
+            "--no-engulf",
+        ]
+    )
+    assert args.engulf_eps_atr == pytest.approx(0.05)
+    assert args.pinbar_wick_dom == pytest.approx(0.6)
+    assert args.star_mid_small_max == pytest.approx(0.4)
+    assert args.no_engulf is True

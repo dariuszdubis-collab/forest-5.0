@@ -185,3 +185,24 @@ def span_or_list(spec: str, type_fn: type | None = None) -> list:
         raise argparse.ArgumentTypeError(
             f"Invalid range: {spec}. Expected formats: lo-hi[:step] or lo:hi:step",
         ) from ex
+
+
+class SpanOrList:
+    """Callable wrapper converting span/list specs using ``span_or_list``.
+
+    Parameters
+    ----------
+    type_fn:
+        Type to cast parsed values to.  Example::
+
+            parser.add_argument("--foo", type=SpanOrList(float))
+
+    The callable returned by argparse will then parse inputs like
+    ``1-3`` or ``1,2,3`` into a list of ``float`` values.
+    """
+
+    def __init__(self, type_fn: type | None = None) -> None:
+        self.type_fn = type_fn
+
+    def __call__(self, spec: str) -> list:
+        return span_or_list(spec, self.type_fn)

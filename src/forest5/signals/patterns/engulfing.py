@@ -5,32 +5,49 @@ from __future__ import annotations
 import pandas as pd
 
 
-def detect(df: pd.DataFrame, atr: float) -> dict | None:
+def detect(
+    df: pd.DataFrame,
+    atr: float,
+    *,
+    eps_atr: float = 0.05,
+    body_ratio_min: float = 1.0,
+) -> dict | None:
     """Detect bullish or bearish engulfing pattern.
 
     Parameters
     ----------
-    df : pandas.DataFrame
+    df:
         DataFrame slice containing the last two candles with columns
         ``open``, ``high``, ``low`` and ``close``.
-    atr : float
+    atr:
         Average true range used for scoring.
-
-    Returns
-    -------
-    dict | None
-        A dictionary with ``type``, ``hi``, ``lo`` and ``score`` keys
-        when the pattern is found otherwise ``None``.
+    eps_atr:
+        Tolerance for open/close overlap expressed in ATR multiples.
+    body_ratio_min:
+        Minimum ratio between the engulfing candle body and the body of the
+        engulfed candle.
     """
-    if len(df) < 2:
+
+    if len(df) < 2 or atr <= 0:
         return None
 
     a = df.iloc[-2]
     b = df.iloc[-1]
+    eps = abs(eps_atr) * atr
+    body_a = abs(a.close - a.open)
+    body_b = abs(b.close - b.open)
+    if body_a <= 0 or body_b <= 0:
+        return None
 
     # Bullish engulfing
-    if a.close < a.open and b.close > b.open and b.open < a.close and b.close > a.open:
-        score = (abs(b.close - b.open) + abs(a.close - a.open)) / atr
+    if (
+        a.close < a.open
+        and b.close > b.open
+        and b.open <= a.close + eps
+        and b.close >= a.open - eps
+        and body_b >= body_ratio_min * body_a
+    ):
+        score = (body_a + body_b) / atr
         return {
             "type": "bullish_engulfing",
             "hi": float(b.high),
@@ -39,8 +56,14 @@ def detect(df: pd.DataFrame, atr: float) -> dict | None:
         }
 
     # Bearish engulfing
-    if a.close > a.open and b.close < b.open and b.open > a.close and b.close < a.open:
-        score = (abs(b.close - b.open) + abs(a.close - a.open)) / atr
+    if (
+        a.close > a.open
+        and b.close < b.open
+        and b.open >= a.close - eps
+        and b.close <= a.open + eps
+        and body_b >= body_ratio_min * body_a
+    ):
+        score = (body_a + body_b) / atr
         return {
             "type": "bearish_engulfing",
             "hi": float(b.high),
