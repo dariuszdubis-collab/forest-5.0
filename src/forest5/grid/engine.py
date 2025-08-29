@@ -13,6 +13,7 @@ import warnings
 
 from ..config import BacktestSettings
 from ..backtest.engine import run_backtest
+from ..utils.debugger import get_collector
 from ..backtest.grid import _compute_metrics, make_combo_id
 from ..core.indicators import precompute_indicators
 from ..utils.log import log_event
@@ -61,6 +62,7 @@ def run_grid(
     *,
     jobs: int = 0,
     seed: int | None = None,
+    explain: bool = False,
 ) -> pd.DataFrame:
     """Execute backtests for prepared parameter combinations."""
 
@@ -109,7 +111,8 @@ def run_grid(
         combo_id = combo.get("combo_id") or make_combo_id(params)
 
         try:
-            res = run_backtest(df, settings)
+            collector = get_collector(None) if explain else None
+            res = run_backtest(df, settings, collector=collector)
             equity = res.equity_curve
             end, dd, cagr = _compute_metrics(equity)
             tb = res.trades.trades
@@ -126,7 +129,7 @@ def run_grid(
                 if not returns.empty and returns.std() != 0
                 else 0.0
             )
-            return {
+            row = {
                 "combo_id": combo_id,
                 "combo_json": combo_json,
                 **params,
@@ -143,6 +146,27 @@ def run_grid(
                 "timeonly_wait_pct": 0.0,
                 "setups_expired_pct": 0.0,
             }
+            if explain and collector is not None:
+                cnt = collector.counts()
+                gate_trend = cnt.get("trend_gate_failed", 0)
+                gate_pullback = cnt.get("pullback_gate_failed", 0)
+                gate_rsi = cnt.get("rsi_gate_blocked", 0)
+                miss_pattern = cnt.get("pattern_trigger_miss", 0)
+                wait_timeonly = cnt.get("timeonly_wait", 0)
+                ttl_expire = cnt.get("setup_expire", 0)
+                cand_cnt = gate_trend + gate_pullback + gate_rsi + miss_pattern + wait_timeonly + ttl_expire
+                row.update(
+                    {
+                        "cand_cnt": cand_cnt,
+                        "gate_trend": gate_trend,
+                        "gate_pullback": gate_pullback,
+                        "gate_rsi": gate_rsi,
+                        "miss_pattern": miss_pattern,
+                        "wait_timeonly": wait_timeonly,
+                        "ttl_expire": ttl_expire,
+                    }
+                )
+            return row
         except Exception as exc:  # pragma: no cover
             return {"combo_id": combo_id, "combo_json": combo_json, **params, "error": str(exc)}
 

@@ -35,6 +35,7 @@ from forest5.core.indicators import (
 from .contract import TechnicalSignal
 from .setups import SetupRegistry
 from forest5.utils.log import TelemetryContext
+from forest5.utils.debugger import TraceCollector
 from . import patterns
 
 
@@ -85,6 +86,7 @@ def compute_primary_signal_h1(
     params: Any | None = None,
     registry: SetupRegistry | None = None,
     ctx: TelemetryContext | None = None,
+    collector: TraceCollector | None = None,
 ):
     """Compute H1 EMA/RSI/ATR signal.
 
@@ -140,6 +142,8 @@ def compute_primary_signal_h1(
     if not triggered:
         triggered = reg.check(index=idx, price=float(df["low"].iloc[-1]), now=now, ctx=ctx)
     if triggered:
+        if collector:
+            collector.note("setup_trigger", "ok", at=now, extras={"action": triggered.action})
         return triggered
 
     lookback = max(p["ema_fast"], p["ema_slow"], p["atr_period"], p["rsi_period"]) + 2
@@ -197,22 +201,30 @@ def compute_primary_signal_h1(
         "atr": float(atr_last),
         "rsi": float(rsi_last),
     }
+    if collector:
+        collector.note("setup_candidate", "base_ok", at=now, extras=meta)
 
     # --- Trend gate -------------------------------------------------------
     sep_ok = abs(ema_f_last - ema_s_last) >= p["t_sep_atr"] * atr_last
     trend = 1 if ema_f_last > ema_s_last else -1 if ema_f_last < ema_s_last else 0
     if not sep_ok:
         trend = 0
+        if collector:
+            collector.note("setup_candidate", "trend_gate_failed", at=now, extras=meta)
 
     # --- Pullback ---------------------------------------------------------
     ema_f_prev = ema_f.iloc[-2]
     atr_prev = atr_series.iloc[-2]
     pullback = abs(close_prev - ema_f_prev) <= p["pullback_atr"] * atr_prev
+    if trend and not pullback and collector:
+        collector.note("setup_candidate", "pullback_gate_failed", at=now, extras=meta)
 
     # --- Trigger ----------------------------------------------------------
     trigger_up = rsi_prev < 50 <= rsi_last
     trigger_down = rsi_prev > 50 >= rsi_last
     trigger = (trend == 1 and trigger_up) or (trend == -1 and trigger_down)
+    if trend and pullback and not trigger and collector:
+        collector.note("setup_candidate", "rsi_gate_blocked", at=now, extras=meta)
 
     drivers: list[Any] = []
     action = "KEEP"
@@ -262,16 +274,19 @@ def compute_primary_signal_h1(
                     drivers.append({"pattern": name, "strength": strength})
                     meta["pattern"] = name
                     pattern_ok = True
-            if patterns_cfg.get("gate") and not pattern_ok:
-                return TechnicalSignal(
-                    timeframe=p["timeframe"],
-                    horizon_minutes=p["horizon_minutes"],
-                    ttl_minutes=p.get("ttl_minutes"),
-                    technical_score=0.0,
-                    confidence_tech=0.0,
-                    drivers=[],
-                    meta=meta,
-                )
+        if collector:
+            reason = "pattern_trigger_hit" if pattern_ok else "pattern_trigger_miss"
+            collector.note("pattern", reason, at=now, extras=meta)
+        if patterns_cfg.get("gate") and not pattern_ok:
+            return TechnicalSignal(
+                timeframe=p["timeframe"],
+                horizon_minutes=p["horizon_minutes"],
+                ttl_minutes=p.get("ttl_minutes"),
+                technical_score=0.0,
+                confidence_tech=0.0,
+                drivers=[],
+                meta=meta,
+            )
         signal = TechnicalSignal(
             timeframe=p["timeframe"],
             action=action,
@@ -286,6 +301,16 @@ def compute_primary_signal_h1(
             meta=meta,
         )
         reg.arm(p["timeframe"], idx, signal, bar_time=now, ctx=ctx)
+        if collector:
+            extras = {
+                "action": action,
+                "entry": entry,
+                "sl": sl,
+                "tp": tp,
+                "drivers": drivers,
+            }
+            extras.update(meta)
+            collector.note("setup_trigger", "armed", at=now, extras=extras)
 
     return TechnicalSignal(
         timeframe=p["timeframe"],
