@@ -1,3 +1,5 @@
+"""Verify pattern CLI parameters reach the backtest signal engine."""
+
 from types import SimpleNamespace
 from pathlib import Path
 
