@@ -249,17 +249,25 @@ def read_ohlc_csv_smart(
         lc = {c.lower(): c for c in df.columns}
         target = lc.get(time_col.lower())
         if target is None:
-            raise ValueError(f"Specified time column '{time_col}' not found")
+            available = ", ".join(df.columns)
+            raise ValueError(
+                f"Specified time column '{time_col}' not found (available: {available})"
+            )
         inferred_time = target
 
     if inferred_time is None or inferred_time not in df.columns:
-        raise ValueError("Unable to determine time column")
+        cols = ", ".join(df.columns)
+        raise ValueError(
+            f"Unable to determine time column (found columns: {cols}). "
+            f"Try --time-col or adjust --sep/--decimal."
+        )
 
     idx = pd.to_datetime(df[inferred_time], errors="coerce", utc=True, format="mixed")
     if idx.isna().any():
         bad = int(idx.isna().sum())
         raise ValueError(
-            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
+            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format "
+            f"or specify --time-col/--sep/--decimal."
         )
 
     df = df.drop(columns=[inferred_time])
@@ -269,7 +277,8 @@ def read_ohlc_csv_smart(
     need = ["open", "high", "low", "close"]
     missing = [c for c in need if c not in df.columns]
     if missing:
-        raise ValueError(f"CSV missing required columns: {missing}")
+        cols = ", ".join(df.columns)
+        raise ValueError(f"CSV missing required columns: {missing} (found: {cols})")
 
     cols = need + (["volume"] if "volume" in df.columns else [])
     df = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
@@ -345,11 +354,18 @@ def read_ohlc_csv(
             lc = {c.lower(): c for c in sample.columns}
             target = lc.get(time_col.lower())
             if target is None:
-                raise ValueError(f"Specified time column '{time_col}' not found")
+                available = ", ".join(sample.columns)
+                raise ValueError(
+                    f"Specified time column '{time_col}' not found (available: {available})"
+                )
             inferred_time = target
 
         if inferred_time is None or inferred_time not in sample.columns:
-            raise ValueError("Unable to determine time column")
+            cols = ", ".join(sample.columns)
+            raise ValueError(
+                f"Unable to determine time column (found columns: {cols}). "
+                f"Try --time-col or adjust --sep/--decimal."
+            )
 
         aliases = sample.attrs.get("aliases", {})
         time_alias = aliases.get("time", inferred_time)
@@ -357,7 +373,8 @@ def read_ohlc_csv(
         need = ["open", "high", "low", "close"]
         missing_need = [c for c in need if c not in sample.columns]
         if missing_need:
-            raise ValueError(f"CSV missing required columns: {missing_need}")
+            cols = ", ".join(sample.columns)
+            raise ValueError(f"CSV missing required columns: {missing_need} (found: {cols})")
         cols = need + (["volume"] if "volume" in sample.columns else [])
         col_aliases = {c: aliases.get(c, c) for c in cols}
 
@@ -398,7 +415,10 @@ def read_ohlc_csv(
                     df = pd.read_csv(path, **read_kwargs)
                 except ValueError as e:
                     if "Usecols do not match" in str(e):
-                        raise ValueError(f"CSV missing required columns: {missing_need}") from None
+                        cols = ", ".join(sample.columns)
+                        raise ValueError(
+                            f"CSV missing required columns: {missing_need} (found: {cols})"
+                        ) from None
                     raise
 
         rename_map = {v: k for k, v in col_aliases.items()}
@@ -439,16 +459,19 @@ def read_ohlc_csv(
     # Validation of required columns
     missing = [c for c in ["open", "high", "low", "close"] if c not in df.columns]
     if missing:
-        raise ValueError(f"CSV missing required columns: {missing}")
+        cols = ", ".join(df.columns)
+        raise ValueError(f"CSV missing required columns: {missing} (found: {cols})")
 
     if not isinstance(df.index, pd.DatetimeIndex):
         raise ValueError(
-            f"Failed to parse timestamps from '{path}'. Check the 'time' column format."
+            f"Failed to parse timestamps from '{path}'. Check the 'time' column format "
+            f"or specify --time-col/--sep/--decimal."
         )
     if df.index.isna().any():
         bad = int(df.index.isna().sum())
         raise ValueError(
-            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format."
+            f"Failed to parse {bad} timestamps from '{path}'. Check the 'time' column format "
+            f"or specify --time-col/--sep/--decimal."
         )
 
     df.index.name = "time"

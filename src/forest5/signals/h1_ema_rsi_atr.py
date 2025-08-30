@@ -50,6 +50,7 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "sl_atr": 1.0,  # stop-loss distance in ATR multiples
     "sl_min_atr": 0.0,  # minimum stop-loss distance in ATR multiples
     "rr": 2.0,  # risk–reward ratio
+    "trailing_atr": 0.0,  # optional trailing stop in ATR multiples (0=off)
     "timeframe": "H1",
     "horizon_minutes": 240,
     "ttl_minutes": None,
@@ -204,25 +205,35 @@ def compute_primary_signal_h1(
     if collector:
         collector.note("setup_candidate", "base_ok", at=now, extras=meta)
 
-    # --- Trend gate -------------------------------------------------------
-    sep_ok = abs(ema_f_last - ema_s_last) >= p["t_sep_atr"] * atr_last
-    trend = 1 if ema_f_last > ema_s_last else -1 if ema_f_last < ema_s_last else 0
-    if not sep_ok:
-        trend = 0
-        if collector:
-            collector.note("setup_candidate", "trend_gate_failed", at=now, extras=meta)
+    # --- Trend & pullback gates (optional) -------------------------------
+    use_ema_gates = bool(p.get("use_ema_gates", True))
+    if use_ema_gates:
+        sep_ok = abs(ema_f_last - ema_s_last) >= p["t_sep_atr"] * atr_last
+        trend = 1 if ema_f_last > ema_s_last else -1 if ema_f_last < ema_s_last else 0
+        if not sep_ok:
+            trend = 0
+            if collector:
+                collector.note("setup_candidate", "trend_gate_failed", at=now, extras=meta)
 
-    # --- Pullback ---------------------------------------------------------
-    ema_f_prev = ema_f.iloc[-2]
-    atr_prev = atr_series.iloc[-2]
-    pullback = abs(close_prev - ema_f_prev) <= p["pullback_atr"] * atr_prev
-    if trend and not pullback and collector:
-        collector.note("setup_candidate", "pullback_gate_failed", at=now, extras=meta)
+        ema_f_prev = ema_f.iloc[-2]
+        atr_prev = atr_series.iloc[-2]
+        pullback = abs(close_prev - ema_f_prev) <= p["pullback_atr"] * atr_prev
+        if trend and not pullback and collector:
+            collector.note("setup_candidate", "pullback_gate_failed", at=now, extras=meta)
+    else:
+        # Without EMA gates, derive trend from RSI cross direction only when it occurs
+        trend = 0
+        pullback = True
 
     # --- Trigger ----------------------------------------------------------
     trigger_up = rsi_prev < 50 <= rsi_last
     trigger_down = rsi_prev > 50 >= rsi_last
     trigger = (trend == 1 and trigger_up) or (trend == -1 and trigger_down)
+    if not use_ema_gates and not trigger:
+        # No RSI cross -> no opportunity without EMA gating
+        pass
+    if not use_ema_gates and trigger and trend == 0:
+        trend = 1 if trigger_up else -1
     if trend and pullback and not trigger and collector:
         collector.note("setup_candidate", "rsi_gate_blocked", at=now, extras=meta)
 
@@ -233,16 +244,34 @@ def compute_primary_signal_h1(
     if trend and pullback and trigger:
         drivers = ["ema_trend", "pullback", "rsi_trigger"]
         risk = max(p["sl_atr"], p.get("sl_min_atr", 0.0)) * atr_last
-        if trend == 1:
-            entry = high.iloc[-1] + p["entry_buffer_atr"] * atr_last
-            sl = entry - risk
-            tp = entry + risk * p["rr"]
-            action = "BUY"
+        mode = p.get("entry_mode", "breakout")
+        if mode == "breakout":
+            if trend == 1:
+                entry = high.iloc[-1] + p["entry_buffer_atr"] * atr_last
+                sl = entry - risk
+                tp = entry + risk * p["rr"]
+                action = "BUY"
+            else:
+                entry = low.iloc[-1] - p["entry_buffer_atr"] * atr_last
+                sl = entry + risk
+                tp = entry - risk * p["rr"]
+                action = "SELL"
         else:
-            entry = low.iloc[-1] - p["entry_buffer_atr"] * atr_last
-            sl = entry + risk
-            tp = entry - risk * p["rr"]
-            action = "SELL"
+            # entry on close +/- buffer (this bar) or force next-open trigger
+            close_last = float(close.iloc[-1])
+            if trend == 1:
+                entry = close_last + p["entry_buffer_atr"] * atr_last
+                sl = entry - risk
+                tp = entry + risk * p["rr"]
+                action = "BUY"
+            else:
+                entry = close_last - p["entry_buffer_atr"] * atr_last
+                sl = entry + risk
+                tp = entry - risk * p["rr"]
+                action = "SELL"
+            if mode == "close_next":
+                # Hint to engine to trigger on next open regardless of level
+                meta["entry_on_next_open"] = True
 
         technical_score = 1.0 if action == "BUY" else -1.0
         confidence_tech = abs(technical_score)
@@ -287,6 +316,10 @@ def compute_primary_signal_h1(
                 drivers=[],
                 meta=meta,
             )
+        # Include trailing_atr hint in meta so engine can activate trailing stops
+        if p.get("trailing_atr", 0.0):
+            meta["trailing_atr"] = float(p["trailing_atr"])
+
         signal = TechnicalSignal(
             timeframe=p["timeframe"],
             action=action,
@@ -300,7 +333,9 @@ def compute_primary_signal_h1(
             drivers=drivers,
             meta=meta,
         )
-        reg.arm(p["timeframe"], idx, signal, bar_time=now, ctx=ctx)
+        reg.arm(
+            p["timeframe"], idx, signal, bar_time=now, ttl_minutes=p.get("ttl_minutes"), ctx=ctx
+        )
         if collector:
             extras = {
                 "action": action,

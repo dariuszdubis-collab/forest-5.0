@@ -11,6 +11,7 @@ from .live.router import OrderRouter, PaperBroker
 from .time_only import TimeOnlyModel
 from .signals.fusion import _fuse_votes, _to_sign
 from .utils.log import setup_logger
+from .decision_core import fuse_with_time as _fuse_core
 
 
 Dir = Literal[-1, 0, 1]
@@ -238,6 +239,8 @@ class DecisionConfig:
     tech: Any = field(
         default_factory=lambda: SimpleNamespace(default_conf_int=0.5, conf_floor=0.2, conf_cap=0.9)
     )
+    # Optional: use shared fusion core for combining tech/time/ai
+    use_core_fusion: bool = False
 
 
 class DecisionAgent:
@@ -277,6 +280,9 @@ class DecisionAgent:
             return DecisionResult("WAIT", 0.0, "no_tech_signal")
         votes.append(tech_vote)
 
+        # Always evaluate time model outcome first for early WAIT
+        tm_decision = None
+        tm_weight = 1.0
         if self.config.time_model:
             tm_res = self.config.time_model.decide(ts, value)
             if isinstance(tm_res, tuple):
@@ -295,12 +301,45 @@ class DecisionAgent:
                 )
             )
 
+        ai_vote: DecisionVote | None = None
         if self.ai:
             ai_sent = self.ai.analyse(context_text, symbol)
-            votes.append(_normalize_ai_input(ai_sent, cfg))
+            ai_vote = _normalize_ai_input(ai_sent, cfg)
+            votes.append(ai_vote)
 
         log.debug("decision_inputs", votes=[v.__dict__ for v in votes])
-        result = _fuse_votes(votes, cfg)
+
+        # Optional shared fusion core (compat off by default)
+        if getattr(self.config, "use_core_fusion", False):
+            ai_param = None
+            if ai_vote is not None:
+                ai_param = (ai_vote.direction, ai_vote.weight)
+            fused, w, reason = _fuse_core(
+                tech_vote.direction,
+                pd.Timestamp(ts),
+                0.0,
+                self.config.time_model,
+                self.config.min_confluence,
+                ai_param,
+                return_weight=True,
+                return_reason=True,
+            )
+            action = "BUY" if fused > 0 else "SELL" if fused < 0 else "WAIT"
+            # Map reason for compatibility with existing messages
+            if reason == "not_enough_confluence":
+                reason = "below_min_confluence"
+            # Preserve legacy effective weight semantics (use tech weight when alone)
+            eff_w = float(w)
+            if fused != 0 and (ai_vote is None and tm_decision is None):
+                eff_w = float(tech_vote.weight)
+            # For WAIT, hide votes like previous behavior
+            details = None if action == "WAIT" else {"votes": [v.__dict__ for v in votes]}
+            result = DecisionResult(
+                action, eff_w if fused >= 0 else -eff_w, reason or "ok", details or {}
+            )
+        else:
+            result = _fuse_votes(votes, cfg)
+
         log.debug(
             "decision_result",
             action=result.action,

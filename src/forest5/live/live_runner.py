@@ -239,6 +239,7 @@ def run_live(
             tie_epsilon=settings.decision.tie_epsilon,
             weights=settings.decision.weights,
             tech=settings.decision.tech,
+            use_core_fusion=True,
         ),
     )
 
