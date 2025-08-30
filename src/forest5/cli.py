@@ -52,6 +52,7 @@ from forest5.utils.log import (
     E_PREFLIGHT_ACK,
 )
 from forest5.live.mt4_broker import MT4Broker
+from forest5 import __version__
 
 
 # Backwards compatibility – old name used in previous versions/tests
@@ -199,6 +200,12 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         }
 
         overrides = _collect_pattern_overrides_ns(args)
+        if args.trailing_atr and args.trailing_atr > 0:
+            strat_cfg["trailing_atr"] = float(args.trailing_atr)
+        if getattr(args, "entry_mode", None):
+            strat_cfg["entry_mode"] = args.entry_mode
+        if getattr(args, "no_ema_gates", False):
+            strat_cfg["use_ema_gates"] = False
         if overrides:
             strat_cfg.update(overrides)
 
@@ -217,6 +224,8 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         atr_multiple=args.atr_multiple,
         debug_dir=args.debug_dir,
     )
+    if args.setup_ttl_bars is not None:
+        settings.setup_ttl_bars = int(args.setup_ttl_bars)
 
     if args.h1_policy == "drop" and settings.setup_ttl_minutes is None:
         step = time_meta.get("median_bar_minutes")
@@ -260,6 +269,20 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         f"Return: {ret:.6f} | "
         f"MaxDD: {res.max_dd:.3f} | Trades: {len(res.trades.trades)}"
     )
+
+    # optional export of concise metrics
+    if getattr(args, "metrics_out", None):
+        metrics = {
+            "symbol": settings.symbol,
+            "strategy": settings.strategy.name,
+            "equity_end": equity_end,
+            "return": ret,
+            "max_dd": float(getattr(res, "max_dd", float("nan"))),
+            "trades": int(len(getattr(res, "trades", getattr(res, "trades", [])).trades))
+            if hasattr(res, "trades") and hasattr(res.trades, "trades")
+            else int(len(getattr(res, "trades", []))),
+        }
+        Path(args.metrics_out).write_text(json.dumps(metrics), encoding="utf-8")
 
     if args.export_setups and collector:
         out = Path(args.export_setups)
@@ -531,6 +554,25 @@ def cmd_grid(args: argparse.Namespace) -> int:
     end_time = datetime.now(timezone.utc)
     success = int((merged.get("error").isna()).sum()) if "error" in merged.columns else len(merged)
     failed = int((merged.get("error").notna()).sum()) if "error" in merged.columns else 0
+    # include a concise top-N preview in meta
+    preview_cols = [
+        c
+        for c in [
+            "combo_id",
+            "fast",
+            "slow",
+            "equity_end",
+            "dd",
+            "trades",
+            "winrate",
+            "cagr",
+            "rar",
+        ]
+        if c in merged.columns
+    ]
+    top_preview = (
+        top_df[preview_cols].to_dict(orient="records") if preview_cols and not top_df.empty else []
+    )
     run_meta.update(
         {
             "iso_datetime_end": end_time.isoformat(),
@@ -539,6 +581,7 @@ def cmd_grid(args: argparse.Namespace) -> int:
             "failed": failed,
             "aborted": 0,
             "completed_combos": int(len(merged)),
+            "top": top_preview,
         }
     )
     atomic_write_json(run_meta, meta_path)
@@ -754,12 +797,20 @@ def cmd_data_inspect(args: argparse.Namespace) -> int:
     out_dir = Path(args.out) if getattr(args, "out", None) else None
     if out_dir:
         out_dir.mkdir(parents=True, exist_ok=True)
+    multi = len(paths) > 1
     for p in paths:
         text, summary = _inspect_file(p, args)
         print(text)
         if out_dir:
-            (out_dir / "summary.txt").write_text(text, encoding="utf-8")
-            (out_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+            if multi:
+                base = p.stem
+                (out_dir / f"{base}_summary.txt").write_text(text, encoding="utf-8")
+                (out_dir / f"{base}_summary.json").write_text(
+                    json.dumps(summary), encoding="utf-8"
+                )
+            else:
+                (out_dir / "summary.txt").write_text(text, encoding="utf-8")
+                (out_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
     return 0
 
 
@@ -884,6 +935,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=SafeHelpFormatter,
     )
+    # Global options
+    p.add_argument("--version", action="version", version=f"forest5 {__version__}")
     sub = p.add_subparsers(dest="command")
 
     add_validate_subparser(sub)
@@ -969,6 +1022,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--rr", dest="rr", type=float, default=2.0)
     p_bt.add_argument("--q-low", dest="q_low", type=float, default=0.1)
     p_bt.add_argument("--q-high", dest="q_high", type=float, default=0.9)
+    p_bt.add_argument(
+        "--setup-ttl-bars",
+        dest="setup_ttl_bars",
+        type=int,
+        default=None,
+        help="Ile barów ważny jest uzbrojony setup (domyślnie 1)",
+    )
+    p_bt.add_argument(
+        "--trailing-atr",
+        dest="trailing_atr",
+        type=float,
+        default=0.0,
+        help="Trailing stop in ATR multiples (0 = disabled)",
+    )
+    p_bt.add_argument(
+        "--entry-mode",
+        dest="entry_mode",
+        choices=("breakout", "close", "close_next"),
+        default="breakout",
+        help="Tryb wejścia: breakout (high/low), close (+/- buffer) lub close_next (na otwarciu kolejnego bara)",
+    )
+    p_bt.add_argument(
+        "--no-ema-gates",
+        dest="no_ema_gates",
+        action="store_true",
+        help="Wyłącz bramki EMA (separacja/pullback); kierunek z RSI 50 cross",
+    )
+    p_bt.add_argument(
+        "--metrics-out",
+        dest="metrics_out",
+        default=None,
+        help="Zapisz metryki backtestu do pliku JSON",
+    )
 
     p_bt.add_argument("--engulf-eps-atr", dest="engulf_eps_atr", type=float, default=None)
     p_bt.add_argument(

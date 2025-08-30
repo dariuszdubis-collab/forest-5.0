@@ -23,6 +23,11 @@ dist/
 
 # outputs
 out/
+out_*/
+out_runs/
+out_data_inspect/
+Fxdata/
+fxdata/
 *.csv
 !docs/equity.csv
 

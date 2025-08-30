@@ -28,6 +28,7 @@ from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
 from ..signals.fusion import _to_sign
+from ..decision_core import fuse_with_time as _fuse_with_time
 
 
 log = setup_logger()
@@ -188,11 +189,28 @@ class BacktestEngine:
         self.equity_curve: list[float] = []
         self.run_id = new_id("run")
         self._ticket_seq = 0
+        self.tradebook = TradeBook()
 
     # ------------------------------------------------------------------
     # Signal generation and setup handling
     def _compute_signal_contract(self, up_to: int) -> TechnicalSignal:
         """Return full :class:`TechnicalSignal` for bar ``up_to``."""
+        # Special handling for H1 contract strategy: pass engine registry so
+        # that arming setups persists across bars.
+        name = getattr(getattr(self.settings, "strategy", object()), "name", "ema_cross")
+        if str(name) == "h1_ema_rsi_atr":
+            from forest5.signals.h1_ema_rsi_atr import compute_primary_signal_h1
+
+            params = getattr(self.settings.strategy, "params", self.settings.strategy)
+            ctx = TelemetryContext(
+                run_id=self.run_id,
+                symbol=self.settings.symbol,
+                timeframe=self.settings.tf.name if hasattr(self.settings, "tf") else "H1",
+                setup_id=None,
+            )
+            return compute_primary_signal_h1(
+                self.df.iloc[: up_to + 1], params=params, registry=self.setups, ctx=ctx
+            )
 
         res = compute_signal(
             self.df.iloc[: up_to + 1],
@@ -218,7 +236,8 @@ class BacktestEngine:
         self._update_open_positions(index, row)
 
         contract = self._compute_signal_contract(index)
-        if contract.action in {"BUY", "SELL"}:
+        name = getattr(getattr(self.settings, "strategy", object()), "name", "ema_cross")
+        if contract.action in {"BUY", "SELL"} and str(name) != "h1_ema_rsi_atr":
             setup_id = str(index)
             if contract.meta:
                 setup_id = str(contract.meta.get("id", setup_id))
@@ -260,12 +279,15 @@ class BacktestEngine:
 
         row = self.df.iloc[index]
         open_p = float(row["open"])
+        high_p = float(row.get("high", row["open"]))
+        low_p = float(row.get("low", row["open"]))
         now = self.df.index[index]
         if not isinstance(now, datetime):
             now = pd.Timestamp(now).to_pydatetime()
 
         while True:
-            cand = self.setups.check(index=index, price=open_p, now=now)
+            # In backtest we have full bar; allow intrabar triggers using high/low
+            cand = self.setups.check(index=index, price=open_p, high=high_p, low=low_p, now=now)
             if cand is None:
                 break
 
@@ -349,8 +371,23 @@ class BacktestEngine:
             pos["trailing_atr"] = float(meta["trailing_atr"])
         self.positions.append(pos)
 
+        # Record open in TradeBook for transparency
+        pattern = meta.get("pattern") if isinstance(meta, dict) else None
+        self.tradebook.add(
+            time=self.df.index[index],
+            price_open=float(entry),
+            qty=qty,
+            side=str(cand.action),
+            entry=float(getattr(cand, "entry", entry)),
+            sl=(float(cand.sl) if getattr(cand, "sl", None) is not None else None),
+            tp=(float(cand.tp) if getattr(cand, "tp", None) is not None else None),
+            reason_close=None,
+            setup_id=setup_id,
+            pattern=pattern if isinstance(pattern, str) else None,
+        )
+
     # ------------------------------------------------------------------
-    def _close_position(self, pos: dict, price: float) -> None:
+    def _close_position(self, pos: dict, price: float, *, reason: str | None = None) -> None:
         side = "SELL" if pos["action"] == "BUY" else "BUY"
         qty = float(pos.get("qty", 1.0))
         client_id = new_id("cl")
@@ -392,6 +429,21 @@ class BacktestEngine:
         else:
             self.equity += qty * (pos["entry"] - price)
 
+        # Record close in TradeBook mirroring pnl realization
+        self.tradebook.add(
+            time=self.df.index[pos.get("open_index", 0)] if pos.get("open_index") is not None else self.df.index[0],
+            price_open=float(pos["entry"]),
+            qty=qty,
+            side=("SELL" if pos["action"] == "BUY" else "BUY"),
+            price_close=float(price),
+            entry=float(pos.get("entry", float("nan"))),
+            sl=(float(pos.get("sl")) if pos.get("sl") is not None else None),
+            tp=(float(pos.get("tp")) if pos.get("tp") is not None else None),
+            reason_close=reason,
+            setup_id=str(pos.get("id", "")),
+            pattern=(pos.get("meta", {}) or {}).get("pattern") if isinstance(pos.get("meta"), dict) else None,
+        )
+
     # ------------------------------------------------------------------
     def _update_open_positions(self, index: int, row: pd.Series) -> None:
         if not self.positions:
@@ -425,12 +477,12 @@ class BacktestEngine:
             bars_open = index - pos["open_index"]
             ttl = pos["meta"].get("ttl_bars") if isinstance(pos.get("meta"), dict) else None
             if ttl is not None and bars_open >= ttl:
-                self._close_position(pos, close)
+                self._close_position(pos, close, reason="ttl")
                 continue
 
             horizon = pos.get("horizon")
             if horizon and bars_open >= horizon:
-                self._close_position(pos, close)
+                self._close_position(pos, close, reason="horizon")
                 continue
 
             # Check for SL/TP hits, considering gaps at open first
@@ -466,10 +518,18 @@ class BacktestEngine:
                     hit_sl = False
 
             if hit_tp:
-                self._close_position(pos, fill_price if fill_price != close else pos["tp"])
+                self._close_position(
+                    pos,
+                    fill_price if fill_price != close else pos["tp"],
+                    reason="tp",
+                )
                 continue
             if hit_sl:
-                self._close_position(pos, fill_price if fill_price != close else pos["sl"])
+                self._close_position(
+                    pos,
+                    fill_price if fill_price != close else pos["sl"],
+                    reason="sl",
+                )
                 continue
 
             remaining.append(pos)
@@ -477,87 +537,8 @@ class BacktestEngine:
         self.positions = remaining
 
 
-def _fuse_with_time(
-    tech_signal: int,
-    ts: pd.Timestamp,
-    price: float,
-    time_model: TimeOnlyModel | None,
-    min_conf: float,
-    ai_decision: int | tuple[int, float] | None = None,
-    *,
-    return_reason: bool = False,
-    return_weight: bool = False,
-) -> int | tuple:
-    """Fuse technical, time and optional AI signals into one decision.
-
-    By default only the final decision ``-1/0/1`` is returned to preserve
-    backwards compatibility. When ``return_weight`` is True, the confidence
-    weight (0–1) is also returned. ``return_reason`` adds a textual reason.
-    """
-
-    votes: dict[str, tuple[int, float]] = {
-        "tech": (_to_sign(tech_signal), 1.0),
-        "time": (0, 0.0),
-        "ai": (0, 0.0),
-    }
-
-    if time_model:
-        tm_res = time_model.decide(ts)
-        if isinstance(tm_res, dict):
-            tm_decision = tm_res.get("decision")
-            tm_weight = tm_res.get("confidence", 1.0)
-        elif isinstance(tm_res, tuple):  # backward compatibility
-            tm_decision, tm_weight = tm_res
-        else:  # pragma: no cover - simple fallback
-            tm_decision, tm_weight = tm_res, 1.0
-        if tm_decision in {"WAIT", "HOLD"}:
-            reason = "time_model_hold" if tm_decision == "HOLD" else "time_model_wait"
-            if return_reason and return_weight:
-                return 0, 0.0, reason
-            if return_reason:
-                return 0, reason
-            if return_weight:
-                return 0, 0.0
-            return 0
-        votes["time"] = (_to_sign(1 if tm_decision == "BUY" else -1), float(tm_weight))
-
-    if ai_decision is not None:
-        if isinstance(ai_decision, tuple):
-            ai_sig, ai_weight = ai_decision
-        else:
-            ai_sig, ai_weight = ai_decision, 1.0
-        votes["ai"] = (_to_sign(ai_sig), float(ai_weight))
-
-    pos_total = sum(w for s, w in votes.values() if s > 0)
-    neg_total = sum(w for s, w in votes.values() if s < 0)
-    if max(pos_total, neg_total) < max(min_conf, 1.0):
-        if return_reason and return_weight:
-            return 0, 0.0, "not_enough_confluence"
-        if return_reason:
-            return 0, "not_enough_confluence"
-        if return_weight:
-            return 0, 0.0
-        return 0
-
-    if pos_total > neg_total:
-        res_dec = 1
-        weights = [w for s, w in votes.values() if s > 0]
-    elif neg_total > pos_total:
-        res_dec = -1
-        weights = [w for s, w in votes.values() if s < 0]
-    else:
-        res_dec = 0
-        weights = []
-
-    final_weight = min(weights) if weights else 0.0
-
-    if return_reason and return_weight:
-        return res_dec, final_weight, None
-    if return_weight:
-        return res_dec, final_weight
-    if return_reason:
-        return res_dec, None
-    return res_dec
+"""Decision fusion helper moved to forest5.decision_core.fuse_with_time.
+Imported as _fuse_with_time for backward-compat within this module."""
 
 
 def _trading_loop(
@@ -680,6 +661,44 @@ def run_backtest(
 ) -> BacktestResult:
     # 1) walidacja danych
     df = _validate_data(df, price_col=price_col)
+
+    # 1a) Jeżeli strategia zwraca kontrakty (TechnicalSignal), użyj silnika kontraktowego
+    #      który obsługuje SL/TP, TTL i gap-fill. Zachowujemy skalę equity względem
+    #      kapitału początkowego dla spójności metryk.
+    try:
+        strat_name = getattr(getattr(settings, "strategy", object()), "name", "ema_cross")
+    except Exception:
+        strat_name = "ema_cross"
+    if str(strat_name) == "h1_ema_rsi_atr":
+        # Precompute ATR for trailing stop logic in engine updates if needed
+        ap = int(atr_period or settings.atr_period)
+        df = df.copy()
+        df["atr"] = atr(df["high"], df["low"], df["close"], ap).astype("float32")
+        # Precompute EMA/RSI columns once to avoid recomputation per bar
+        try:
+            params = getattr(getattr(settings, "strategy", object()), "params", settings.strategy)
+            ema_fast = int(getattr(params, "ema_fast", 21))
+            ema_slow = int(getattr(params, "ema_slow", 55))
+            rsi_len = int(getattr(params, "rsi_period", 14))
+        except Exception:
+            ema_fast, ema_slow, rsi_len = 21, 55, 14
+        from ..core.indicators import ema as _ema, rsi as _rsi, ema_col_name, rsi_col_name
+        df[ema_col_name(ema_fast)] = _ema(df["close"], ema_fast).astype("float32")
+        df[ema_col_name(ema_slow)] = _ema(df["close"], ema_slow).astype("float32")
+        df[rsi_col_name(rsi_len)] = _rsi(df["close"], rsi_len).astype("float32")
+
+        eng = BacktestEngine(df, settings, price_col=price_col)
+        n = len(df)
+        for i in range(n):
+            eng.on_bar_close(i)
+            if i + 1 < n:
+                eng.on_bar_open(i + 1)
+        eq = pd.Series(eng.equity_curve, index=df.index[: len(eng.equity_curve)], dtype=float)
+        # Przesuń do skali kapitału początkowego
+        init_cap = float(getattr(getattr(settings, "risk", object()), "initial_capital", 100_000.0))
+        eq = eq.add(init_cap)
+        _, max_dd = _compute_metrics(eq.tolist())
+        return BacktestResult(equity_curve=eq, max_dd=max_dd, trades=eng.tradebook)
 
     # 2) generowanie sygnału
     sig = _generate_signal(df, settings, price_col=price_col, collector=collector)

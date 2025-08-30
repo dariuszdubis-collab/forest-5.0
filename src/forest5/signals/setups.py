@@ -81,9 +81,17 @@ class SetupRegistry:
         """
 
         ttl = ttl_minutes if ttl_minutes is not None else getattr(signal, "ttl_minutes", None)
+        expiry_index = index + self.ttl_bars
+        try:
+            meta = getattr(signal, "meta", {}) or {}
+            if meta.get("entry_on_next_open"):
+                expiry_index = index + 1
+        except Exception:
+            pass
+
         self._setups[key] = SetupRecord(
             signal=signal,
-            expiry_index=index + self.ttl_bars,
+            expiry_index=expiry_index,
             arm_time=bar_time,
             ttl_minutes=ttl,
             ctx=ctx,
@@ -144,13 +152,20 @@ class SetupRegistry:
                 continue
 
             sig = setup.signal
-            triggered = (sig.action == "BUY" and price >= sig.entry) or (
-                sig.action == "SELL" and price <= sig.entry
-            )
+            # Special-case: force trigger on next open regardless of level
+            meta = getattr(sig, "meta", {}) or {}
+            if meta.get("entry_on_next_open") and index >= setup.expiry_index:
+                triggered = True
+                fill_price = price
+            else:
+                triggered = (sig.action == "BUY" and price >= sig.entry) or (
+                    sig.action == "SELL" and price <= sig.entry
+                )
+                if triggered:
+                    fill_price = price
 
             if triggered:
                 del self._setups[key]
-                fill_price = price
                 slippage = (
                     fill_price - float(sig.entry)
                     if sig.action == "BUY"

@@ -5,7 +5,7 @@ Modułowy framework tradingowy łączący **analizę techniczną**, **agent AI (
 
 ## Wymagania środowiskowe
 
-- Python ≥3.10,<3.13
+- Python ≥3.10,<3.14
 - pakiety: pandas, numpy, scipy, joblib, pydantic, pyyaml, structlog, plotly, tzdata, setuptools
 - pełna lista znajduje się w plikach `environment.yml` (Conda) oraz `pyproject.toml` (Poetry)
 
@@ -25,8 +25,10 @@ make lint && make test
 # 3) Demo – generator syntetycznych danych
 poetry run forest5-demo --periods 50 --out demo.csv
 
-# 4) Backtest na CSV
-poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26
+# 4) Wersja pakietu i backtest na CSV
+poetry run forest5 --version
+poetry run forest5 backtest --csv demo.csv --symbol EURUSD --fast 12 --slow 26 \
+  --metrics-out out/metrics.json  # zapisze podstawowe metryki do JSON
 
 # 4b) Backtest ze strategią H1 EMA/RSI/ATR
 poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr \
@@ -44,8 +46,12 @@ poetry run forest5 grid --csv demo.csv --symbol EURUSD \
   --star-reclaim-min 0.50,0.62 --dry-run
 
 # 6) Inspekcja pojedynczego pliku i uzupełnianie braków
-poetry run forest5 data inspect --csv demo.csv --out out_dir
+poetry run forest5 data inspect --csv demo.csv --out out_dir  # zapisze summary.txt/json
 poetry run forest5 data pad-h1 --csv demo.csv --policy pad --out demo_filled.csv
+poetry run forest5 data inspect --input-dir data/ --out out_dir  # zapisze {nazwa}_summary.* dla wielu plików
+
+# 6b) Batch normalizacja całego katalogu (przykładowy skrypt)
+python scripts/batch_normalize_dir.py --input-dir data/raw --out-dir data/normalized
 
 # 7) Wyłączenie detektorów świecowych w backteście
 poetry run forest5 backtest --csv demo.csv --symbol EURUSD --strategy h1_ema_rsi_atr --no-pinbar
@@ -84,6 +90,11 @@ Najlepsze wyniki trafiają do `results_top.csv`, a metadane uruchomienia do `met
 - CSV loader uses memory mapping and float32 types to lower memory usage.
 - Grid search precomputes indicator columns once per unique period.
 - Parallel runs are controlled by `--jobs`; workers recycle after many tasks.
+
+Strategia `h1_ema_rsi_atr` w backteście korzysta z silnika kontraktowego
+(`BacktestEngine`): uwzględnia SL/TP, TTL setupów oraz gap‑fill na otwarciu
+bara. Księga transakcji (`TradeBook`) rejestruje zarówno otwarcia jak i
+zamknięcia pozycji z przyczyną (`tp/sl/ttl/horizon`).
 
 Jeśli w trakcie pracy `ai.enabled: true`, lecz plik kontekstu nie istnieje, aplikacja zaloguje `ai_context_missing_warn` i przejdzie w tryb bez AI.
 

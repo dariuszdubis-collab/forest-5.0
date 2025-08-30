@@ -62,7 +62,7 @@ def compute_signal(
         candles = candles_signal(df)
         return confirm_with_candles(base, candles)
     if name == "h1_ema_rsi_atr":
-        params = getattr(strategy, "params", None)
+        params = getattr(strategy, "params", strategy)
         res = compute_primary_signal_h1(df, params, ctx=ctx)
         if compat_int:
             from .compat import contract_to_int

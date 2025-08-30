@@ -24,6 +24,9 @@ class H1EmaRsiAtrParams(BaseModel):
     rr: float = 2.0
     timeframe: str = "H1"
     horizon_minutes: int = 240
+    trailing_atr: float = 0.0
+    entry_mode: Literal["breakout", "close", "close_next"] = "breakout"
+    use_ema_gates: bool = True
 
     engulf_eps_atr: float | None = 0.05
     engulf_body_ratio_min: float | None = 1.0
@@ -141,6 +144,9 @@ class BaseStrategySettings(BaseModel):
             "sl_atr",
             "sl_min_atr",
             "rr",
+            "trailing_atr",
+            "entry_mode",
+            "use_ema_gates",
             "timeframe",
             "horizon_minutes",
             "engulf_eps_atr",

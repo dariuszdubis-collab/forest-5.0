@@ -325,6 +325,14 @@ def run_param_grid(
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
     }
 
+    # Optional: cache indicators globally to save recomputation across combos
+    from ..core import indicators as _ind
+    from joblib import Memory as _Memory
+    _mem = _Memory(".cache/forest5-grid", verbose=0)
+    _atr_orig, _ema_orig = _ind.atr, _ind.ema
+    _ind.atr = _mem.cache(_ind.atr)
+    _ind.ema = _mem.cache(_ind.ema)
+
     if dry_run:
         out = pd.DataFrame(combos)
         out.insert(
@@ -474,4 +482,7 @@ def run_param_grid(
         atomic_to_csv(to_save, results_path)
     if meta_path:
         atomic_write_json(meta, meta_path)
+    # restore indicators
+    _ind.atr = _atr_orig
+    _ind.ema = _ema_orig
     return out, meta
