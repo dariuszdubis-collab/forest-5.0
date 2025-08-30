@@ -278,9 +278,11 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             "equity_end": equity_end,
             "return": ret,
             "max_dd": float(getattr(res, "max_dd", float("nan"))),
-            "trades": int(len(getattr(res, "trades", getattr(res, "trades", [])).trades))
-            if hasattr(res, "trades") and hasattr(res.trades, "trades")
-            else int(len(getattr(res, "trades", []))),
+            "trades": (
+                int(len(getattr(res, "trades", getattr(res, "trades", [])).trades))
+                if hasattr(res, "trades") and hasattr(res.trades, "trades")
+                else int(len(getattr(res, "trades", [])))
+            ),
         }
         Path(args.metrics_out).write_text(json.dumps(metrics), encoding="utf-8")
 
@@ -805,9 +807,7 @@ def cmd_data_inspect(args: argparse.Namespace) -> int:
             if multi:
                 base = p.stem
                 (out_dir / f"{base}_summary.txt").write_text(text, encoding="utf-8")
-                (out_dir / f"{base}_summary.json").write_text(
-                    json.dumps(summary), encoding="utf-8"
-                )
+                (out_dir / f"{base}_summary.json").write_text(json.dumps(summary), encoding="utf-8")
             else:
                 (out_dir / "summary.txt").write_text(text, encoding="utf-8")
                 (out_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")

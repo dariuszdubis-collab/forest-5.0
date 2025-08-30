@@ -374,9 +374,7 @@ def read_ohlc_csv(
         missing_need = [c for c in need if c not in sample.columns]
         if missing_need:
             cols = ", ".join(sample.columns)
-            raise ValueError(
-                f"CSV missing required columns: {missing_need} (found: {cols})"
-            )
+            raise ValueError(f"CSV missing required columns: {missing_need} (found: {cols})")
         cols = need + (["volume"] if "volume" in sample.columns else [])
         col_aliases = {c: aliases.get(c, c) for c in cols}
 

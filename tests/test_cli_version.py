@@ -10,4 +10,3 @@ def test_cli_version_prints_and_exits(capsys):
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "forest5" in out.lower()
-

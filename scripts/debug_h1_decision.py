@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from dataclasses import asdict
 from typing import Any
 
 import pandas as pd
@@ -45,7 +44,6 @@ def run_debug(
     events: list[dict] = []
     counts = Counter()
     armed = 0
-    triggers = 0
     for i in range(len(df)):
         collector = TraceCollector()
         _ = compute_primary_signal_h1(df.iloc[: i + 1], params, collector=collector)
@@ -104,7 +102,7 @@ def main() -> int:
         rr=args.rr,
     )
     # Pretty print
-    print("Bars:", out["total_bars"], "Armed:", out["armed"]) 
+    print("Bars:", out["total_bars"], "Armed:", out["armed"])
     print("Reasons:")
     for k, v in sorted(out["counts"].items(), key=lambda kv: (-kv[1], kv[0])):
         print(f"  {k}: {v}")

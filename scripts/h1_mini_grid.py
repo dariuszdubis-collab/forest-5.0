@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -90,7 +88,11 @@ def main() -> int:
         for entry_mode in ("breakout", "close", "close_next"):
             for entry_buffer_atr in (0.0, 0.05):
                 combos.append(
-                    dict(use_ema_gates=use_ema, entry_mode=entry_mode, entry_buffer_atr=entry_buffer_atr)
+                    dict(
+                        use_ema_gates=use_ema,
+                        entry_mode=entry_mode,
+                        entry_buffer_atr=entry_buffer_atr,
+                    )
                 )
 
     rows: list[dict] = []

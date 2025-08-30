@@ -43,4 +43,3 @@ def test_data_inspect_input_dir(tmp_path: Path):
     b_info = json.loads(b_js.read_text())
     assert a_info["rows"] == 3
     assert b_info["rows"] == 4
-

@@ -27,7 +27,6 @@ from ..signals.setups import SetupRegistry, TriggeredSignal
 from .risk import RiskManager
 from .tradebook import TradeBook
 from ..time_only import TimeOnlyModel
-from ..signals.fusion import _to_sign
 from ..decision_core import fuse_with_time as _fuse_with_time
 
 
@@ -431,7 +430,11 @@ class BacktestEngine:
 
         # Record close in TradeBook mirroring pnl realization
         self.tradebook.add(
-            time=self.df.index[pos.get("open_index", 0)] if pos.get("open_index") is not None else self.df.index[0],
+            time=(
+                self.df.index[pos.get("open_index", 0)]
+                if pos.get("open_index") is not None
+                else self.df.index[0]
+            ),
             price_open=float(pos["entry"]),
             qty=qty,
             side=("SELL" if pos["action"] == "BUY" else "BUY"),
@@ -441,7 +444,11 @@ class BacktestEngine:
             tp=(float(pos.get("tp")) if pos.get("tp") is not None else None),
             reason_close=reason,
             setup_id=str(pos.get("id", "")),
-            pattern=(pos.get("meta", {}) or {}).get("pattern") if isinstance(pos.get("meta"), dict) else None,
+            pattern=(
+                (pos.get("meta", {}) or {}).get("pattern")
+                if isinstance(pos.get("meta"), dict)
+                else None
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -683,6 +690,7 @@ def run_backtest(
         except Exception:
             ema_fast, ema_slow, rsi_len = 21, 55, 14
         from ..core.indicators import ema as _ema, rsi as _rsi, ema_col_name, rsi_col_name
+
         df[ema_col_name(ema_fast)] = _ema(df["close"], ema_fast).astype("float32")
         df[ema_col_name(ema_slow)] = _ema(df["close"], ema_slow).astype("float32")
         df[rsi_col_name(rsi_len)] = _rsi(df["close"], rsi_len).astype("float32")

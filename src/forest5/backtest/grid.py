@@ -328,6 +328,7 @@ def run_param_grid(
     # Optional: cache indicators globally to save recomputation across combos
     from ..core import indicators as _ind
     from joblib import Memory as _Memory
+
     _mem = _Memory(".cache/forest5-grid", verbose=0)
     _atr_orig, _ema_orig = _ind.atr, _ind.ema
     _ind.atr = _mem.cache(_ind.atr)

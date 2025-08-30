@@ -333,7 +333,9 @@ def compute_primary_signal_h1(
             drivers=drivers,
             meta=meta,
         )
-        reg.arm(p["timeframe"], idx, signal, bar_time=now, ttl_minutes=p.get("ttl_minutes"), ctx=ctx)
+        reg.arm(
+            p["timeframe"], idx, signal, bar_time=now, ttl_minutes=p.get("ttl_minutes"), ctx=ctx
+        )
         if collector:
             extras = {
                 "action": action,

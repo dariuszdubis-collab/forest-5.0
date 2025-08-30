@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 
 from forest5.decision import DecisionAgent, DecisionConfig
@@ -19,4 +18,3 @@ def test_core_fusion_min_confluence() -> None:
     decision, votes, reason = agent.decide(ts, tech_signal=1, value=0.0, symbol="EURUSD")
     # With only tech vote=1 and min_confluence=1.4, expect WAIT
     assert (decision, votes, reason) == ("WAIT", {}, "below_min_confluence")
-

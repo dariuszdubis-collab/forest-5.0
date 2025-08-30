@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import pandas as pd
 
 from .time_only import TimeOnlyModel
@@ -91,4 +89,3 @@ def fuse_with_time(
 
 
 __all__ = ["fuse_with_time"]
-

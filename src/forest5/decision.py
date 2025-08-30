@@ -334,7 +334,9 @@ class DecisionAgent:
                 eff_w = float(tech_vote.weight)
             # For WAIT, hide votes like previous behavior
             details = None if action == "WAIT" else {"votes": [v.__dict__ for v in votes]}
-            result = DecisionResult(action, eff_w if fused >= 0 else -eff_w, reason or "ok", details or {})
+            result = DecisionResult(
+                action, eff_w if fused >= 0 else -eff_w, reason or "ok", details or {}
+            )
         else:
             result = _fuse_votes(votes, cfg)
 

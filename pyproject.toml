@@ -49,6 +49,21 @@ target-version = "py311"
 
 [tool.black]
 line-length = 100
+extend-exclude = '''
+(
+  ^Fxdata/|
+  ^fxdata/|
+  ^out/|
+  ^out_runs/|
+  ^out_data_inspect/|
+  ^out_.*/|
+  ^node_modules/|
+  ^\.venv/|
+  ^\.cache/|
+  ^\.pytest_cache/|
+  ^\.ruff_cache/
+)
+'''
 
 [build-system]
 requires = ["poetry-core"]

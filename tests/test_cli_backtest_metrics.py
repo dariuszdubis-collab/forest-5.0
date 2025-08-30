@@ -45,7 +45,9 @@ def test_backtest_metrics_out(tmp_path, monkeypatch):
         ]
     )
 
-    def fake_run_backtest(df, settings, symbol, price_col, atr_period, atr_multiple, collector=None):
+    def fake_run_backtest(
+        df, settings, symbol, price_col, atr_period, atr_multiple, collector=None
+    ):
         return SimpleNamespace(
             equity_curve=pd.Series([1000.0, 1010.0]),
             max_dd=0.05,
@@ -62,4 +64,3 @@ def test_backtest_metrics_out(tmp_path, monkeypatch):
     assert "equity_end" in data and data["equity_end"] == 1010.0
     assert "return" in data and isinstance(data["return"], float)
     assert data["trades"] == 0
-
