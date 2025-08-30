@@ -34,6 +34,11 @@ class Combo:
     atr_len: int
     t_sep_atr: float
     pullback_atr: float
+    entry_mode: str | None
+    entry_buffer_atr: float | None
+    rr: float | None
+    ttl_bars: int | None
+    trailing_atr: float | None
     csv: str
     symbol: str
     h1_policy: str
@@ -87,6 +92,16 @@ def make_cli_args(c: Combo) -> List[str]:
             "--pullback-atr",
             str(c.pullback_atr),
         ]
+        if c.entry_mode:
+            args += ["--entry-mode", str(c.entry_mode)]
+        if c.entry_buffer_atr is not None:
+            args += ["--entry-buffer-atr", str(c.entry_buffer_atr)]
+        if c.rr is not None:
+            args += ["--rr", str(c.rr)]
+        if c.ttl_bars is not None:
+            args += ["--setup-ttl-bars", str(int(c.ttl_bars))]
+        if c.trailing_atr is not None and float(c.trailing_atr) > 0:
+            args += ["--trailing-atr", str(float(c.trailing_atr))]
 
     # Scenario flags
     if c.scenario in {"ema_rsi", "rsi_timeonly"}:  # RSI only direction, ATR gates off
@@ -170,6 +185,12 @@ def build_combos(args: argparse.Namespace) -> List[Combo]:
     atr_vals = _parse_csv_list(args.atr_len, int)
     t_sep_vals = _parse_csv_list(args.t_sep_atr, float)
     pullback_vals = _parse_csv_list(args.pullback_atr, float)
+    # Extended h1-only knobs
+    entry_modes = [m.strip() for m in args.entry_modes.split(",") if m.strip()]
+    entry_buf_vals = _parse_csv_list(args.entry_buffer_atr, float)
+    rr_vals = _parse_csv_list(args.rr, float)
+    ttl_vals = _parse_csv_list(str(args.ttl_bars), int) if args.ttl_bars else [None]
+    trailing_vals = _parse_csv_list(args.trailing_atr, float)
 
     combos: List[Combo] = []
     for sc in scenarios:
@@ -185,24 +206,61 @@ def build_combos(args: argparse.Namespace) -> List[Combo]:
                     for a in atr_vals:
                         for t in t_sep_vals:
                             for pb in pullback_vals:
-                                combos.append(
-                                    Combo(
-                                        scenario=sc,
-                                        strategy=strategy,
-                                        ema_fast=int(f),
-                                        ema_slow=int(s),
-                                        rsi_len=int(r),
-                                        atr_len=int(a),
-                                        t_sep_atr=float(t),
-                                        pullback_atr=float(pb),
-                                        csv=args.csv,
-                                        symbol=args.symbol,
-                                        h1_policy=args.h1_policy,
-                                        time_model=args.time_model,
-                                        q_low=float(args.q_low),
-                                        q_high=float(args.q_high),
+                                if strategy == "h1_ema_rsi_atr":
+                                    for em in entry_modes:
+                                        for eb in entry_buf_vals:
+                                            for rr in rr_vals:
+                                                for ttl in ttl_vals:
+                                                    for tr in trailing_vals:
+                                                        combos.append(
+                                                            Combo(
+                                                                scenario=sc,
+                                                                strategy=strategy,
+                                                                ema_fast=int(f),
+                                                                ema_slow=int(s),
+                                                                rsi_len=int(r),
+                                                                atr_len=int(a),
+                                                                t_sep_atr=float(t),
+                                                                pullback_atr=float(pb),
+                                                                entry_mode=em,
+                                                                entry_buffer_atr=float(eb),
+                                                                rr=float(rr),
+                                                                ttl_bars=(
+                                                                    ttl if ttl is None else int(ttl)
+                                                                ),
+                                                                trailing_atr=float(tr),
+                                                                csv=args.csv,
+                                                                symbol=args.symbol,
+                                                                h1_policy=args.h1_policy,
+                                                                time_model=args.time_model,
+                                                                q_low=float(args.q_low),
+                                                                q_high=float(args.q_high),
+                                                            )
+                                                        )
+                                else:
+                                    combos.append(
+                                        Combo(
+                                            scenario=sc,
+                                            strategy=strategy,
+                                            ema_fast=int(f),
+                                            ema_slow=int(s),
+                                            rsi_len=int(r),
+                                            atr_len=int(a),
+                                            t_sep_atr=float(t),
+                                            pullback_atr=float(pb),
+                                            entry_mode=None,
+                                            entry_buffer_atr=None,
+                                            rr=None,
+                                            ttl_bars=None,
+                                            trailing_atr=None,
+                                            csv=args.csv,
+                                            symbol=args.symbol,
+                                            h1_policy=args.h1_policy,
+                                            time_model=args.time_model,
+                                            q_low=float(args.q_low),
+                                            q_high=float(args.q_high),
+                                        )
                                     )
-                                )
     return combos
 
 
@@ -228,6 +286,11 @@ def main() -> int:
     ap.add_argument("--atr-len", default="14")
     ap.add_argument("--t-sep-atr", default="0.2,0.5")
     ap.add_argument("--pullback-atr", default="0.5,1.0")
+    ap.add_argument("--entry-modes", default="breakout,close")
+    ap.add_argument("--entry-buffer-atr", default="0.0")
+    ap.add_argument("--rr", default="2.0")
+    ap.add_argument("--ttl-bars", default=None, help="CSV list or single TTL bars for setups")
+    ap.add_argument("--trailing-atr", default="0.0")
 
     # time-only model
     ap.add_argument("--time-model", default=None, help="Ścieżka do modelu czasu (opcjonalnie)")
@@ -353,6 +416,7 @@ def main() -> int:
 
     # Print a quick top 5 summary
     try:
+
         def _key(row: Dict[str, Any]):
             try:
                 e_val = float(row.get("equity_end") or float("nan"))
